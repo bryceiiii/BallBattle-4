@@ -1,0 +1,101 @@
+# ======================================
+# 全局系统文件（所有项目通用）
+# ======================================
+.DS_Store
+Thumbs.db
+*.tmp
+*.bak
+*.swp
+*~
+
+# ======================================
+# Unity 客户端项目 (Client-unity/)
+# ======================================
+# Unity 核心缓存文件夹（必忽略，体积巨大，提交会导致仓库爆炸）
+Client-unity/Library/
+Client-unity/Temp/
+Client-unity/Obj/
+Client-unity/Logs/
+Client-unity/Build/
+Client-unity/Builds/
+Client-unity/UserSettings/
+
+# Unity 资源与插件临时文件
+Client-unity/Assets/StreamingAssets/AssetBundles/
+Client-unity/Assets/StreamingAssets/Addressables/
+Client-unity/Assets/Plugins/Android/*.aar
+Client-unity/Assets/Plugins/Android/*.jar
+Client-unity/Assets/Plugins/iOS/*.framework
+Client-unity/Assets/Plugins/iOS/*.a
+
+# Unity 生成的VS项目文件（避免多人协作冲突）
+Client-unity/*.csproj
+Client-unity/*.sln
+Client-unity/*.unityproj
+Client-unity/*.booproj
+Client-unity/*.csproj.user
+
+# Unity 日志与临时文件
+Client-unity/*.log
+Client-unity/*.tmp
+Client-unity/*.bak
+
+# ======================================
+# .NET/C# 服务器项目 (server-csharp/)
+# ======================================
+# .NET 编译输出文件夹（必忽略，每次编译都会生成）
+server-csharp/bin/
+server-csharp/obj/
+
+# .NET 用户配置与缓存文件
+server-csharp/*.user
+server-csharp/*.suo
+server-csharp/*.log
+server-csharp/*.tmp
+server-csharp/*.bak
+
+# SpaceTimeDB 数据库临时文件（解决你之前的Permission denied报错）
+server-csharp/*.db
+server-csharp/*.db-shm
+server-csharp/*.db-wal
+server-csharp/*.db-journal
+server-csharp/Logs/
+server-csharp/Temp/
+
+# ======================================
+# 全局 IDE 与缓存（两个项目通用）
+# ======================================
+# Visual Studio 缓存文件（彻底解决.vs文件夹的权限报错）
+.vs/
+*.vsidx
+*.vspscc
+*.vssscc
+*.db
+*.db-shm
+*.db-wal
+*.suo
+*.user
+*.cache
+
+# VS Code 配置文件（保留必要配置，避免误删）
+.vscode/
+!.vscode/settings.json
+!.vscode/tasks.json
+!.vscode/launch.json
+
+# Rider 配置文件
+.idea/
+*.iml
+*.iws
+*.ipr
+
+# ======================================
+# 其他通用忽略
+# ======================================
+# 压缩包、安装包等大文件
+*.zip
+*.rar
+*.7z
+*.exe
+*.msi
+*.iso
