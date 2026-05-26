@@ -1,47 +1,83 @@
-using System.Collections;
-using System.Collections.Generic;
-using UnityEngine;
+ï»¿using UnityEngine;
 using SpacetimeDB;
 using SpacetimeDB.Types;
 using System;
+using UnityEngine.UI;
+using UnityEditor.MemoryProfiler;
 
 public class GameManager : MonoBehaviour
 {
-    const string ModuleName = "ballbattle4";
-    const string ServerUri = "http://127.0.0.1:3000";
-    public static DbConnection Conn{ get; private set; }
-    // Start is called before the first frame update
+    public InputField InputField;
+    public GameObject canvasGo;
+    public enum Environment
+    {
+        Local,
+        Cloud
+    }
+
+    [Header("æœåŠ¡å™¨é…ç½®")]
+    [Tooltip("é€‰æ‹©è¦è¿æ¥çš„æœåŠ¡å™¨ç¯å¢ƒ")]
+    public Environment serverEnvironment = Environment.Local;
+
+    // æœ¬åœ°æœåŠ¡å™¨å›ºå®šåœ°å€ï¼ˆä½¿ç”¨ HTTP åè®®ï¼ŒSDKä¼šå†…éƒ¨è‡ªåŠ¨è½¬ WSï¼‰
+    const string LocalUri = "http://127.0.0.1:3000";
+
+    // âœ… æ¢å¤ä¸º SpacetimeDB å®˜æ–¹å”¯ä¸€åˆæ³•çš„æµ‹è¯•ç½‘å…¥å£
+    // åƒä¸‡ä¸è¦ç”¨è‡ªå·±æ‹¼æ¥çš„æé•¿å¸¦ Hash çš„ wss åŸŸåï¼Œç³»ç»Ÿçš„ DNS è§£ææ ¹æœ¬ä¸è®¤è¯†å®ƒï¼
+    const string CloudUri = "wss://maincloud.spacetimedb.com";
+
+    public static DbConnection Conn { get; private set; }
+
     void Start()
     {
-        // ±ØĞëÏÈ³õÊ¼»¯ AuthToken£¬²ÅÄÜ°²È«µØ·ÃÎÊ AuthToken.Token
         AuthToken.Init();
 
+        // åŠ¨æ€é€‰æ‹©æ¨¡å—åï¼šæœ¬åœ°ç”¨ballbattle4ï¼Œäº‘ç«¯ç”¨ballbattle4v2
+        string moduleName = serverEnvironment == Environment.Cloud ? "ballbattle4v2" : "ballbattle4";
+
+        string activeUri = serverEnvironment == Environment.Cloud ? CloudUri : LocalUri;
+        Debug.Log($"[SpacetimeDB] æ­£åœ¨è¿æ¥åˆ° {serverEnvironment} æœåŠ¡å™¨: {activeUri} æ¨¡å—: {moduleName}");
+
         DbConnectionBuilder<DbConnection> builder = DbConnection.Builder();
-        builder.WithUri(ServerUri);
-        builder.WithModuleName(ModuleName);
+        builder.WithUri(activeUri);
+        
+        // ä¿®å¤ï¼šç”±äºä½ æ›´æ–°äº† CLI å’Œè‡ªåŠ¨ç”Ÿæˆçš„åŒ…ä»£ç ï¼Œæ–¹æ³•åå˜å›æˆ–è€…è¢«é‡å‘½åä¸ºå…¶ä»–å½¢å¼ã€‚
+        // æ ¹æ®ä½ æœ€æ–°ç”Ÿæˆçš„ SpacetimeDBClient.g.cs çš„ç¯å¢ƒåŸºç¡€è¦æ±‚ï¼Œç›´æ¥ä½¿ç”¨ WithModuleNameï¼Œè¿™æ˜¯ 2.2 ç‰ˆæœ¬ä»¥åŠå¾ˆå¤šç‰ˆæœ¬çš„å‘åå…¼å®¹æ¥å£ã€‚
+        builder.WithDatabaseName(moduleName);
 
         builder.OnConnect(HandleConnect);
-        // Èç¹ûÖ®Ç°ÒÑ¾­Á¬½Ó¹ı·şÎñÆ÷²¢ÇÒ±£´æÁËÈÏÖ¤ÁîÅÆ£¬ÄÇÃ´ÔÚÖØĞÂÁ¬½ÓÊ±¿ÉÒÔÖ±½ÓÊ¹ÓÃÕâ¸öÁîÅÆ½øĞĞÈÏÖ¤£¬ÎŞĞèÔÙ´ÎÊäÈëÓÃ»§ÃûºÍÃÜÂë
-        if (AuthToken.Token != "")
-        {
-            builder.WithToken(AuthToken.Token);
-        }
-        Conn = builder.Build();
+        builder.OnConnectError(HandleConnectError);
 
+        // å·²æ³¨é‡Šæœ¬åœ°Tokenå¤ç”¨ï¼Œé¿å…æœ¬åœ°Tokenè¿äº‘ç«¯è¢«401æ‹’ç»
+
+        Conn = builder.Build();
+    }
+
+    private void HandleConnectError(Exception error)
+    {
+        Debug.LogError($"<color=red>âŒ è¿æ¥ SpacetimeDB æœåŠ¡å™¨å¤±è´¥ï¼š{error.Message}</color>");
     }
 
     private void HandleConnect(DbConnection conn, Identity identity, string token)
     {
-        // Á¬½Ó³É¹¦ºó»áµÃµ½Ò»¸öÉí·İ±êÊ¶£¨Identity£©ºÍÒ»¸öÈÏÖ¤ÁîÅÆ£¨AuthToken£©¶¼ÊÇ¶ÀÒ»ÎŞ¶şµÄÉí·İÈÏÖ¤µÄ×Ö·û´®£¬¿ÉÒÔ½«ËüÃÇ±£´æÆğÀ´ÒÔ±ãºóĞøÊ¹ÓÃ
+        Debug.Log("<color=green>âœ… æˆåŠŸè¿æ¥ SpacetimeDB æœåŠ¡å™¨ï¼</color>");
         AuthToken.SaveToken(token);
         print(token);
         print(identity);
     }
+    public void OnButtonEnterGameClick()
+    {
+        canvasGo.SetActive(false);
+        Conn.Reducers.EnterGame(InputField.text);
+    }
 
-    // Update is called once per frame
     void Update()
     {
-        // ±ØĞëÔÚÃ¿Ö¡Çı¶¯ÍøÂçÏûÏ¢£¬·ñÔòÈÎºÎ»Øµ÷£¨°üº¬ OnConnect£©¶¼²»»á±»´¥·¢
         Conn?.FrameTick();
+    }
+
+    private void OnDestroy()
+    {
+        Conn?.Disconnect();
     }
 }

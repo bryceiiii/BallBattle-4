@@ -34,9 +34,10 @@ public class SpacetimeDBNetworkManager : MonoBehaviour
         // 🚨 使用新版 DbConnectionBuilder 来建立连接与事件回调
         DbConnectionBuilder<DbConnection> builder = DbConnection.Builder();
         builder.WithUri(host);
-        builder.WithModuleName(moduleName);
-        
-        // 当连接成功时触发，抛弃多余的参数签名直接使用无参形式捕获
+
+        // 修复：使用 WithDatabaseName 替代不存在的 WithModuleNameOrAddress
+        builder.WithDatabaseName(moduleName);
+
         builder.OnConnect(delegate
         {
             Debug.Log("<color=green>✅ 成功连接 SpacetimeDB 服务器！</color>");
@@ -49,7 +50,7 @@ public class SpacetimeDBNetworkManager : MonoBehaviour
             Debug.LogError($"❌ 连接失败：{error}");
         });
 
-        // 生成 Db 对象并在 Build 阶段直接启动连接（新版没有单独的 .Connect() 方法）
+        // 生成 Db 对象并在 Build 阶段直接启动连接
         Db = builder.Build();
     }
 
