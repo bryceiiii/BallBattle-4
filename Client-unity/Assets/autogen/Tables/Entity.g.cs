@@ -40,13 +40,13 @@ namespace SpacetimeDB.Types
     public sealed class EntityCols
     {
         public global::SpacetimeDB.Col<Entity, int> Id { get; }
-        public global::SpacetimeDB.Col<Entity, int> Mass { get; }
+        public global::SpacetimeDB.Col<Entity, float> Mass { get; }
         public global::SpacetimeDB.Col<Entity, DbVector2> Position { get; }
 
         public EntityCols(string tableName)
         {
             Id = new global::SpacetimeDB.Col<Entity, int>(tableName, "id");
-            Mass = new global::SpacetimeDB.Col<Entity, int>(tableName, "mass");
+            Mass = new global::SpacetimeDB.Col<Entity, float>(tableName, "mass");
             Position = new global::SpacetimeDB.Col<Entity, DbVector2>(tableName, "position");
         }
     }

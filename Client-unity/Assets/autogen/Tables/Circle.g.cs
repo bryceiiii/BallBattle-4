@@ -26,9 +26,19 @@ namespace SpacetimeDB.Types
 
             public readonly EntityIdUniqueIndex EntityId;
 
+            public sealed class PlayerIdIndex : BTreeIndexBase<int>
+            {
+                protected override int GetKey(Circle row) => row.PlayerId;
+
+                public PlayerIdIndex(CircleHandle table) : base(table) { }
+            }
+
+            public readonly PlayerIdIndex PlayerId;
+
             internal CircleHandle(DbConnection conn) : base(conn)
             {
                 EntityId = new(this);
+                PlayerId = new(this);
             }
 
             protected override object GetPrimaryKey(Circle row) => row.EntityId;
@@ -52,10 +62,12 @@ namespace SpacetimeDB.Types
     public sealed class CircleIxCols
     {
         public global::SpacetimeDB.IxCol<Circle, int> EntityId { get; }
+        public global::SpacetimeDB.IxCol<Circle, int> PlayerId { get; }
 
         public CircleIxCols(string tableName)
         {
             EntityId = new global::SpacetimeDB.IxCol<Circle, int>(tableName, "entity_id");
+            PlayerId = new global::SpacetimeDB.IxCol<Circle, int>(tableName, "player_id");
         }
     }
 }

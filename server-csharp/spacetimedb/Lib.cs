@@ -5,7 +5,11 @@ using System.Diagnostics.Contracts;
 public static partial class Module
 {
     private static int WORLD_SIZE = 50;
-    private static int PRIMARY_PLAYER_MASS = 5;
+    // 将质量相关的常量改为 float 类型
+    private static float PRIMARY_PLAYER_MASS = 5.0f;
+    private static int TARGET_FOOD_COUNT = 200;
+    private static float FOOD_MASS = 2.0f;
+    
     [Table(Name ="test_table",Public = true)]
     public partial struct TestTable
     {
@@ -13,12 +17,13 @@ public static partial class Module
         public int id;
         public string name;
     }
+    
     [Table(Name = "entity", Public = true)]
     public partial struct Entity
     {
         [PrimaryKey, AutoInc]
         public int id;
-        public int mass;
+        public float mass;      // 已经为 float
         public DbVector2 position;
     }
     [Type]
@@ -163,7 +168,27 @@ public static partial class Module
     [Reducer]
     public static void SpawnFood(ReducerContext context,SpawnFoodTimer timer)
     {
-        //Log.Info("生成食物");
+        int foodCount = (int)context.Db.food.Count;
+        if (foodCount < TARGET_FOOD_COUNT)
+        {
+            var x = context.Rng.Next(1, WORLD_SIZE - 1);
+            var y = context.Rng.Next(1, WORLD_SIZE - 1);
+            // 生成 1.0f 到 2.0f 之间的浮点数
+            float randomFloat = (float)context.Rng.NextDouble(); // 0.0 到 1.0 之间
+            float foodCurrentMass = 1.0f + randomFloat;
+
+            var entity = context.Db.entity.Insert(new Entity
+            {
+                mass = foodCurrentMass,
+                position = new DbVector2(x, y)
+            });
+            context.Db.food.Insert(new Food
+            {
+                entity_id = entity.id
+            });
+           
+            foodCount++;
+        }
     }
     // 定时器表，记录何时需要生成食物
     [Table(Name = "spawn_food_timer", Scheduled = nameof(SpawnFood),ScheduledAt = nameof(schedule_at))]
