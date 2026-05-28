@@ -138,6 +138,7 @@ GameObject:
   - component: {fileID: 156150818}
   - component: {fileID: 156150817}
   - component: {fileID: 156150816}
+  - component: {fileID: 156150819}
   m_Layer: 0
   m_Name: Main Camera
   m_TagString: MainCamera
@@ -219,6 +220,18 @@ Transform:
   m_Children: []
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!114 &156150819
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 156150815}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: fd6c88589c42df649a888bf58f601b60, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
 --- !u!1 &212756026
 GameObject:
   m_ObjectHideFlags: 0
@@ -1437,7 +1450,7 @@ MonoBehaviour:
     m_BestFit: 0
     m_MinSize: 1
     m_MaxSize: 77
-    m_Alignment: 0
+    m_Alignment: 1
     m_AlignByGeometry: 0
     m_RichText: 0
     m_HorizontalOverflow: 1
@@ -1526,6 +1539,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   foodPrefab: {fileID: 37038762}
+  circlePrefab: {fileID: 1521401735835601956, guid: be89c476c70a5a84faaa077441d78561, type: 3}
   visualScale: 1
 --- !u!1 &1942799348
 GameObject:
@@ -1704,6 +1718,10 @@ PrefabInstance:
       propertyPath: m_Name
       value: Circle
       objectReference: {fileID: 0}
+    - target: {fileID: 1521401735835601956, guid: be89c476c70a5a84faaa077441d78561, type: 3}
+      propertyPath: m_IsActive
+      value: 1
+      objectReference: {fileID: 0}
     - target: {fileID: 3994249025519529434, guid: be89c476c70a5a84faaa077441d78561, type: 3}
       propertyPath: m_LocalPosition.x
       value: 19.02
@@ -1760,6 +1778,10 @@ PrefabInstance:
     - target: {fileID: 1156984127363018566, guid: fc29aaa7eec02394081a7857388ad9b1, type: 3}
       propertyPath: m_Name
       value: Food
+      objectReference: {fileID: 0}
+    - target: {fileID: 1156984127363018566, guid: fc29aaa7eec02394081a7857388ad9b1, type: 3}
+      propertyPath: m_IsActive
+      value: 1
       objectReference: {fileID: 0}
     - target: {fileID: 3157573816551883604, guid: fc29aaa7eec02394081a7857388ad9b1, type: 3}
       propertyPath: m_LocalPosition.x

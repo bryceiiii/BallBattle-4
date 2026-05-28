@@ -630,6 +630,7 @@ namespace SpacetimeDB.Types
             {
                 Reducer.EnterGame args => Reducers.InvokeEnterGame(eventContext, args),
                 Reducer.Reducer1 args => Reducers.InvokeReducer1(eventContext, args),
+                Reducer.UpdatePlayerDir args => Reducers.InvokeUpdatePlayerDir(eventContext, args),
                 _ => throw new ArgumentOutOfRangeException("Reducer", $"Unknown reducer {reducer}")
             };
         }

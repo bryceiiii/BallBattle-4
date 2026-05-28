@@ -56,6 +56,9 @@ public class SpacetimeDBNetworkManager : MonoBehaviour
         Db = builder.Build();
     }
 
+    // 增加一个静态委托，当连接成功、Db 初始化完成后通知 GameManager 等脚本
+    public static event Action OnConnected;
+
     private void HandleConnectError(Exception error)
     {
         Debug.LogError($"<color=red>❌ 连接 SpacetimeDB 服务器失败：{error.Message}</color>");
@@ -69,6 +72,9 @@ public class SpacetimeDBNetworkManager : MonoBehaviour
         print(identity);
 
         conn.SubscriptionBuilder().SubscribeToAllTables();// 连接成功后订阅所有表，确保数据能够同步到客户端
+        
+        // 触发连接成功事件，让依赖网络的对象 (如 GameManager) 开始订阅
+        OnConnected?.Invoke();
     }
 
     private void Update()

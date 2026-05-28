@@ -52,12 +52,14 @@ namespace SpacetimeDB.Types
         public global::SpacetimeDB.Col<Player, SpacetimeDB.Identity> Identity { get; }
         public global::SpacetimeDB.Col<Player, int> PlayerId { get; }
         public global::SpacetimeDB.Col<Player, string> Name { get; }
+        public global::SpacetimeDB.Col<Player, DbVector2> Dir { get; }
 
         public LoggedInPlayerCols(string tableName)
         {
             Identity = new global::SpacetimeDB.Col<Player, SpacetimeDB.Identity>(tableName, "Identity");
             PlayerId = new global::SpacetimeDB.Col<Player, int>(tableName, "player_id");
             Name = new global::SpacetimeDB.Col<Player, string>(tableName, "name");
+            Dir = new global::SpacetimeDB.Col<Player, DbVector2>(tableName, "dir");
         }
     }
 

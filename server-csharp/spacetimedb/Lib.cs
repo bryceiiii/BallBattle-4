@@ -1,5 +1,6 @@
 using SpacetimeDB;
 using SpacetimeDB.Internal.TableHandles;
+using System;
 using System.Diagnostics.Contracts;
 
 public static partial class Module
@@ -9,7 +10,8 @@ public static partial class Module
     private static float PRIMARY_PLAYER_MASS = 5.0f;
     private static int TARGET_FOOD_COUNT = 200;
     private static float FOOD_MASS = 2.0f;
-    
+    private static int START_PLAYER_SPEED = 5;
+
     [Table(Name ="test_table",Public = true)]
     public partial struct TestTable
     {
@@ -60,8 +62,15 @@ public static partial class Module
         [AutoInc,Unique]
         public int player_id;//控制多少个球
         public string name;
+        public DbVector2 dir;
     }
-
+    [Reducer]
+    public static void UpdatePlayerDir(ReducerContext context, DbVector2 dir)
+    {
+        var player = context.Db.logged_in_player.Identity.Find(context.Sender)??throw new Exception("未找到对应的玩家");
+        player.dir = dir;
+        context.Db.logged_in_player.Identity.Update(player);
+    }
 
     [Reducer]
     public static void Reducer1(ReducerContext context)
@@ -109,6 +118,10 @@ public static partial class Module
         context.Db.spawn_food_timer.Insert(new SpawnFoodTimer
         {
             schedule_at = new ScheduleAt.Interval(TimeSpan.FromMilliseconds(1000))
+        });
+        context.Db.move_all_player.Insert(new MoveAllPlayerTimer
+            {
+                schedule_at = new ScheduleAt.Interval(TimeSpan.FromMilliseconds(50))//1秒钟调用20次
         });
     }
 
@@ -186,10 +199,138 @@ public static partial class Module
             {
                 entity_id = entity.id
             });
-           
             foodCount++;
         }
     }
+    [Reducer]
+    public static void MoveAllPlayer(ReducerContext context, MoveAllPlayerTimer timer)
+    {
+        // 第一阶段：移动所有玩家球
+        foreach(var circle in context.Db.circle.Iter())
+        {
+            var entityNullable = context.Db.entity.id.Find(circle.entity_id);
+            if (entityNullable == null) continue; // 安全检查
+
+            var playerNullable = context.Db.logged_in_player.player_id.Find(circle.player_id);
+            if (playerNullable == null) continue;
+
+            // 提取结构体进行修改
+            var entity = entityNullable.Value;
+            var player = playerNullable.Value;
+
+            entity.position.x += player.dir.x * 0.05f * START_PLAYER_SPEED;
+            entity.position.y += player.dir.y * 0.05f * START_PLAYER_SPEED;
+            
+            context.Db.entity.id.Update(entity);
+        }
+
+        // 第二阶段：检测吞噬并收集要删除的 ID 以及要增加的质量
+        var massGains = new System.Collections.Generic.Dictionary<int, float>();
+        var entitiesToDelete = new System.Collections.Generic.HashSet<int>();
+
+        // 重新遍历所有的 玩家球(circle) 去检测覆盖
+        foreach(var circleA in context.Db.circle.Iter())
+        {
+            var entityANullable = context.Db.entity.id.Find(circleA.entity_id);
+            if (entityANullable == null || entitiesToDelete.Contains(circleA.entity_id)) continue;
+            
+            var entityA = entityANullable.Value;
+
+            foreach(var entityB in context.Db.entity.Iter())
+            {
+                if (entityA.id == entityB.id) continue;
+                if (entitiesToDelete.Contains(entityB.id)) continue; 
+
+                // 防止同一个人自己的球之间互相吃（如果有分裂功能的话）
+                var circleBNullable = context.Db.circle.entity_id.Find(entityB.id);
+                if (circleBNullable != null && circleBNullable.Value.player_id == circleA.player_id) continue; 
+
+                // A是玩家球，判断是否重叠覆盖B
+                if (IsOverLapping(entityA, entityB))
+                {
+                    bool isFood = context.Db.food.entity_id.Find(entityB.id) != null;
+                    bool isOtherPlayer = circleBNullable != null;
+
+                    if (isFood || (isOtherPlayer && entityA.mass > entityB.mass))
+                    {
+                        // 标记 B 被吃掉
+                        entitiesToDelete.Add(entityB.id);
+
+                        // 记录A应该增加的质量
+                        if (!massGains.ContainsKey(entityA.id))
+                            massGains[entityA.id] = 0;
+                        
+                        massGains[entityA.id] += entityB.mass;
+                    }
+                }
+            }
+        }
+
+        // 第三阶段：统一处理数据的 更新 和 删除
+        // 增重
+        foreach(var kvp in massGains)
+        {
+            var entityToGainNullable = context.Db.entity.id.Find(kvp.Key);
+            if (entityToGainNullable != null)
+            {
+                var entityToGain = entityToGainNullable.Value;
+                entityToGain.mass += kvp.Value;
+                context.Db.entity.id.Update(entityToGain);
+            }
+        }
+
+        // 删除被吃掉的实体
+        foreach(var deadId in entitiesToDelete)
+        {
+            // 如果它是食物，删食物表
+            if (context.Db.food.entity_id.Find(deadId) != null)
+            {
+                context.Db.food.entity_id.Delete(deadId);
+            }
+            // 如果它是玩家，删圆圈表
+            if (context.Db.circle.entity_id.Find(deadId) != null)
+            {
+                context.Db.circle.entity_id.Delete(deadId);
+            }
+            // 从基础实体表删除
+            context.Db.entity.id.Delete(deadId);
+        }
+    }
+    public static bool IsOverLapping(Entity entityA, Entity entityB)
+    {
+        // 计算 X 和 Y 的差值
+        float dx = entityA.position.x - entityB.position.x;
+        float dy = entityA.position.y - entityB.position.y;
+        
+        // 计算圆心之间的距离平方
+        float distanceSquared = dx * dx + dy * dy;
+
+        // 根据公式：直径 = MathF.Sqrt(mass) / 2f
+        // 因此半径 = MathF.Sqrt(mass) / 4f
+        // 这里以 entityA (试图吃掉对方的球) 的半径为判定范围
+        float radiusA = MathF.Sqrt(entityA.mass) / 4f;
+        
+        // 半径的平方
+        float radiusASquared = radiusA * radiusA;
+
+        // 如果中心距离的平方小于（或者等于）A半径的平方，说明 B 的中心进入了 A 的内部
+        return distanceSquared <= radiusASquared;
+    }
+    public static float MassToDiameter(float mass)
+    {
+        // 我们在原有公式的基础上，乘以一个可配置的视觉缩放系数
+        return (MathF.Sqrt(mass) / 2f) ;
+    }
+
+    [Table(Name = "move_all_player", Scheduled = nameof(MoveAllPlayer), ScheduledAt = nameof(schedule_at))]
+    public partial struct MoveAllPlayerTimer
+    {
+        [PrimaryKey, AutoInc]
+        public ulong scheduled_id;
+        public ScheduleAt schedule_at;
+    }
+
+
     // 定时器表，记录何时需要生成食物
     [Table(Name = "spawn_food_timer", Scheduled = nameof(SpawnFood),ScheduledAt = nameof(schedule_at))]
     public partial struct SpawnFoodTimer

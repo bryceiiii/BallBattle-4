@@ -19,21 +19,26 @@ namespace SpacetimeDB.Types
         public int PlayerId;
         [DataMember(Name = "name")]
         public string Name;
+        [DataMember(Name = "dir")]
+        public DbVector2 Dir;
 
         public Player(
             SpacetimeDB.Identity Identity,
             int PlayerId,
-            string Name
+            string Name,
+            DbVector2 Dir
         )
         {
             this.Identity = Identity;
             this.PlayerId = PlayerId;
             this.Name = Name;
+            this.Dir = Dir;
         }
 
         public Player()
         {
             this.Name = "";
+            this.Dir = new();
         }
     }
 }
