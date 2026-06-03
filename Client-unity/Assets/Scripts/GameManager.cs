@@ -49,7 +49,8 @@ public class GameManager : MonoBehaviour
 
         Conn.Db.Circle.OnInsert += OnCircleInserted;
         Conn.Db.Circle.OnDelete += OnCircleDeleted;
-        
+        Conn.Db.Circle.OnUpdate += OnCircleUpdated;
+
         Debug.Log("✅ GameManager 成功订阅所有表事件。");
     }
 
@@ -66,6 +67,18 @@ public class GameManager : MonoBehaviour
         {
             Debug.Log($"[Circle 表更新]!玩家Circle 被删除！EntityId: {row.EntityId}");
             GameObject.Destroy(go);
+        }
+    }
+    private void OnCircleUpdated(EventContext ctx, Circle oldC, Circle newC)
+    {
+        if (Circles.TryGetValue(newC.EntityId, out var go))
+        {
+            var ctrl = go.GetComponent<CircleController>();
+            var mainTrans = FindLocalMainBall();
+            if (newC.IsMerging && mainTrans != null)
+            {
+                ctrl.StartMergeAnim(mainTrans);
+            }
         }
     }
 
@@ -139,5 +152,16 @@ public class GameManager : MonoBehaviour
             Conn.Db.Circle.OnInsert -= OnCircleInserted;
             Conn.Db.Circle.OnDelete -= OnCircleDeleted;
         }
+    }
+    //查找玩家主球
+    private Transform FindLocalMainBall()
+    {
+        foreach (var kv in Circles)
+        {
+            var ctr = kv.Value.GetComponent<CircleController>();
+            if (ctr.isLocalPlayer)
+                return kv.Value.transform;
+        }
+        return null;
     }
 }

@@ -13,7 +13,7 @@ public static partial class Module
     private static int START_PLAYER_SPEED = 13;
     private static float MIN_SPLIT_MASS = 10.0f; // 允许分裂的最小质量
     //合并配置
-    private static int MERGE_CHECK_INTERVAL = 100;
+    private static int MERGE_CHECK_INTERVAL = 1500;
     private static float BASE_MERGE_SEC = 2.0f;    //基础贴合等待2秒
     private static float SQRT_DELAY_COEFF = 0.8f;// 平方根系数
     [Table(Name ="test_table",Public = true)]
@@ -58,6 +58,8 @@ public static partial class Module
         public int player_id;
         // 新增：贴合开始时间，0=未贴合
         public double touchStartMs;
+        // true=进入合并动画阶段，等待客户端动画完成再删
+        public bool isMerging; 
     }
     [Table(Name = "logged_in_player", Public = true)]
     [Table(Name = "logged_out_player", Public = true)]
@@ -115,7 +117,8 @@ public static partial class Module
         {
             entity_id = entity.id,//entity_id与Entity表的id相同,玩家球数据
             player_id = player.player_id,
-            touchStartMs = 0
+            touchStartMs = 0,
+            isMerging = false
         });
 
     }
@@ -490,7 +493,8 @@ public static partial class Module
                 {
                     entity_id = newEntity.id,
                     player_id = player.player_id,
-                    touchStartMs = 0
+                    touchStartMs = 0,
+                    isMerging = false
                 });
             }
         }
@@ -571,8 +575,16 @@ public static partial class Module
                 if (passMs >= needMs)
                 {
                     total += subE.mass;
-                    context.Db.circle.entity_id.Delete(subC.entity_id);
-                    context.Db.entity.id.Delete(subE.id);
+                    Circle markCircle = subC;
+                    markCircle.isMerging = true;
+                    context.Db.circle.entity_id.Update(markCircle);
+                }
+                //本轮结束后，统一删除所有标记isMerging的球
+                var cir = list[i];
+                if (cir.isMerging)
+                {
+                    context.Db.circle.entity_id.Delete(cir.entity_id);
+                    context.Db.entity.id.Delete(cir.entity_id);
                 }
             }
             mainE.mass = total;

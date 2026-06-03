@@ -52,12 +52,14 @@ namespace SpacetimeDB.Types
         public global::SpacetimeDB.Col<Circle, int> EntityId { get; }
         public global::SpacetimeDB.Col<Circle, int> PlayerId { get; }
         public global::SpacetimeDB.Col<Circle, double> TouchStartMs { get; }
+        public global::SpacetimeDB.Col<Circle, bool> IsMerging { get; }
 
         public CircleCols(string tableName)
         {
             EntityId = new global::SpacetimeDB.Col<Circle, int>(tableName, "entity_id");
             PlayerId = new global::SpacetimeDB.Col<Circle, int>(tableName, "player_id");
             TouchStartMs = new global::SpacetimeDB.Col<Circle, double>(tableName, "touchStartMs");
+            IsMerging = new global::SpacetimeDB.Col<Circle, bool>(tableName, "isMerging");
         }
     }
 

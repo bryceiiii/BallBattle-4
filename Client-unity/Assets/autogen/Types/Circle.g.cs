@@ -19,16 +19,20 @@ namespace SpacetimeDB.Types
         public int PlayerId;
         [DataMember(Name = "touchStartMs")]
         public double TouchStartMs;
+        [DataMember(Name = "isMerging")]
+        public bool IsMerging;
 
         public Circle(
             int EntityId,
             int PlayerId,
-            double TouchStartMs
+            double TouchStartMs,
+            bool IsMerging
         )
         {
             this.EntityId = EntityId;
             this.PlayerId = PlayerId;
             this.TouchStartMs = TouchStartMs;
+            this.IsMerging = IsMerging;
         }
 
         public Circle()
