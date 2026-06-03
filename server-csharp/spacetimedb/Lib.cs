@@ -10,7 +10,7 @@ public static partial class Module
     private static float PRIMARY_PLAYER_MASS = 5.0f;
     private static int TARGET_FOOD_COUNT = 200;
     private static float FOOD_MASS = 2.0f;
-    private static int START_PLAYER_SPEED = 5;
+    private static int START_PLAYER_SPEED = 13;
     private static float MIN_SPLIT_MASS = 10.0f; // 允许分裂的最小质量
 
     [Table(Name ="test_table",Public = true)]
@@ -219,9 +219,12 @@ public static partial class Module
             var entity = entityNullable.Value;
             var player = playerNullable.Value;
 
-            entity.position.x += player.dir.x * 0.05f * START_PLAYER_SPEED;
-            entity.position.y += player.dir.y * 0.05f * START_PLAYER_SPEED;
-            
+            // 质量减速系数
+            float speedScale = 1f / (entity.mass * 0.06f + 1f);
+            float moveStep = 0.05f * START_PLAYER_SPEED * speedScale;
+            entity.position.x += player.dir.x * moveStep;
+            entity.position.y += player.dir.y * moveStep;
+
             context.Db.entity.id.Update(entity);
         }
 
@@ -263,6 +266,57 @@ public static partial class Module
                         
                         massGains[entityA.id] += entityB.mass;
                     }
+                }
+            }
+            //=====新增：静止自动向中心聚拢【从这里开始复制】=====
+            //按玩家分组缓存所有球体
+            Dictionary<int, List<(Entity entity, int eid)>> playerBalls = new Dictionary<int, List<(Entity, int)>>();
+            foreach (var cir in context.Db.circle.Iter())
+            {
+                var ent = context.Db.entity.id.Find(cir.entity_id);
+                if (ent == null) continue;
+                if (!playerBalls.ContainsKey(cir.player_id))
+                    playerBalls[cir.player_id] = new List<(Entity, int)>();
+                playerBalls[cir.player_id].Add((ent.Value, cir.entity_id));
+            }
+
+            //遍历每个玩家做聚拢
+            foreach (var kv in playerBalls)
+            {
+                int pid = kv.Key;
+                var ballList = kv.Value;
+                if (ballList.Count <= 1) continue; //单个球不用聚拢
+
+                //获取玩家方向，判断是否静止
+                var p = context.Db.logged_in_player.player_id.Find(pid);
+                if (p == null) continue;
+                bool noInput = MathF.Abs(p.Value.dir.x) < 0.01f && MathF.Abs(p.Value.dir.y) < 0.01f;
+                if (!noInput) continue; //有移动输入，不聚拢
+
+                //计算群体中心点
+                float cenX = 0, cenY = 0;
+                foreach (var b in ballList)
+                {
+                    cenX += b.entity.position.x;
+                    cenY += b.entity.position.y;
+                }
+                cenX /= ballList.Count;
+                cenY /= ballList.Count;
+
+                //每个球向中心缓慢位移
+                foreach (var b in ballList)
+                {
+                    float dx = cenX - b.entity.position.x;
+                    float dy = cenY - b.entity.position.y;
+
+                    //聚拢系数，固定小幅移动，复用质量减速
+                    float speedScale = 1f / (b.entity.mass * 0.05f + 1f);
+                    float pull = 0.018f * speedScale; //0.018=聚拢快慢，越大吸得越快
+
+                    Entity newEnt = b.entity;
+                    newEnt.position.x += dx * pull;
+                    newEnt.position.y += dy * pull;
+                    context.Db.entity.id.Update(newEnt);
                 }
             }
         }

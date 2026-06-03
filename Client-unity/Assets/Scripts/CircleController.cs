@@ -10,6 +10,11 @@ public class CircleController : MonoBehaviour
     public bool isLocalPlayer = false;
     private Vector3 targetPos = Vector3.zero;
     private float targetScale = 1f;
+    //新增缓存变量
+    private Vector3 posVelocity = Vector3.zero;
+    private float scaleVelocity = 0f;
+    public float posSmoothTime = 0.08f; //越小越快，0.06~0.1可调
+    public float scaleSmoothTime = 0.1f;
 
     void Start()
     {
@@ -39,15 +44,18 @@ public class CircleController : MonoBehaviour
 
     public void Update()
     {
+        //位置平滑阻尼
         if (targetPos != Vector3.zero)
         {
-            // 平滑移动到目标位置
-            transform.position = Vector3.Lerp(transform.position, targetPos, Time.deltaTime * 15);
+            transform.position = Vector3.SmoothDamp(transform.position, targetPos, ref posVelocity, posSmoothTime);
         }
+        //缩放平滑阻尼
         if (targetScale != 1f)
         {
-            // 平滑缩放
-            transform.localScale = Vector3.Lerp(transform.localScale, new Vector3(targetScale, targetScale, 1f), Time.deltaTime * 5f);
+            float curScale = transform.localScale.x;
+            float newS = Mathf.SmoothDamp(curScale, targetScale, ref scaleVelocity, scaleSmoothTime);
+            transform.localScale = new Vector3(newS, newS, 1f);
         }
     }
 }
+

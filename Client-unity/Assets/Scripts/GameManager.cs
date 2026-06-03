@@ -77,7 +77,8 @@ public class GameManager : MonoBehaviour
         Circles.Add(row.EntityId, circleGo);
         if(player.Identity == localIdentity)
         {
-            CameraContoller.Instance.SetFollowTarget(circleGo.transform);
+            // 使用 AddFollowTarget 替代之前的 SetFollowTarget，将分裂出的新球也加入相机的跟随列表
+            CameraContoller.Instance.AddFollowTarget(circleGo.transform);
             circleGo.GetComponent<CircleController>().isLocalPlayer = true;
         }
     }
