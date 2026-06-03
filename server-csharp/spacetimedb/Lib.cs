@@ -11,6 +11,7 @@ public static partial class Module
     private static int TARGET_FOOD_COUNT = 200;
     private static float FOOD_MASS = 2.0f;
     private static int START_PLAYER_SPEED = 5;
+    private static float MIN_SPLIT_MASS = 10.0f; // 允许分裂的最小质量
 
     [Table(Name ="test_table",Public = true)]
     public partial struct TestTable
@@ -33,7 +34,7 @@ public static partial class Module
     {
         public float x;
         public float y;
-        public DbVector2(int x, int y)
+        public DbVector2(float x, float y)
         {
             this.x = x;
             this.y = y;
@@ -338,5 +339,63 @@ public static partial class Module
         [PrimaryKey,AutoInc]
         public ulong scheduled_id;
         public ScheduleAt schedule_at;
+    }
+
+    [Reducer]
+    public static void SplitPlayer(ReducerContext context)
+    {
+        var player = context.Db.logged_in_player.Identity.Find(context.Sender) ?? throw new Exception("未找到对应玩家");
+
+        // 将能够查询到的当前玩家所有的 Circle 放进列表
+        var playerCircles = new System.Collections.Generic.List<Circle>();
+        foreach (var circle in context.Db.circle.player_id.Filter(player.player_id))
+        {
+            playerCircles.Add(circle);
+        }
+
+        foreach (var circle in playerCircles)
+        {
+            var entityNullable = context.Db.entity.id.Find(circle.entity_id);
+            if (entityNullable == null) continue;
+            var entity = entityNullable.Value;
+
+            // 只有质量大于指定阈值的球才能分裂
+            if (entity.mass >= MIN_SPLIT_MASS)
+            {
+                float halfMass = entity.mass / 2f;
+                
+                // 1. 将旧实体质量减半
+                entity.mass = halfMass;
+                context.Db.entity.id.Update(entity);
+
+                // 2. 根据玩家移动方向，计算新实体的生成偏移位置
+                float dirX = player.dir.x;
+                float dirY = player.dir.y;
+                
+                // 如果当前没有移动方向，默认向右分裂
+                if (dirX == 0 && dirY == 0) dirX = 1f;
+
+                // 归一化方向
+                float length = MathF.Sqrt(dirX * dirX + dirY * dirY);
+                dirX /= length;
+                dirY /= length;
+
+                // 新球在母球前方的边缘生成：通过质量推算半斤加上一定的间隙
+                float offset = MassToDiameter(halfMass) + 1.0f;
+
+                var newEntity = context.Db.entity.Insert(new Entity
+                {
+                    mass = halfMass,
+                    position = new DbVector2(entity.position.x + dirX * offset, entity.position.y + dirY * offset)
+                });
+
+                // 3. 将新实体与玩家绑定
+                context.Db.circle.Insert(new Circle
+                {
+                    entity_id = newEntity.id,
+                    player_id = player.player_id
+                });
+            }
+        }
     }
 }
