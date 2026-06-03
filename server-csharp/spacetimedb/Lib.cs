@@ -12,7 +12,10 @@ public static partial class Module
     private static float FOOD_MASS = 2.0f;
     private static int START_PLAYER_SPEED = 13;
     private static float MIN_SPLIT_MASS = 10.0f; // 允许分裂的最小质量
-
+    //合并配置
+    private static int MERGE_CHECK_INTERVAL = 100;
+    private static float BASE_MERGE_SEC = 2.0f;    //基础贴合等待2秒
+    private static float SQRT_DELAY_COEFF = 0.8f;// 平方根系数
     [Table(Name ="test_table",Public = true)]
     public partial struct TestTable
     {
@@ -53,6 +56,8 @@ public static partial class Module
         public int entity_id;
         [SpacetimeDB.Index.BTree]
         public int player_id;
+        // 新增：贴合开始时间，0=未贴合
+        public double touchStartMs;
     }
     [Table(Name = "logged_in_player", Public = true)]
     [Table(Name = "logged_out_player", Public = true)]
@@ -109,7 +114,8 @@ public static partial class Module
         context.Db.circle.Insert(new Circle
         {
             entity_id = entity.id,//entity_id与Entity表的id相同,玩家球数据
-            player_id = player.player_id
+            player_id = player.player_id,
+            touchStartMs = 0
         });
 
     }
@@ -121,8 +127,13 @@ public static partial class Module
             schedule_at = new ScheduleAt.Interval(TimeSpan.FromMilliseconds(1000))
         });
         context.Db.move_all_player.Insert(new MoveAllPlayerTimer
-            {
-                schedule_at = new ScheduleAt.Interval(TimeSpan.FromMilliseconds(50))//1秒钟调用20次
+        {
+            schedule_at = new ScheduleAt.Interval(TimeSpan.FromMilliseconds(50))//1秒钟调用20次
+        });
+        // 自动合并开关：注释下面一行 = 关闭全局自动合并
+        context.Db.merge_player_timer.Insert(new MergePlayerTimer
+        {
+            schedule_at = new ScheduleAt.Interval(TimeSpan.FromMilliseconds(MERGE_CHECK_INTERVAL))
         });
     }
 
@@ -268,8 +279,7 @@ public static partial class Module
                     }
                 }
             }
-            //=====新增：静止自动向中心聚拢【从这里开始复制】=====
-            //按玩家分组缓存所有球体
+            //=====新增：静止自动向中心聚拢（相切停移，无挤压）=====
             Dictionary<int, List<(Entity entity, int eid)>> playerBalls = new Dictionary<int, List<(Entity, int)>>();
             foreach (var cir in context.Db.circle.Iter())
             {
@@ -280,20 +290,18 @@ public static partial class Module
                 playerBalls[cir.player_id].Add((ent.Value, cir.entity_id));
             }
 
-            //遍历每个玩家做聚拢
             foreach (var kv in playerBalls)
             {
                 int pid = kv.Key;
                 var ballList = kv.Value;
-                if (ballList.Count <= 1) continue; //单个球不用聚拢
+                if (ballList.Count <= 1) continue;
 
-                //获取玩家方向，判断是否静止
                 var p = context.Db.logged_in_player.player_id.Find(pid);
                 if (p == null) continue;
                 bool noInput = MathF.Abs(p.Value.dir.x) < 0.01f && MathF.Abs(p.Value.dir.y) < 0.01f;
-                if (!noInput) continue; //有移动输入，不聚拢
+                if (!noInput) continue; //移动跳过聚拢
 
-                //计算群体中心点
+                //计算群体中心
                 float cenX = 0, cenY = 0;
                 foreach (var b in ballList)
                 {
@@ -303,20 +311,47 @@ public static partial class Module
                 cenX /= ballList.Count;
                 cenY /= ballList.Count;
 
-                //每个球向中心缓慢位移
-                foreach (var b in ballList)
+                //逐个球向中心移动
+                for (int i = 0; i < ballList.Count; i++)
                 {
-                    float dx = cenX - b.entity.position.x;
-                    float dy = cenY - b.entity.position.y;
+                    var item = ballList[i];
+                    Entity ent = item.entity;
+                    float speedScale = 1f / (ent.mass * 0.05f + 1f);
+                    float pull = 0.018f * speedScale;
 
-                    //聚拢系数，固定小幅移动，复用质量减速
-                    float speedScale = 1f / (b.entity.mass * 0.05f + 1f);
-                    float pull = 0.018f * speedScale; //0.018=聚拢快慢，越大吸得越快
+                    float dx = cenX - ent.position.x;
+                    float dy = cenY - ent.position.y;
 
-                    Entity newEnt = b.entity;
-                    newEnt.position.x += dx * pull;
-                    newEnt.position.y += dy * pull;
-                    context.Db.entity.id.Update(newEnt);
+                    //计算本球半径
+                    float r1 = MassToDiameter(ent.mass) / 2f;
+                    bool canMove = true;
+
+                    //遍历同玩家其他球，判断距离，贴边就禁止移动防挤压
+                    for (int j = 0; j < ballList.Count; j++)
+                    {
+                        if (i == j) continue;
+                        var other = ballList[j];
+                        float r2 = MassToDiameter(other.entity.mass) / 2f;
+                        float dX = ent.position.x - other.entity.position.x;
+                        float dY = ent.position.y - other.entity.position.y;
+                        float dist = MathF.Sqrt(dX * dX + dY * dY);
+                        float minDist = r1 + r2;
+
+                        //距离≤相切距离，停止靠拢
+                        if (dist <= minDist + 0.02f)
+                        {
+                            canMove = false;
+                            break;
+                        }
+                    }
+
+                    //没贴边才继续向中心移动
+                    if (canMove)
+                    {
+                        ent.position.x += dx * pull;
+                        ent.position.y += dy * pull;
+                        context.Db.entity.id.Update(ent);
+                    }
                 }
             }
         }
@@ -394,6 +429,13 @@ public static partial class Module
         public ulong scheduled_id;
         public ScheduleAt schedule_at;
     }
+    [Table(Name = "merge_player_timer", Scheduled = nameof(MergePlayerCheck), ScheduledAt = nameof(schedule_at))]
+    public partial struct MergePlayerTimer
+    {
+        [PrimaryKey, AutoInc]
+        public ulong scheduled_id;
+        public ScheduleAt schedule_at;
+    }
 
     [Reducer]
     public static void SplitPlayer(ReducerContext context)
@@ -447,9 +489,97 @@ public static partial class Module
                 context.Db.circle.Insert(new Circle
                 {
                     entity_id = newEntity.id,
-                    player_id = player.player_id
+                    player_id = player.player_id,
+                    touchStartMs = 0
                 });
             }
+        }
+    }
+    [Reducer]
+    public static void MergePlayerCheck(ReducerContext context, MergePlayerTimer timer)
+    {
+        double now = context.Timestamp.ToTimeSpanSinceUnixEpoch().TotalMilliseconds;;
+        foreach (var player in context.Db.logged_in_player.Iter())
+        {
+            var list = new List<Circle>();
+            foreach (var c in context.Db.circle.player_id.Filter(player.player_id)) list.Add(c);
+            if (list.Count <= 1) continue;
+
+            bool staticState = MathF.Abs(player.dir.x) < 0.01f && MathF.Abs(player.dir.y) < 0.01f;
+            if (!staticState) continue;//移动直接跳过合并
+
+            //缓存Circle+Entity
+            var circleEntDic = new Dictionary<Circle, Entity>();
+            foreach (var cir in list)
+                circleEntDic[cir] = context.Db.entity.id.Find(cir.entity_id).Value;
+
+            List<Circle> circleList = circleEntDic.Keys.ToList();
+            //更新贴合标记与计时
+            for (int a = 0; a < circleList.Count; a++)
+            {
+                Circle ca = circleList[a];
+                Entity ea = circleEntDic[ca];
+                bool isTouch = false;
+
+                for (int b = 0; b < circleList.Count; b++)
+                {
+                    if (a == b) continue;
+                    Entity eb = circleEntDic[circleList[b]];
+                    float ra = MassToDiameter(ea.mass) / 2;
+                    float rb = MassToDiameter(eb.mass) / 2;
+                    float dx = ea.position.x - eb.position.x;
+                    float dy = ea.position.y - eb.position.y;
+                    float dist = MathF.Sqrt(dx * dx + dy * dy);
+                    float minD = ra + rb;
+
+                    if (dist <= minD + 0.03f)
+                    {
+                        isTouch = true;
+                        break;
+                    }
+                }
+
+                Circle editCircle = ca;
+                if (isTouch)
+                {
+                    if (editCircle.touchStartMs == 0)
+                        editCircle.touchStartMs = now;
+                }
+                else
+                {
+                    editCircle.touchStartMs = 0;
+                }
+                context.Db.circle.entity_id.Update(editCircle);
+            }
+
+            //合并
+            var mainC = list[0];
+            var mainE = circleEntDic[mainC];
+            float total = mainE.mass;
+
+            for (int i = 1; i < list.Count; i++)
+            {
+                var subC = list[i];
+                var subE = circleEntDic[subC];
+                if (subC.touchStartMs <= 0) continue;
+
+                //非线性延时公式
+                float needSec = BASE_MERGE_SEC + MathF.Sqrt(subE.mass) * SQRT_DELAY_COEFF;
+                long needMs = (long)(needSec * 1000);
+                double passMs = now - subC.touchStartMs;
+
+                if (passMs >= needMs)
+                {
+                    total += subE.mass;
+                    context.Db.circle.entity_id.Delete(subC.entity_id);
+                    context.Db.entity.id.Delete(subE.id);
+                }
+            }
+            mainE.mass = total;
+            //重置主球计时
+            mainC.touchStartMs = 0;
+            context.Db.circle.entity_id.Update(mainC);
+            context.Db.entity.id.Update(mainE);
         }
     }
 }

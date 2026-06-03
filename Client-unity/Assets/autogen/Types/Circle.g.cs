@@ -17,14 +17,18 @@ namespace SpacetimeDB.Types
         public int EntityId;
         [DataMember(Name = "player_id")]
         public int PlayerId;
+        [DataMember(Name = "touchStartMs")]
+        public double TouchStartMs;
 
         public Circle(
             int EntityId,
-            int PlayerId
+            int PlayerId,
+            double TouchStartMs
         )
         {
             this.EntityId = EntityId;
             this.PlayerId = PlayerId;
+            this.TouchStartMs = TouchStartMs;
         }
 
         public Circle()
