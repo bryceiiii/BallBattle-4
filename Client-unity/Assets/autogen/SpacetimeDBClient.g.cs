@@ -632,6 +632,7 @@ namespace SpacetimeDB.Types
                 Reducer.FinishSplitAnimation args => Reducers.InvokeFinishSplitAnimation(eventContext, args),
                 Reducer.Reducer1 args => Reducers.InvokeReducer1(eventContext, args),
                 Reducer.SplitPlayer args => Reducers.InvokeSplitPlayer(eventContext, args),
+                Reducer.SyncBallPos args => Reducers.InvokeSyncBallPos(eventContext, args),
                 Reducer.UpdatePlayerDir args => Reducers.InvokeUpdatePlayerDir(eventContext, args),
                 _ => throw new ArgumentOutOfRangeException("Reducer", $"Unknown reducer {reducer}")
             };

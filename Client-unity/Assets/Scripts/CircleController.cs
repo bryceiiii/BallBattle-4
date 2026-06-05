@@ -3,6 +3,7 @@ using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.UI;
+using SpacetimeDB;
 
 public class CircleController : MonoBehaviour
 {
@@ -30,6 +31,11 @@ public class CircleController : MonoBehaviour
 
     //碰撞体组件缓存
     private CircleCollider2D col;
+    // 关联的实体ID，修正碰撞挤压时需要用到，挤压时根据ID找到对应的GameObject进行位置修正
+    public int entityId;
+    private float syncCheckTimer;
+    private const float SYNC_INTERVAL = 0.5f;   //每0.5秒检测一次偏差
+    private const float POS_OFFSET_THRESHOLD = 0.12f; //偏差超过0.12才算物理挤压错位
 
     void Start()
     {
@@ -85,6 +91,21 @@ public class CircleController : MonoBehaviour
 
     public void Update()
     {
+        syncCheckTimer += Time.deltaTime;
+        if (syncCheckTimer >= SYNC_INTERVAL)
+        {
+            syncCheckTimer = 0;
+            //当前本地真实坐标 vs 服务端下发权威目标坐标
+            float diff = Vector3.Distance(transform.position, targetPos);
+            //物理挤压偏移超标，上报服务器修正坐标
+            if (diff > POS_OFFSET_THRESHOLD)
+            {
+                SpacetimeDBNetworkManager.Instance.Db.Reducers.SyncBallPos(
+                    entityId,
+                    new SpacetimeDB.Types.DbVector2(transform.position.x, transform.position.y)
+                );
+            }
+        }
         if (isMergeAnim)
         {
             animTimer += Time.deltaTime;

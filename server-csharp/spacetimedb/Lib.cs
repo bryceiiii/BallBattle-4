@@ -621,4 +621,15 @@ public static partial class Module
             }
         }
     }
+    //新增坐标同步接口，客户端物理挤压错位调用
+    [Reducer]
+    public static void SyncBallPos(ReducerContext context, int entityId, DbVector2 newPos)
+    {
+        var opt = context.Db.entity.id.Find(entityId);
+        if (opt == null) return;
+        Entity e = opt.Value;
+        //刷新服务端球体坐标，后续聚拢以此位置为基准
+        e.position = newPos;
+        context.Db.entity.id.Update(e);
+    }
 }

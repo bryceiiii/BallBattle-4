@@ -34,6 +34,7 @@ public class PrefabsManager : MonoBehaviour
         circle.transform.localScale = new Vector3(diameter, diameter, 1f);
         circle.name = name;
         circle.GetComponent<CircleController>()?.UpdateName(name);
+        circle.GetComponent<CircleController>().entityId = entityId;
         return circle;
     }
 
