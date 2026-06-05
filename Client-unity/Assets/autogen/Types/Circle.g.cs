@@ -21,18 +21,26 @@ namespace SpacetimeDB.Types
         public double TouchStartMs;
         [DataMember(Name = "isMerging")]
         public bool IsMerging;
+        [DataMember(Name = "isSplitting")]
+        public bool IsSplitting;
+        [DataMember(Name = "splitFromEntityId")]
+        public int SplitFromEntityId;
 
         public Circle(
             int EntityId,
             int PlayerId,
             double TouchStartMs,
-            bool IsMerging
+            bool IsMerging,
+            bool IsSplitting,
+            int SplitFromEntityId
         )
         {
             this.EntityId = EntityId;
             this.PlayerId = PlayerId;
             this.TouchStartMs = TouchStartMs;
             this.IsMerging = IsMerging;
+            this.IsSplitting = IsSplitting;
+            this.SplitFromEntityId = SplitFromEntityId;
         }
 
         public Circle()

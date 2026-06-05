@@ -53,6 +53,8 @@ namespace SpacetimeDB.Types
         public global::SpacetimeDB.Col<Circle, int> PlayerId { get; }
         public global::SpacetimeDB.Col<Circle, double> TouchStartMs { get; }
         public global::SpacetimeDB.Col<Circle, bool> IsMerging { get; }
+        public global::SpacetimeDB.Col<Circle, bool> IsSplitting { get; }
+        public global::SpacetimeDB.Col<Circle, int> SplitFromEntityId { get; }
 
         public CircleCols(string tableName)
         {
@@ -60,6 +62,8 @@ namespace SpacetimeDB.Types
             PlayerId = new global::SpacetimeDB.Col<Circle, int>(tableName, "player_id");
             TouchStartMs = new global::SpacetimeDB.Col<Circle, double>(tableName, "touchStartMs");
             IsMerging = new global::SpacetimeDB.Col<Circle, bool>(tableName, "isMerging");
+            IsSplitting = new global::SpacetimeDB.Col<Circle, bool>(tableName, "isSplitting");
+            SplitFromEntityId = new global::SpacetimeDB.Col<Circle, int>(tableName, "splitFromEntityId");
         }
     }
 

@@ -59,7 +59,9 @@ public static partial class Module
         // 新增：贴合开始时间，0=未贴合
         public double touchStartMs;
         // true=进入合并动画阶段，等待客户端动画完成再删
-        public bool isMerging; 
+        public bool isMerging;
+        public bool isSplitting; //新增：正在分裂动画标记
+        public int splitFromEntityId; //新增：如果正在分裂，记录来源球的entity_id
     }
     [Table(Name = "logged_in_player", Public = true)]
     [Table(Name = "logged_out_player", Public = true)]
@@ -118,7 +120,9 @@ public static partial class Module
             entity_id = entity.id,//entity_id与Entity表的id相同,玩家球数据
             player_id = player.player_id,
             touchStartMs = 0,
-            isMerging = false
+            isMerging = false,
+            isSplitting = false,
+            splitFromEntityId = 0
         });
 
     }
@@ -494,7 +498,9 @@ public static partial class Module
                     entity_id = newEntity.id,
                     player_id = player.player_id,
                     touchStartMs = 0,
-                    isMerging = false
+                    isMerging = false,
+                    isSplitting = true, // 标记为正在分裂动画
+                    splitFromEntityId = entity.id // 记录来源球的entity_id
                 });
             }
         }
@@ -586,12 +592,33 @@ public static partial class Module
                     context.Db.circle.entity_id.Delete(cir.entity_id);
                     context.Db.entity.id.Delete(cir.entity_id);
                 }
+                
             }
             mainE.mass = total;
             //重置主球计时
             mainC.touchStartMs = 0;
             context.Db.circle.entity_id.Update(mainC);
             context.Db.entity.id.Update(mainE);
+        }
+    }
+    [Reducer]
+    public static void FinishSplitAnimation(ReducerContext context, int entity_id)
+    {
+        // 获取当前玩家
+        var player = context.Db.logged_in_player.Identity.Find(context.Sender) ?? throw new Exception("未找到对应玩家");
+
+        // 查找对应的玩家球
+        var circleNullable = context.Db.circle.entity_id.Find(entity_id);
+        if (circleNullable != null)
+        {
+            var circle = circleNullable.Value;
+            
+            // 确保该球属于发送请求的玩家，并且确实处于分裂状态
+            if (circle.player_id == player.player_id && circle.isSplitting)
+            {
+                circle.isSplitting = false;
+                context.Db.circle.entity_id.Update(circle);
+            }
         }
     }
 }

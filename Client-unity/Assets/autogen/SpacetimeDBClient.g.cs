@@ -629,6 +629,7 @@ namespace SpacetimeDB.Types
             return reducer switch
             {
                 Reducer.EnterGame args => Reducers.InvokeEnterGame(eventContext, args),
+                Reducer.FinishSplitAnimation args => Reducers.InvokeFinishSplitAnimation(eventContext, args),
                 Reducer.Reducer1 args => Reducers.InvokeReducer1(eventContext, args),
                 Reducer.SplitPlayer args => Reducers.InvokeSplitPlayer(eventContext, args),
                 Reducer.UpdatePlayerDir args => Reducers.InvokeUpdatePlayerDir(eventContext, args),

@@ -85,14 +85,37 @@ public class GameManager : MonoBehaviour
     private void OnCircleInserted(EventContext context, Circle row)
     {
         var entity = Conn.Db.Entity.Id.Find(row.EntityId);
-        var player = Conn.Db.LoggedInPlayer.PlayerId.Find(row.PlayerId)??new Player{ Name = "Unknown" };
+        var player = Conn.Db.LoggedInPlayer.PlayerId.Find(row.PlayerId) ?? new Player { Name = "Unknown" };
+        
+
         GameObject circleGo = PrefabsManager.Instance.SpawnCircle(row.EntityId, entity.Position.X, entity.Position.Y, entity.Mass, player.Name);
         Circles.Add(row.EntityId, circleGo);
-        if(player.Identity == localIdentity)
+        var controller = circleGo.GetComponent<CircleController>();
+
+        if (row.IsSplitting)
         {
-            // 使用 AddFollowTarget 替代之前的 SetFollowTarget，将分裂出的新球也加入相机的跟随列表
+            GameObject sourceGo = null;
+            Vector3 serverEndPos = new Vector3(entity.Position.X, entity.Position.Y, 0);
+            // 依靠新增splitFromEntityId精准找母球
+            if (Circles.TryGetValue(row.SplitFromEntityId, out sourceGo))
+            {
+                // 入参：起点=母球位置，终点=服务端分裂坐标，和你函数形参完全匹配
+                controller.StartSplitAnim(sourceGo.transform.position, serverEndPos);
+            }
+            else
+            {
+                controller.SetTargetPos(serverEndPos);
+            }
+        }
+        else
+        {
+            controller.SetTargetPos(new Vector3(entity.Position.X, entity.Position.Y, 0));
+        }
+
+        if (player.Identity == localIdentity)
+        {
             CameraContoller.Instance.AddFollowTarget(circleGo.transform);
-            circleGo.GetComponent<CircleController>().isLocalPlayer = true;
+            controller.isLocalPlayer = true;
         }
     }
 
