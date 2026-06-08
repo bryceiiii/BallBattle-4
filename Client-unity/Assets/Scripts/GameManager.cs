@@ -146,13 +146,14 @@ public class GameManager : MonoBehaviour
             controller.SetTargetPos(new Vector3(entity.Position.X, entity.Position.Y, 0));
         }
 
-        // 同玩家球忽略碰撞：服务端处理吞噬/合并/聚拢，客户端不需要同玩家物理碰撞
-        SetupSiblingCollisionIgnore(row.PlayerId, controller);
+        // 碰撞逻辑：同玩家球物理互推（不穿透），不同玩家球忽略碰撞（穿透，大吞小）
+        SetupCrossPlayerCollisionIgnore(controller);
 
         if (player.Identity == localIdentity)
         {
             CameraContoller.Instance.AddFollowTarget(circleGo.transform);
             controller.isLocalPlayer = true;
+            controller.ApplyLocalPlayerVisual(); // Start() 执行时 isLocalPlayer 还是 false，这里补上
         }
     }
 
@@ -181,26 +182,31 @@ public class GameManager : MonoBehaviour
     }
 
     /// <summary>
-    /// 同玩家所有球之间忽略碰撞。
-    /// 不同玩家球之间由 Rigidbody2D 物理引擎自然处理（速度驱动 + drag 衰减 → 无抖动贴边滑动）。
+    /// 碰撞模型（球球大作战经典规则）：
+    /// 同玩家球 → 物理碰撞互推（Rigidbody2D 自然处理）
+    /// 不同玩家球 → 穿透（大球覆盖小球，服务器判吞噬）
     /// </summary>
-    private void SetupSiblingCollisionIgnore(int playerId, CircleController newController)
+    private void SetupCrossPlayerCollisionIgnore(CircleController newController)
     {
-        if (!PlayerBallMap.TryGetValue(playerId, out var siblingIds)) return;
+        var thisCol = newController.GetComponent<CircleCollider2D>();
+        if (thisCol == null) return;
 
-        foreach (var siblingId in siblingIds)
+        foreach (var kv in Circles)
         {
-            if (siblingId == newController.entityId) continue;
-            if (Circles.TryGetValue(siblingId, out var siblingGo))
+            if (kv.Key == newController.entityId) continue;
+            var otherCtrl = kv.Value.GetComponent<CircleController>();
+            if (otherCtrl == null) continue;
+
+            // 不同玩家 → 穿透
+            if (otherCtrl.playerId != newController.playerId)
             {
-                var siblingCtrl = siblingGo.GetComponent<CircleController>();
-                var otherCol = siblingGo.GetComponent<CircleCollider2D>();
-                var thisCol = newController.GetComponent<CircleCollider2D>();
-                if (thisCol != null && otherCol != null)
+                var otherCol = kv.Value.GetComponent<CircleCollider2D>();
+                if (otherCol != null)
                 {
                     Physics2D.IgnoreCollision(thisCol, otherCol, true);
                 }
             }
+            // 同玩家 → 不设置 IgnoreCollision（默认物理碰撞互推）
         }
     }
 

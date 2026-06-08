@@ -28,46 +28,60 @@ public class CircleController : MonoBehaviour
     private const float WORLD_MIN = 0f;
     private const float WORLD_MAX = 50f;
 
-    // ===== 合并动画 =====
+    // ===== 动画状态 =====
     private bool isMergeAnim = false;
     private Transform mergeTarget;
     private float mergeAnimTime = 1.5f;
     private float animTimer;
 
-    // ===== 分裂动画 =====
     private bool isSplitAnim = false;
     private float splitAnimTime = 0.3f;
     private float splitAnimTimer;
     private Vector3 splitStartPos;
 
-    // ===== 分裂后沉降期 =====
-    private bool isSettling = false;
-    private float settleTimer;
-    private const float SETTLE_DURATION = 0.8f;
-
     // ===== 物理组件 =====
     private CircleCollider2D col;
     private Rigidbody2D rb;
-    private Vector2 physicsVelocity; // FixedUpdate 中使用的目标速度
 
     public int entityId;
     public int playerId;
 
-    void Start()
+    void Awake()
     {
-        col = GetComponent<CircleCollider2D>();
+        // 确保 Rigidbody2D 存在：预制体可能尚未添加 (RequireComponent 仅在 Editor 添加脚本时生效)
         rb = GetComponent<Rigidbody2D>();
+        if (rb == null)
+        {
+            rb = gameObject.AddComponent<Rigidbody2D>();
+        }
 
-        // 配置 Rigidbody2D 以支持 smooth physics-based collision（球球大作战风格）
+        // 配置 Rigidbody2D：球球大作战风格物理碰撞
         rb.gravityScale = 0f;
-        rb.drag = 1.5f;               // 较高阻力：碰撞后快速衰减反弹，实现"贴边滑动"
+        rb.drag = 1.5f;
         rb.angularDrag = 0f;
         rb.constraints = RigidbodyConstraints2D.FreezeRotation;
         rb.collisionDetectionMode = CollisionDetectionMode2D.Continuous;
         rb.interpolation = RigidbodyInterpolation2D.Interpolate;
-        rb.isKinematic = false;       // 动态模式，Unity 物理处理碰撞反弹
+        rb.isKinematic = false;
 
-        if (isLocalPlayer)
+        col = GetComponent<CircleCollider2D>();
+    }
+
+    void Start()
+    {
+        // 此时 isLocalPlayer 可能尚未被 GameManager 设置（Instantiate 在赋值前执行 Start）
+        // 由 GameManager 在设置 isLocalPlayer 后调用 ApplyLocalPlayerVisual() 补充
+        ApplyLocalPlayerVisual();
+    }
+
+    /// <summary>
+    /// 应用本地玩家视觉（名字绿色）。
+    /// 由 GameManager 在设置 isLocalPlayer 后调用，
+    /// 因为 Instantiate 时 Start() 先于 isLocalPlayer 赋值执行。
+    /// </summary>
+    public void ApplyLocalPlayerVisual()
+    {
+        if (isLocalPlayer && nameText != null)
         {
             nameText.color = Color.green;
         }
@@ -96,10 +110,9 @@ public class CircleController : MonoBehaviour
     {
         isMergeAnim = true;
         isSplitAnim = false;
-        isSettling = false;
         mergeTarget = target;
         animTimer = 0;
-        rb.isKinematic = true;          // 动画期间切为运动学，手动控制位置
+        rb.isKinematic = true;
         if (col != null) col.enabled = false;
     }
 
@@ -107,14 +120,13 @@ public class CircleController : MonoBehaviour
     {
         isSplitAnim = true;
         isMergeAnim = false;
-        isSettling = false;
         splitAnimTimer = 0f;
         splitStartPos = startPosition;
         targetPos = initialTargetPos;
         hasReceivedFirstUpdate = true;
-        rb.isKinematic = true;          // 动画期间切为运动学
+        rb.isKinematic = true;
         rb.position = startPosition;
-        if (col != null) col.enabled = false;
+        if (col != null) col.enabled = false; // 动画期间禁用，避免从母球位置弹出时物理挤压
     }
 
     void Update()
@@ -123,10 +135,22 @@ public class CircleController : MonoBehaviour
         if (isMergeAnim)
         {
             animTimer += Time.deltaTime;
-            float rate = animTimer / mergeAnimTime;
+            float rate = Mathf.Clamp01(animTimer / mergeAnimTime);
             transform.position = Vector3.Lerp(transform.position, mergeTarget.position, rate);
             float shrinkScale = Mathf.Lerp(transform.localScale.x, 0, rate);
             transform.localScale = Vector3.one * shrinkScale;
+
+            // 合并动画超时保护：若服务端尚未删除该球，重新启用碰撞体恢复交互
+            if (animTimer >= mergeAnimTime)
+            {
+                isMergeAnim = false;
+                rb.isKinematic = false;
+                if (col != null)
+                {
+                    Physics2D.SyncTransforms();
+                    col.enabled = true;
+                }
+            }
             return;
         }
 
@@ -141,28 +165,11 @@ public class CircleController : MonoBehaviour
             if (splitAnimTimer >= splitAnimTime)
             {
                 isSplitAnim = false;
-                isSettling = true;
-                settleTimer = 0f;
-                // 进入沉降期：切回动态物理模式，碰撞体仍禁用
+                // 分裂完成：切回动态物理 + 启用碰撞体
                 rb.isKinematic = false;
                 rb.position = transform.position;
+                if (col != null) col.enabled = true;
             }
-        }
-        // ===== 沉降期 =====
-        else if (isSettling)
-        {
-            settleTimer += Time.deltaTime;
-            if (settleTimer >= SETTLE_DURATION)
-            {
-                isSettling = false;
-                if (col != null) col.enabled = true; // 沉降结束，启用碰撞体
-            }
-        }
-
-        // ===== 正常/沉降状态：计算目标速度（在 FixedUpdate 中应用） =====
-        if (!isMergeAnim && !isSplitAnim && hasReceivedFirstUpdate)
-        {
-            ComputeDesiredVelocity();
         }
 
         // ===== 缩放平滑 =====
@@ -172,43 +179,34 @@ public class CircleController : MonoBehaviour
             float newS = Mathf.SmoothDamp(curScale, targetScale, ref scaleVelocity, scaleSmoothTime);
             transform.localScale = new Vector3(newS, newS, 1f);
         }
+
+        // ===== 速度驱动：在 Update 中设速度（而非 FixedUpdate） =====
+        // 原因：SpacetimeDBNetworkManager.Update() → FrameTick() → SetTargetPos()
+        // 发生在所有 FixedUpdate 之后。若在 FixedUpdate 设速度，读到的是上一帧的 targetPos。
+        // 在 Update 中设速，保证每次都用最新的目标位置。
+        if (!isMergeAnim && !isSplitAnim && hasReceivedFirstUpdate)
+        {
+            float smoothTime = isLocalPlayer ? localPosSmoothTime : remotePosSmoothTime;
+            rb.velocity = ((Vector2)targetPos - rb.position) / smoothTime;
+            ClampToWorldBounds();
+        }
     }
 
     /// <summary>
-    /// 计算向服务端目标位置的速度向量。
-    /// 不使用 SmoothDamp（会直接设置 transform.position，与物理引擎冲突）。
-    /// 改为速度驱动：Rigidbody2D 的速度在 FixedUpdate 中生效，
-    /// Unity 物理系统自然地处理碰撞反弹，实现无抖动贴边滑动。
-    /// </summary>
-    private void ComputeDesiredVelocity()
-    {
-        float smoothTime = isLocalPlayer ? localPosSmoothTime : remotePosSmoothTime;
-        physicsVelocity = ((Vector2)targetPos - rb.position) / smoothTime;
-    }
-
-    void FixedUpdate()
-    {
-        if (isMergeAnim || isSplitAnim) return;
-        if (!hasReceivedFirstUpdate) return;
-
-        // 应用速度：物理引擎在 FixedUpdate 中处理碰撞/反弹/阻力
-        rb.velocity = physicsVelocity;
-
-        // 钳制到世界边界
-        ClampToWorldBounds();
-    }
-
-    /// <summary>
-    /// 钳制到世界边界（考虑球半径）
+    /// 钳制到世界边界。使用 MovePosition 而非直接赋值 position，
+    /// 让物理引擎知道这是一次有意的位移而非瞬移，避免边界微抖动。
     /// </summary>
     private void ClampToWorldBounds()
     {
         float radius = transform.localScale.x * 0.5f;
         Vector2 pos = rb.position;
 
-        pos.x = Mathf.Clamp(pos.x, WORLD_MIN + radius, WORLD_MAX - radius);
-        pos.y = Mathf.Clamp(pos.y, WORLD_MIN + radius, WORLD_MAX - radius);
+        float clampedX = Mathf.Clamp(pos.x, WORLD_MIN + radius, WORLD_MAX - radius);
+        float clampedY = Mathf.Clamp(pos.y, WORLD_MIN + radius, WORLD_MAX - radius);
 
-        rb.position = pos;
+        if (clampedX != pos.x || clampedY != pos.y)
+        {
+            rb.MovePosition(new Vector2(clampedX, clampedY));
+        }
     }
 }

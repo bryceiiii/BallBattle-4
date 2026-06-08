@@ -592,6 +592,7 @@ public static partial class Module
                     Circle markCircle = subC;
                     markCircle.isMerging = true;
                     context.Db.circle.entity_id.Update(markCircle);
+                    list[i] = markCircle; // 同步本地引用，确保下方删除检查拿到最新 isMerging
                 }
                 //本轮结束后，统一删除所有标记isMerging的球
                 var cir = list[i];
