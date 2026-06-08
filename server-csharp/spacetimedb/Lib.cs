@@ -243,12 +243,27 @@ public static partial class Module
             entity.position.x += player.dir.x * moveStep;
             entity.position.y += player.dir.y * moveStep;
 
+            // 【边界钳制】防止球移出世界边界，根除客户端穿墙抖动
+            ClampEntityToBounds(ref entity);
+
             context.Db.entity.id.Update(entity);
         }
 
         // 第二阶段：检测吞噬并收集要删除的 ID 以及要增加的质量
         var massGains = new System.Collections.Generic.Dictionary<int, float>();
         var entitiesToDelete = new System.Collections.Generic.HashSet<int>();
+
+        // 【性能优化】将 playerBalls 字典构建提前到循环外，只构建一次
+        // 原代码在 circleA 循环内重复构建，导致O(n?)无效开销
+        Dictionary<int, List<(Entity entity, int eid)>> playerBalls = new Dictionary<int, List<(Entity, int)>>();
+        foreach (var cir in context.Db.circle.Iter())
+        {
+            var ent = context.Db.entity.id.Find(cir.entity_id);
+            if (ent == null) continue;
+            if (!playerBalls.ContainsKey(cir.player_id))
+                playerBalls[cir.player_id] = new List<(Entity, int)>();
+            playerBalls[cir.player_id].Add((ent.Value, cir.entity_id));
+        }
 
         // 重新遍历所有的 玩家球(circle) 去检测覆盖
         foreach(var circleA in context.Db.circle.Iter())
@@ -286,79 +301,72 @@ public static partial class Module
                     }
                 }
             }
-            //=====新增：静止自动向中心聚拢（相切停移，无挤压）=====
-            Dictionary<int, List<(Entity entity, int eid)>> playerBalls = new Dictionary<int, List<(Entity, int)>>();
-            foreach (var cir in context.Db.circle.Iter())
+        }
+
+        //===== 静止自动向中心聚拢（相切停移，无挤压）=====
+        // 【性能优化】移到 circleA 循环外，只执行一次
+        foreach (var kv in playerBalls)
+        {
+            int pid = kv.Key;
+            var ballList = kv.Value;
+            if (ballList.Count <= 1) continue;
+
+            var p = context.Db.logged_in_player.player_id.Find(pid);
+            if (p == null) continue;
+            bool noInput = MathF.Abs(p.Value.dir.x) < 0.01f && MathF.Abs(p.Value.dir.y) < 0.01f;
+            if (!noInput) continue; //移动跳过聚拢
+
+            //计算群体中心
+            float cenX = 0, cenY = 0;
+            foreach (var b in ballList)
             {
-                var ent = context.Db.entity.id.Find(cir.entity_id);
-                if (ent == null) continue;
-                if (!playerBalls.ContainsKey(cir.player_id))
-                    playerBalls[cir.player_id] = new List<(Entity, int)>();
-                playerBalls[cir.player_id].Add((ent.Value, cir.entity_id));
+                cenX += b.entity.position.x;
+                cenY += b.entity.position.y;
             }
+            cenX /= ballList.Count;
+            cenY /= ballList.Count;
 
-            foreach (var kv in playerBalls)
+            //逐个球向中心移动
+            for (int i = 0; i < ballList.Count; i++)
             {
-                int pid = kv.Key;
-                var ballList = kv.Value;
-                if (ballList.Count <= 1) continue;
+                var item = ballList[i];
+                Entity ent = item.entity;
+                float speedScale = 1f / (ent.mass * 0.05f + 1f);
+                float pull = 0.018f * speedScale;
 
-                var p = context.Db.logged_in_player.player_id.Find(pid);
-                if (p == null) continue;
-                bool noInput = MathF.Abs(p.Value.dir.x) < 0.01f && MathF.Abs(p.Value.dir.y) < 0.01f;
-                if (!noInput) continue; //移动跳过聚拢
+                float dx = cenX - ent.position.x;
+                float dy = cenY - ent.position.y;
 
-                //计算群体中心
-                float cenX = 0, cenY = 0;
-                foreach (var b in ballList)
+                //计算本球半径
+                float r1 = MassToDiameter(ent.mass) / 2f;
+                bool canMove = true;
+
+                //遍历同玩家其他球，判断距离，贴边就禁止移动防挤压
+                for (int j = 0; j < ballList.Count; j++)
                 {
-                    cenX += b.entity.position.x;
-                    cenY += b.entity.position.y;
+                    if (i == j) continue;
+                    var other = ballList[j];
+                    float r2 = MassToDiameter(other.entity.mass) / 2f;
+                    float dX = ent.position.x - other.entity.position.x;
+                    float dY = ent.position.y - other.entity.position.y;
+                    float dist = MathF.Sqrt(dX * dX + dY * dY);
+                    float minDist = r1 + r2;
+
+                    //距离≤相切距离，停止靠拢
+                    if (dist <= minDist + 0.02f)
+                    {
+                        canMove = false;
+                        break;
+                    }
                 }
-                cenX /= ballList.Count;
-                cenY /= ballList.Count;
 
-                //逐个球向中心移动
-                for (int i = 0; i < ballList.Count; i++)
+                //没贴边才继续向中心移动
+                if (canMove)
                 {
-                    var item = ballList[i];
-                    Entity ent = item.entity;
-                    float speedScale = 1f / (ent.mass * 0.05f + 1f);
-                    float pull = 0.018f * speedScale;
-
-                    float dx = cenX - ent.position.x;
-                    float dy = cenY - ent.position.y;
-
-                    //计算本球半径
-                    float r1 = MassToDiameter(ent.mass) / 2f;
-                    bool canMove = true;
-
-                    //遍历同玩家其他球，判断距离，贴边就禁止移动防挤压
-                    for (int j = 0; j < ballList.Count; j++)
-                    {
-                        if (i == j) continue;
-                        var other = ballList[j];
-                        float r2 = MassToDiameter(other.entity.mass) / 2f;
-                        float dX = ent.position.x - other.entity.position.x;
-                        float dY = ent.position.y - other.entity.position.y;
-                        float dist = MathF.Sqrt(dX * dX + dY * dY);
-                        float minDist = r1 + r2;
-
-                        //距离≤相切距离，停止靠拢
-                        if (dist <= minDist + 0.02f)
-                        {
-                            canMove = false;
-                            break;
-                        }
-                    }
-
-                    //没贴边才继续向中心移动
-                    if (canMove)
-                    {
-                        ent.position.x += dx * pull;
-                        ent.position.y += dy * pull;
-                        context.Db.entity.id.Update(ent);
-                    }
+                    ent.position.x += dx * pull;
+                    ent.position.y += dy * pull;
+                    ClampEntityToBounds(ref ent);
+                    context.Db.entity.id.Update(ent);
                 }
             }
         }
@@ -621,15 +629,21 @@ public static partial class Module
             }
         }
     }
-    //新增坐标同步接口，客户端物理挤压错位调用
-    [Reducer]
-    public static void SyncBallPos(ReducerContext context, int entityId, DbVector2 newPos)
+
+    // SyncBallPos 已移除：服务端权威位置由 MoveAllPlayer 统一更新，
+    // 客户端不再回传位置偏差。边界钳制由 ClampEntityToBounds 保证。
+
+    /// <summary>
+    /// 将实体位置钳制在世界边界内，确保球不越界。
+    /// 这是根除客户端穿墙/抖动的关键：服务端保证位置永远合法，
+    /// 客户端SmoothDamp到合法位置就不会触发物理碰撞。
+    /// </summary>
+    private static void ClampEntityToBounds(ref Entity entity)
     {
-        var opt = context.Db.entity.id.Find(entityId);
-        if (opt == null) return;
-        Entity e = opt.Value;
-        //刷新服务端球体坐标，后续聚拢以此位置为基准
-        e.position = newPos;
-        context.Db.entity.id.Update(e);
+        float radius = MassToDiameter(entity.mass) / 2f;
+        // 安全余量：0.01f防止浮点精度导致的边界外
+        float margin = radius + 0.01f;
+        entity.position.x = Math.Clamp(entity.position.x, margin, WORLD_SIZE - margin);
+        entity.position.y = Math.Clamp(entity.position.y, margin, WORLD_SIZE - margin);
     }
 }
