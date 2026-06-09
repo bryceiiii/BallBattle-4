@@ -134,32 +134,11 @@ public static partial class Module
 
         // 归一化方向
         float len = MathF.Sqrt(dirX * dirX + dirY * dirY);
-        if (len < 0.001f) return; // 无方向
+        if (len < 0.001f) return;
         dirX /= len;
         dirY /= len;
 
-        // 找到玩家的主球（质量最大的球）
-        int bestEid = 0;
-        float bestMass = 0;
-        Entity bestEntity = default;
-        foreach (var c in context.Db.circle.player_id.Filter(player.player_id))
-        {
-            if (c.isMerging) continue;
-            var ent = context.Db.entity.id.Find(c.entity_id);
-            if (ent == null) continue;
-            if (ent.Value.mass > bestMass)
-            {
-                bestMass = ent.Value.mass;
-                bestEid = c.entity_id;
-                bestEntity = ent.Value;
-            }
-        }
-        if (bestEid == 0) return;
-
-        // 检查质量阈值
-        if (bestEntity.mass < MIN_SHOOT_MASS) return;
-
-        // 检查冷却
+        // 检查冷却（全玩家共享，防止 spam 点击）
         double now = context.Timestamp.ToTimeSpanSinceUnixEpoch().TotalMilliseconds;
         if (_shootCooldowns.TryGetValue(player.player_id, out double lastShoot))
         {
@@ -167,37 +146,51 @@ public static partial class Module
         }
         _shootCooldowns[player.player_id] = now;
 
-        // 检查场上子弹上限
+        // 统计当前场上子弹数
         int bulletCount = 0;
         foreach (var b in context.Db.bullet.Iter())
-        {
             if (b.owner_player_id == player.player_id) bulletCount++;
+
+        // 遍历玩家所有非合并中的球，每球发射一发
+        foreach (var c in context.Db.circle.player_id.Filter(player.player_id))
+        {
+            if (c.isMerging) continue;
+
+            var entNullable = context.Db.entity.id.Find(c.entity_id);
+            if (entNullable == null) continue;
+            var ent = entNullable.Value;
+
+            // 质量足够才能发射
+            if (ent.mass < MIN_SHOOT_MASS) continue;
+
+            // 子弹上限检查
+            if (bulletCount >= BULLET_MAX_PER_PLAYER) break;
+            bulletCount++;
+
+            // 扣质量（每个球独立消耗）
+            ent.mass -= BULLET_MASS_COST;
+            if (ent.mass < 0.1f) ent.mass = 0.1f;
+            UpdateHpAfterMassChange(ref ent);
+            context.Db.entity.id.Update(ent);
+
+            // 生成子弹
+            var bulletEntity = context.Db.entity.Insert(new Entity
+            {
+                mass = 0.3f,
+                position = new DbVector2(ent.position.x, ent.position.y),
+                hp = 0,
+                max_hp = 0
+            });
+            context.Db.bullet.Insert(new Bullet
+            {
+                entity_id = bulletEntity.id,
+                owner_player_id = player.player_id,
+                dir_x = dirX,
+                dir_y = dirY,
+                spawned_at_ms = now
+            });
+            Log.Info($"[射击] 玩家 {player.player_id} 实体 {c.entity_id} 发射子弹 {bulletEntity.id}");
         }
-        if (bulletCount >= BULLET_MAX_PER_PLAYER) return;
-
-        // 扣质量，更新 HP
-        bestEntity.mass -= BULLET_MASS_COST;
-        if (bestEntity.mass < 0.1f) bestEntity.mass = 0.1f;
-        UpdateHpAfterMassChange(ref bestEntity);
-        context.Db.entity.id.Update(bestEntity);
-
-        // 生成子弹 entity
-        var bulletEntity = context.Db.entity.Insert(new Entity
-        {
-            mass = 0.3f, // 子弹视觉大小
-            position = new DbVector2(bestEntity.position.x, bestEntity.position.y),
-            hp = 0,
-            max_hp = 0
-        });
-        context.Db.bullet.Insert(new Bullet
-        {
-            entity_id = bulletEntity.id,
-            owner_player_id = player.player_id,
-            dir_x = dirX,
-            dir_y = dirY,
-            spawned_at_ms = now
-        });
-        Log.Info($"[射击] 玩家 {player.player_id} 从实体 {bestEid} 发射子弹 {bulletEntity.id}");
     }
 
     // 调试用：对指定 entity 扣血（测试 HP 条用）
