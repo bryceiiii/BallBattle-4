@@ -104,15 +104,20 @@ public class GameManager : MonoBehaviour
             var ctrl = go.GetComponent<CircleController>();
             if (newC.IsMerging)
             {
-                // 找同玩家中最大的球作为合并目标
-                var mergeTarget = FindBiggestBallOfPlayer(newC.PlayerId);
-                if (mergeTarget != null && mergeTarget.gameObject != go)
+                // 服务端在 splitFromEntityId 里存了合并目标球的大球 entity_id
+                Transform mergeTarget = null;
+                if (newC.SplitFromEntityId != 0 && Circles.TryGetValue(newC.SplitFromEntityId, out var targetGo))
+                {
+                    mergeTarget = targetGo.transform;
+                }
+
+                if (mergeTarget != null)
                 {
                     ctrl.StartMergeAnim(mergeTarget);
                 }
                 else
                 {
-                    // 如果找不到目标（比如只剩自己），直接标记动画完成通知服务端
+                    // 找不到目标（目标已被删除或异常），直接通知服务端完成合并
                     var conn = SpacetimeDBNetworkManager.Instance?.Db;
                     if (conn != null)
                     {

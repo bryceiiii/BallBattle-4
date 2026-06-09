@@ -634,9 +634,11 @@ public static partial class Module
                     context.Db.entity.id.Update(bigEnt);
 
                     // 标记小球为合并动画中（不再参与移动/贴合判定/吞噬）
+                    // splitFromEntityId 复用为合并目标的 entity_id，客户端据此飞向正确的大球
                     var smallCircle = context.Db.circle.entity_id.Find(smallEntityId).Value;
                     smallCircle.isMerging = true;
                     smallCircle.touchStartMs = 0;
+                    smallCircle.splitFromEntityId = bigEntityId; // 告诉客户端合并目标是谁
                     context.Db.circle.entity_id.Update(smallCircle);
 
                     // 只合并这一对，下一轮 MergePlayerCheck 再处理下一对
