@@ -224,9 +224,11 @@ public static partial class Module
     [Reducer]
     public static void MoveAllPlayer(ReducerContext context, MoveAllPlayerTimer timer)
     {
-        // 第一阶段：移动所有玩家球
+        // 第一阶段：移动所有玩家球（跳过正在合并动画中的球）
         foreach(var circle in context.Db.circle.Iter())
         {
+            if (circle.isMerging) continue; // 合并动画中不移动
+
             var entityNullable = context.Db.entity.id.Find(circle.entity_id);
             if (entityNullable == null) continue; // 安全检查
 
@@ -258,6 +260,7 @@ public static partial class Module
         Dictionary<int, List<(Entity entity, int eid)>> playerBalls = new Dictionary<int, List<(Entity, int)>>();
         foreach (var cir in context.Db.circle.Iter())
         {
+            if (cir.isMerging) continue; // 合并动画中不参与聚拢
             var ent = context.Db.entity.id.Find(cir.entity_id);
             if (ent == null) continue;
             if (!playerBalls.ContainsKey(cir.player_id))
@@ -268,6 +271,8 @@ public static partial class Module
         // 重新遍历所有的 玩家球(circle) 去检测覆盖
         foreach(var circleA in context.Db.circle.Iter())
         {
+            if (circleA.isMerging) continue; // 合并动画中不参与吞噬
+
             var entityANullable = context.Db.entity.id.Find(circleA.entity_id);
             if (entityANullable == null || entitiesToDelete.Contains(circleA.entity_id)) continue;
             
@@ -516,41 +521,48 @@ public static partial class Module
     [Reducer]
     public static void MergePlayerCheck(ReducerContext context, MergePlayerTimer timer)
     {
-        double now = context.Timestamp.ToTimeSpanSinceUnixEpoch().TotalMilliseconds;;
+        double now = context.Timestamp.ToTimeSpanSinceUnixEpoch().TotalMilliseconds;
+
         foreach (var player in context.Db.logged_in_player.Iter())
         {
+            // 重新读取最新 circle 列表（上一轮 isMerging 标记后可能已删除）
             var list = new List<Circle>();
             foreach (var c in context.Db.circle.player_id.Filter(player.player_id)) list.Add(c);
             if (list.Count <= 1) continue;
 
-            bool staticState = MathF.Abs(player.dir.x) < 0.01f && MathF.Abs(player.dir.y) < 0.01f;
-            if (!staticState) continue;//移动直接跳过合并
-
-            //缓存Circle+Entity
-            var circleEntDic = new Dictionary<Circle, Entity>();
+            // 缓存 entity_id → Entity
+            var circleEntDic = new Dictionary<int, Entity>();
             foreach (var cir in list)
-                circleEntDic[cir] = context.Db.entity.id.Find(cir.entity_id).Value;
-
-            List<Circle> circleList = circleEntDic.Keys.ToList();
-            //更新贴合标记与计时
-            for (int a = 0; a < circleList.Count; a++)
             {
-                Circle ca = circleList[a];
-                Entity ea = circleEntDic[ca];
-                bool isTouch = false;
+                var ent = context.Db.entity.id.Find(cir.entity_id);
+                if (ent != null) circleEntDic[cir.entity_id] = ent.Value;
+            }
 
-                for (int b = 0; b < circleList.Count; b++)
+            // ===== 第一阶段：更新贴合标记与计时 =====
+            for (int a = 0; a < list.Count; a++)
+            {
+                Circle ca = list[a];
+                if (ca.isMerging) continue; // 已在合并动画中，跳过
+
+                Entity ea;
+                if (!circleEntDic.TryGetValue(ca.entity_id, out ea)) continue;
+
+                bool isTouch = false;
+                for (int b = 0; b < list.Count; b++)
                 {
                     if (a == b) continue;
-                    Entity eb = circleEntDic[circleList[b]];
+                    Circle cb = list[b];
+                    if (cb.isMerging) continue; // 正在合并动画中的球不算贴合
+                    Entity eb;
+                    if (!circleEntDic.TryGetValue(cb.entity_id, out eb)) continue;
+
                     float ra = MassToDiameter(ea.mass) / 2;
                     float rb = MassToDiameter(eb.mass) / 2;
                     float dx = ea.position.x - eb.position.x;
                     float dy = ea.position.y - eb.position.y;
                     float dist = MathF.Sqrt(dx * dx + dy * dy);
-                    float minD = ra + rb;
 
-                    if (dist <= minD + 0.03f)
+                    if (dist <= ra + rb + 0.03f)
                     {
                         isTouch = true;
                         break;
@@ -570,45 +582,93 @@ public static partial class Module
                 context.Db.circle.entity_id.Update(editCircle);
             }
 
-            //合并
-            var mainC = list[0];
-            var mainE = circleEntDic[mainC];
-            float total = mainE.mass;
-
-            for (int i = 1; i < list.Count; i++)
+            // 从表重新读取以获取最新的 touchStartMs
+            for (int i = 0; i < list.Count; i++)
             {
-                var subC = list[i];
-                var subE = circleEntDic[subC];
-                if (subC.touchStartMs <= 0) continue;
-
-                //非线性延时公式
-                float needSec = BASE_MERGE_SEC + MathF.Sqrt(subE.mass) * SQRT_DELAY_COEFF;
-                long needMs = (long)(needSec * 1000);
-                double passMs = now - subC.touchStartMs;
-
-                if (passMs >= needMs)
-                {
-                    total += subE.mass;
-                    Circle markCircle = subC;
-                    markCircle.isMerging = true;
-                    context.Db.circle.entity_id.Update(markCircle);
-                    list[i] = markCircle; // 同步本地引用，确保下方删除检查拿到最新 isMerging
-                }
-                //本轮结束后，统一删除所有标记isMerging的球
-                var cir = list[i];
-                if (cir.isMerging)
-                {
-                    context.Db.circle.entity_id.Delete(cir.entity_id);
-                    context.Db.entity.id.Delete(cir.entity_id);
-                }
-                
+                var updated = context.Db.circle.entity_id.Find(list[i].entity_id);
+                if (updated != null) list[i] = updated.Value;
             }
-            mainE.mass = total;
-            //重置主球计时
-            mainC.touchStartMs = 0;
-            context.Db.circle.entity_id.Update(mainC);
-            context.Db.entity.id.Update(mainE);
+
+            // ===== 第二阶段：逐对合并（每次只合并一对） =====
+            for (int a = 0; a < list.Count; a++)
+            {
+                Circle ca = list[a];
+                if (ca.isMerging) continue; // 已在合并动画中
+
+                Entity ea;
+                if (!circleEntDic.TryGetValue(ca.entity_id, out ea)) continue;
+
+                float needSecA = BASE_MERGE_SEC + MathF.Sqrt(ea.mass) * SQRT_DELAY_COEFF;
+                bool aReady = ca.touchStartMs > 0 && (now - ca.touchStartMs) >= (long)(needSecA * 1000);
+                if (!aReady) continue;
+
+                for (int b = 0; b < list.Count; b++)
+                {
+                    if (a == b) continue;
+                    Circle cb = list[b];
+                    if (cb.isMerging) continue;
+
+                    Entity eb;
+                    if (!circleEntDic.TryGetValue(cb.entity_id, out eb)) continue;
+
+                    float needSecB = BASE_MERGE_SEC + MathF.Sqrt(eb.mass) * SQRT_DELAY_COEFF;
+                    bool bReady = cb.touchStartMs > 0 && (now - cb.touchStartMs) >= (long)(needSecB * 1000);
+                    if (!bReady) continue;
+
+                    // 检查是否贴合
+                    float ra = MassToDiameter(ea.mass) / 2f;
+                    float rb_radius = MassToDiameter(eb.mass) / 2f;
+                    float dx = ea.position.x - eb.position.x;
+                    float dy = ea.position.y - eb.position.y;
+                    float dist = MathF.Sqrt(dx * dx + dy * dy);
+                    if (dist > ra + rb_radius + 0.03f) continue;
+
+                    // 大吞小：标记小球为 isMerging，等客户端动画完成后通过 FinishMerge 真正删除
+                    int smallEntityId = ea.mass >= eb.mass ? cb.entity_id : ca.entity_id;
+                    int bigEntityId = ea.mass >= eb.mass ? ca.entity_id : cb.entity_id;
+
+                    // 把小球的质量先加到大球上
+                    var bigEnt = circleEntDic[bigEntityId];
+                    var smallEnt = circleEntDic[smallEntityId];
+                    bigEnt.mass += smallEnt.mass;
+                    context.Db.entity.id.Update(bigEnt);
+
+                    // 标记小球为合并动画中（不再参与移动/贴合判定/吞噬）
+                    var smallCircle = context.Db.circle.entity_id.Find(smallEntityId).Value;
+                    smallCircle.isMerging = true;
+                    smallCircle.touchStartMs = 0;
+                    context.Db.circle.entity_id.Update(smallCircle);
+
+                    // 只合并这一对，下一轮 MergePlayerCheck 再处理下一对
+                    return; // ← 关键：每次定时器触发只合并一对
+                }
+            }
         }
+    }
+
+    /// <summary>
+    /// 客户端合并动画完成后调用，真正删除小球。
+    /// 由客户端 CircleController 在合并动画播完后调用。
+    /// </summary>
+    [Reducer]
+    public static void FinishMerge(ReducerContext context, int smallEntityId)
+    {
+        var circle = context.Db.circle.entity_id.Find(smallEntityId);
+        if (circle == null) return; // 已被删除或不存在
+
+        var player = context.Db.logged_in_player.player_id.Find(circle.Value.player_id);
+        if (player == null) return;
+
+        // 安全检查：只有该球的所属玩家才能触发删除
+        // （防止其他客户端恶意发送）
+        // SpacetimeDB 的 Reducer 由 context.Sender 标识调用者
+        var senderPlayer = context.Db.logged_in_player.Identity.Find(context.Sender);
+        if (senderPlayer == null) return;
+        if (senderPlayer.Value.player_id != circle.Value.player_id) return;
+
+        // 删除小球
+        context.Db.circle.entity_id.Delete(smallEntityId);
+        context.Db.entity.id.Delete(smallEntityId);
     }
     [Reducer]
     public static void FinishSplitAnimation(ReducerContext context, int entity_id)

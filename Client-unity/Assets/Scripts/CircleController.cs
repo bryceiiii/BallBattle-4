@@ -20,8 +20,11 @@ public class CircleController : MonoBehaviour
     // ===== 缩放平滑 =====
     private float scaleVelocity = 0f;
 
-    public float remotePosSmoothTime = 0.12f;
-    public float localPosSmoothTime = 0.05f;
+    // ===== 位置平滑 =====
+    private Vector2 posVelocity = Vector2.zero;
+
+    public float remotePosSmoothTime = 0.15f;
+    public float localPosSmoothTime = 0.08f;
     public float scaleSmoothTime = 0.1f;
 
     // ===== 世界边界 =====
@@ -31,8 +34,9 @@ public class CircleController : MonoBehaviour
     // ===== 动画状态 =====
     private bool isMergeAnim = false;
     private Transform mergeTarget;
-    private float mergeAnimTime = 1.5f;
+    private float mergeAnimTime = 0.8f;
     private float animTimer;
+    private bool mergeAnimFinished = false; // 标记动画是否已播完（只触发一次 FinishMerge）
 
     private bool isSplitAnim = false;
     private float splitAnimTime = 0.3f;
@@ -57,10 +61,10 @@ public class CircleController : MonoBehaviour
 
         // 配置 Rigidbody2D：球球大作战风格物理碰撞
         rb.gravityScale = 0f;
-        rb.drag = 1.5f;
+        rb.drag = 0.3f;
         rb.angularDrag = 0f;
         rb.constraints = RigidbodyConstraints2D.FreezeRotation;
-        rb.collisionDetectionMode = CollisionDetectionMode2D.Continuous;
+        rb.collisionDetectionMode = CollisionDetectionMode2D.Discrete; // 球速低无需连续检测
         rb.interpolation = RigidbodyInterpolation2D.Interpolate;
         rb.isKinematic = false;
 
@@ -112,6 +116,7 @@ public class CircleController : MonoBehaviour
         isSplitAnim = false;
         mergeTarget = target;
         animTimer = 0;
+        mergeAnimFinished = false;
         rb.isKinematic = true;
         if (col != null) col.enabled = false;
     }
@@ -140,16 +145,21 @@ public class CircleController : MonoBehaviour
             float shrinkScale = Mathf.Lerp(transform.localScale.x, 0, rate);
             transform.localScale = Vector3.one * shrinkScale;
 
-            // 合并动画超时保护：若服务端尚未删除该球，重新启用碰撞体恢复交互
-            if (animTimer >= mergeAnimTime)
+            if (animTimer >= mergeAnimTime && !mergeAnimFinished)
             {
+                mergeAnimFinished = true;
                 isMergeAnim = false;
-                rb.isKinematic = false;
-                if (col != null)
+
+                // 通知服务端：动画完成，可以真正删除此球
+                var conn = SpacetimeDBNetworkManager.Instance?.Db;
+                if (conn != null && entityId != 0)
                 {
-                    Physics2D.SyncTransforms();
-                    col.enabled = true;
+                    conn.Reducers.FinishMerge(entityId);
                 }
+
+                // 动画完成后的超时保护：如果服务端因某种原因没删除（如网络延迟），
+                // 超过 1.5 秒后恢复物理状态
+                StartCoroutine(MergeTimeoutRecovery());
             }
             return;
         }
@@ -179,22 +189,32 @@ public class CircleController : MonoBehaviour
             float newS = Mathf.SmoothDamp(curScale, targetScale, ref scaleVelocity, scaleSmoothTime);
             transform.localScale = new Vector3(newS, newS, 1f);
         }
+    }
 
-        // ===== 速度驱动：在 Update 中设速度（而非 FixedUpdate） =====
-        // 原因：SpacetimeDBNetworkManager.Update() → FrameTick() → SetTargetPos()
-        // 发生在所有 FixedUpdate 之后。若在 FixedUpdate 设速度，读到的是上一帧的 targetPos。
-        // 在 Update 中设速，保证每次都用最新的目标位置。
-        if (!isMergeAnim && !isSplitAnim && hasReceivedFirstUpdate)
-        {
-            float smoothTime = isLocalPlayer ? localPosSmoothTime : remotePosSmoothTime;
-            rb.velocity = ((Vector2)targetPos - rb.position) / smoothTime;
-            ClampToWorldBounds();
-        }
+    /// <summary>
+    /// 物理步驱动位置：用 MovePosition + SmoothDamp 代替 rb.velocity。
+    /// 
+    /// 为什么不用 rb.velocity：
+    ///   Update() 设 velocity → FixedUpdate() 物理碰撞修改 velocity → 下一帧 Update() 又覆盖
+    ///   → 两个系统抢改同一个变量 → 振荡抖动
+    /// 
+    /// MovePosition 的优势：
+    ///   告诉物理引擎"我要移到这里"，引擎在移动过程中自然处理碰撞推挤，
+    ///   碰撞后的位置偏移被 drag 衰减，下个 SmoothDamp 步自然收敛。
+    /// </summary>
+    void FixedUpdate()
+    {
+        if (isMergeAnim || isSplitAnim) return;
+        if (!hasReceivedFirstUpdate) return;
+
+        float smoothTime = isLocalPlayer ? localPosSmoothTime : remotePosSmoothTime;
+        Vector2 desiredPos = Vector2.SmoothDamp(rb.position, (Vector2)targetPos, ref posVelocity, smoothTime);
+        rb.MovePosition(desiredPos);
+        ClampToWorldBounds();
     }
 
     /// <summary>
     /// 钳制到世界边界。使用 MovePosition 而非直接赋值 position，
-    /// 让物理引擎知道这是一次有意的位移而非瞬移，避免边界微抖动。
     /// </summary>
     private void ClampToWorldBounds()
     {
@@ -207,6 +227,26 @@ public class CircleController : MonoBehaviour
         if (clampedX != pos.x || clampedY != pos.y)
         {
             rb.MovePosition(new Vector2(clampedX, clampedY));
+        }
+    }
+
+    /// <summary>
+    /// 合并动画超时恢复：若服务端因网络延迟未及时删除此球，
+    /// 超过 1.5 秒后恢复物理状态，避免球"卡死"在不可交互状态。
+    /// 正常情况下服务端会在此之前通过 OnCircleDeleted 销毁此 GameObject。
+    /// </summary>
+    private IEnumerator MergeTimeoutRecovery()
+    {
+        yield return new WaitForSeconds(1.5f);
+        // 如果此 GameObject 还没被服务端删除（说明 FinishMerge 未生效）
+        if (gameObject != null && isMergeAnim == false)
+        {
+            rb.isKinematic = false;
+            if (col != null)
+            {
+                Physics2D.SyncTransforms();
+                col.enabled = true;
+            }
         }
     }
 }

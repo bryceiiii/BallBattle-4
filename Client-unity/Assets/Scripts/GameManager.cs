@@ -16,7 +16,7 @@ public class GameManager : MonoBehaviour
 
     private static Dictionary<int, List<int>> PlayerBallMap = new Dictionary<int, List<int>>();
 
-    // ===== æ¯å¸§æ¯å®ä½“åªå¤„ç†æœ€åä¸€æ¬¡æ›´æ–° =====
+    // ===== Ã¿Ö¡Ã¿ÊµÌåÖ»´¦Àí×îºóÒ»´Î¸üĞÂ =====
     private static HashSet<int> entitiesUpdatedThisFrame = new HashSet<int>();
 
     private Identity localIdentity;
@@ -44,7 +44,7 @@ public class GameManager : MonoBehaviour
         }
         else
         {
-            Debug.LogWarning("SpacetimeDB å°šæœªåˆå§‹åŒ–ï¼Œç¨åè¿ä¸ŠæœåŠ¡å™¨æ—¶ä¼šè‡ªåŠ¨è®¢é˜…è¡¨ã€‚");
+            Debug.LogWarning("SpacetimeDB ÉĞÎ´³õÊ¼»¯£¬ÉÔºóÁ¬ÉÏ·şÎñÆ÷Ê±»á×Ô¶¯¶©ÔÄ±í¡£");
             SpacetimeDBNetworkManager.OnConnected += SubscribeToTables;
         }
     }
@@ -56,7 +56,7 @@ public class GameManager : MonoBehaviour
         if (Conn != null && Conn.Identity.HasValue)
         {
             localIdentity = Conn.Identity.Value;
-            Debug.Log($"å·²æˆåŠŸè·å–å¹¶èµ‹å€¼ localIdentity: {localIdentity}");
+            Debug.Log($"ÒÑ³É¹¦»ñÈ¡²¢¸³Öµ localIdentity: {localIdentity}");
         }
 
         Conn.Db.Food.OnInsert += OnFoodInserted;
@@ -67,7 +67,7 @@ public class GameManager : MonoBehaviour
         Conn.Db.Circle.OnUpdate += OnCircleUpdated;
 
         isSubscribed = true;
-        Debug.Log("âœ… GameManager æˆåŠŸè®¢é˜…æ‰€æœ‰è¡¨äº‹ä»¶ã€‚");
+        Debug.Log("? GameManager ³É¹¦¶©ÔÄËùÓĞ±íÊÂ¼ş¡£");
     }
 
     private void LateUpdate()
@@ -90,7 +90,7 @@ public class GameManager : MonoBehaviour
     {
         if (Circles.Remove(row.EntityId, out var go))
         {
-            Debug.Log($"[Circle è¡¨æ›´æ–°] ç©å®¶Circle è¢«åˆ é™¤ï¼EntityId: {row.EntityId}");
+            Debug.Log($"[Circle ±í¸üĞÂ] Íæ¼ÒCircle ±»É¾³ı£¡EntityId: {row.EntityId}");
 
             RemoveFromPlayerBallMap(row.PlayerId, row.EntityId);
             GameObject.Destroy(go);
@@ -102,12 +102,49 @@ public class GameManager : MonoBehaviour
         if (Circles.TryGetValue(newC.EntityId, out var go))
         {
             var ctrl = go.GetComponent<CircleController>();
-            var mainTrans = FindLocalMainBall();
-            if (newC.IsMerging && mainTrans != null)
+            if (newC.IsMerging)
             {
-                ctrl.StartMergeAnim(mainTrans);
+                // ÕÒÍ¬Íæ¼ÒÖĞ×î´óµÄÇò×÷ÎªºÏ²¢Ä¿±ê
+                var mergeTarget = FindBiggestBallOfPlayer(newC.PlayerId);
+                if (mergeTarget != null && mergeTarget.gameObject != go)
+                {
+                    ctrl.StartMergeAnim(mergeTarget);
+                }
+                else
+                {
+                    // Èç¹ûÕÒ²»µ½Ä¿±ê£¨±ÈÈçÖ»Ê£×Ô¼º£©£¬Ö±½Ó±ê¼Ç¶¯»­Íê³ÉÍ¨Öª·şÎñ¶Ë
+                    var conn = SpacetimeDBNetworkManager.Instance?.Db;
+                    if (conn != null)
+                    {
+                        conn.Reducers.FinishMerge(newC.EntityId);
+                    }
+                }
             }
         }
+    }
+
+    /// <summary>
+    /// ÕÒÖ¸¶¨Íæ¼ÒÖĞÖÊÁ¿×î´ó£¨scale ×î´ó£©µÄÇò¡£
+    /// </summary>
+    private Transform FindBiggestBallOfPlayer(int playerId)
+    {
+        Transform biggest = null;
+        float maxScale = 0f;
+
+        foreach (var kv in Circles)
+        {
+            var ctr = kv.Value.GetComponent<CircleController>();
+            if (ctr.playerId == playerId)
+            {
+                float s = kv.Value.transform.localScale.x;
+                if (s > maxScale)
+                {
+                    maxScale = s;
+                    biggest = kv.Value.transform;
+                }
+            }
+        }
+        return biggest;
     }
 
     private void OnCircleInserted(EventContext context, Circle row)
@@ -146,14 +183,14 @@ public class GameManager : MonoBehaviour
             controller.SetTargetPos(new Vector3(entity.Position.X, entity.Position.Y, 0));
         }
 
-        // ç¢°æ’é€»è¾‘ï¼šåŒç©å®¶çƒç‰©ç†äº’æ¨ï¼ˆä¸ç©¿é€ï¼‰ï¼Œä¸åŒç©å®¶çƒå¿½ç•¥ç¢°æ’ï¼ˆç©¿é€ï¼Œå¤§åå°ï¼‰
+        // Åö×²Âß¼­£ºÍ¬Íæ¼ÒÇòÎïÀí»¥ÍÆ£¨²»´©Í¸£©£¬²»Í¬Íæ¼ÒÇòºöÂÔÅö×²£¨´©Í¸£¬´óÍÌĞ¡£©
         SetupCrossPlayerCollisionIgnore(controller);
 
         if (player.Identity == localIdentity)
         {
             CameraContoller.Instance.AddFollowTarget(circleGo.transform);
             controller.isLocalPlayer = true;
-            controller.ApplyLocalPlayerVisual(); // Start() æ‰§è¡Œæ—¶ isLocalPlayer è¿˜æ˜¯ falseï¼Œè¿™é‡Œè¡¥ä¸Š
+            controller.ApplyLocalPlayerVisual(); // Start() Ö´ĞĞÊ± isLocalPlayer »¹ÊÇ false£¬ÕâÀï²¹ÉÏ
         }
     }
 
@@ -182,9 +219,9 @@ public class GameManager : MonoBehaviour
     }
 
     /// <summary>
-    /// ç¢°æ’æ¨¡å‹ï¼ˆçƒçƒå¤§ä½œæˆ˜ç»å…¸è§„åˆ™ï¼‰ï¼š
-    /// åŒç©å®¶çƒ â†’ ç‰©ç†ç¢°æ’äº’æ¨ï¼ˆRigidbody2D è‡ªç„¶å¤„ç†ï¼‰
-    /// ä¸åŒç©å®¶çƒ â†’ ç©¿é€ï¼ˆå¤§çƒè¦†ç›–å°çƒï¼ŒæœåŠ¡å™¨åˆ¤åå™¬ï¼‰
+    /// Åö×²Ä£ĞÍ£¨ÇòÇò´ó×÷Õ½¾­µä¹æÔò£©£º
+    /// Í¬Íæ¼ÒÇò ¡ú ÎïÀíÅö×²»¥ÍÆ£¨Rigidbody2D ×ÔÈ»´¦Àí£©
+    /// ²»Í¬Íæ¼ÒÇò ¡ú ´©Í¸£¨´óÇò¸²¸ÇĞ¡Çò£¬·şÎñÆ÷ÅĞÍÌÊÉ£©
     /// </summary>
     private void SetupCrossPlayerCollisionIgnore(CircleController newController)
     {
@@ -197,7 +234,7 @@ public class GameManager : MonoBehaviour
             var otherCtrl = kv.Value.GetComponent<CircleController>();
             if (otherCtrl == null) continue;
 
-            // ä¸åŒç©å®¶ â†’ ç©¿é€
+            // ²»Í¬Íæ¼Ò ¡ú ´©Í¸
             if (otherCtrl.playerId != newController.playerId)
             {
                 var otherCol = kv.Value.GetComponent<CircleCollider2D>();
@@ -206,11 +243,11 @@ public class GameManager : MonoBehaviour
                     Physics2D.IgnoreCollision(thisCol, otherCol, true);
                 }
             }
-            // åŒç©å®¶ â†’ ä¸è®¾ç½® IgnoreCollisionï¼ˆé»˜è®¤ç‰©ç†ç¢°æ’äº’æ¨ï¼‰
+            // Í¬Íæ¼Ò ¡ú ²»ÉèÖÃ IgnoreCollision£¨Ä¬ÈÏÎïÀíÅö×²»¥ÍÆ£©
         }
     }
 
-    // ===== é£Ÿç‰©ç›¸å…³ =====
+    // ===== Ê³ÎïÏà¹Ø =====
     private void OnFoodDelete(EventContext ctx, Food deletedFood)
     {
         if (Entities.Remove(deletedFood.EntityId, out var go))
@@ -222,7 +259,7 @@ public class GameManager : MonoBehaviour
     private void OnFoodInserted(EventContext ctx, Food newFood)
     {
         var entity = Conn.Db.Entity.Id.Find(newFood.EntityId);
-        Debug.Log($"[Food è¡¨æ›´æ–°] å‘ç°æ–°çš„é£Ÿç‰©æ’å…¥ï¼EntityId: {newFood.EntityId}, Position: ({entity.Position.X}, {entity.Position.Y}), Mass: {entity.Mass}");
+        Debug.Log($"[Food ±í¸üĞÂ] ·¢ÏÖĞÂµÄÊ³Îï²åÈë£¡EntityId: {newFood.EntityId}, Position: ({entity.Position.X}, {entity.Position.Y}), Mass: {entity.Mass}");
         GameObject foodGo = PrefabsManager.Instance.SpawnFood(newFood.EntityId, entity.Position.X, entity.Position.Y, entity.Mass);
         Entities.Add(newFood.EntityId, foodGo);
     }
@@ -238,7 +275,7 @@ public class GameManager : MonoBehaviour
         }
         else
         {
-            Debug.LogError("SpacetimeDB ç½‘ç»œå°šæœªè¿æ¥æˆ–è€…å°šæœªåˆå§‹åŒ–ï¼");
+            Debug.LogError("SpacetimeDB ÍøÂçÉĞÎ´Á¬½Ó»òÕßÉĞÎ´³õÊ¼»¯£¡");
         }
     }
 
@@ -248,7 +285,7 @@ public class GameManager : MonoBehaviour
         {
             if (Conn != null)
             {
-                print($"å½“å‰é£Ÿç‰©æ€»æ•°: {Conn.Db.Food.Count}");
+                print($"µ±Ç°Ê³Îï×ÜÊı: {Conn.Db.Food.Count}");
             }
         }
     }

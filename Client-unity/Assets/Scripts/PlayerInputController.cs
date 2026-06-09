@@ -27,8 +27,8 @@ public class PlayerInputController : MonoBehaviour
 
     private void HandleMovementInput()
     {
-        float moveX = Input.GetAxis("Horizontal");
-        float moveY = Input.GetAxis("Vertical");
+        float moveX = Input.GetAxisRaw("Horizontal");
+        float moveY = Input.GetAxisRaw("Vertical");
 
         // Œ¢–° ‰»ÎπÈ¡„£¨∑¿÷π ÷±˙∆Ø“∆
         if (Mathf.Abs(moveX) < 0.01f) moveX = 0;
