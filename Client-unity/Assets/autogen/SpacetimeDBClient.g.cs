@@ -27,6 +27,7 @@ namespace SpacetimeDB.Types
     {
         public RemoteTables(DbConnection conn)
         {
+            AddTable(Bullet = new(conn));
             AddTable(Circle = new(conn));
             AddTable(Entity = new(conn));
             AddTable(Food = new(conn));
@@ -529,6 +530,7 @@ namespace SpacetimeDB.Types
 
         internal static string[] AllTablesSqlQueries() => new string[]
         {
+            new QueryBuilder().From.Bullet().ToSql(),
             new QueryBuilder().From.Circle().ToSql(),
             new QueryBuilder().From.Entity().ToSql(),
             new QueryBuilder().From.Food().ToSql(),
@@ -541,6 +543,7 @@ namespace SpacetimeDB.Types
 
     public sealed class From
     {
+        public global::SpacetimeDB.Table<Bullet, BulletCols, BulletIxCols> Bullet() => new("bullet", new BulletCols("bullet"), new BulletIxCols("bullet"));
         public global::SpacetimeDB.Table<Circle, CircleCols, CircleIxCols> Circle() => new("circle", new CircleCols("circle"), new CircleIxCols("circle"));
         public global::SpacetimeDB.Table<Entity, EntityCols, EntityIxCols> Entity() => new("entity", new EntityCols("entity"), new EntityIxCols("entity"));
         public global::SpacetimeDB.Table<Food, FoodCols, FoodIxCols> Food() => new("food", new FoodCols("food"), new FoodIxCols("food"));
@@ -633,6 +636,7 @@ namespace SpacetimeDB.Types
                 Reducer.FinishMerge args => Reducers.InvokeFinishMerge(eventContext, args),
                 Reducer.FinishSplitAnimation args => Reducers.InvokeFinishSplitAnimation(eventContext, args),
                 Reducer.Reducer1 args => Reducers.InvokeReducer1(eventContext, args),
+                Reducer.ShootBullet args => Reducers.InvokeShootBullet(eventContext, args),
                 Reducer.SplitPlayer args => Reducers.InvokeSplitPlayer(eventContext, args),
                 Reducer.UpdatePlayerDir args => Reducers.InvokeUpdatePlayerDir(eventContext, args),
                 _ => throw new ArgumentOutOfRangeException("Reducer", $"Unknown reducer {reducer}")

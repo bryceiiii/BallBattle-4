@@ -12,7 +12,7 @@ public class PlayerInputController : MonoBehaviour
     /// </summary>
     public Vector2 CurrentDirection { get; private set; }
 
-    private void Update()
+    private     void Update()
     {
         if (SpacetimeDBNetworkManager.Instance?.Db == null) return;
 
@@ -23,6 +23,7 @@ public class PlayerInputController : MonoBehaviour
             sendDirTimer = 0;
         }
         HandleSplitInput();
+        HandleShootInput();
     }
 
     private void HandleMovementInput()
@@ -50,5 +51,33 @@ public class PlayerInputController : MonoBehaviour
         {
             SpacetimeDBNetworkManager.Instance.Db.Reducers.SplitPlayer();
         }
+    }
+
+    private void HandleShootInput()
+    {
+        if (!Input.GetMouseButtonDown(0)) return; // 鼠标左键
+
+        var conn = SpacetimeDBNetworkManager.Instance?.Db;
+        if (conn == null) return;
+
+        // 计算从本地玩家主球到鼠标的方向
+        Vector3 ballPos = GameManager.GetLocalMainBallPosition();
+        if (ballPos == Vector3.zero) return;
+
+        var cam = Camera.main;
+        if (cam == null) return;
+
+        Vector3 mouseScreen = Input.mousePosition;
+        mouseScreen.z = -cam.transform.position.z;
+        Vector3 mouseWorld = cam.ScreenToWorldPoint(mouseScreen);
+        mouseWorld.z = 0f;
+
+        float dirX = mouseWorld.x - ballPos.x;
+        float dirY = mouseWorld.y - ballPos.y;
+
+        // 零方向不发射
+        if (Mathf.Abs(dirX) < 0.001f && Mathf.Abs(dirY) < 0.001f) return;
+
+        conn.Reducers.ShootBullet(dirX, dirY);
     }
 }

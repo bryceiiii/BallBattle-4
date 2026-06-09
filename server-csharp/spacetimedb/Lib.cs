@@ -29,6 +29,15 @@ public static partial class Module
     private static float HP_MASS_COEFF = 0.5f;   // HP 随质量增长系数
     private static float HP_MIN_RATIO = 0.3f;    // HP/mass 下限保护比
 
+    // 子弹相关常量
+    private static float BULLET_MASS_COST = 0.8f;    // 单发消耗质量
+    private static float BULLET_SPEED = 25f;          // 子弹飞行速度
+    private static double BULLET_LIFETIME_MS = 3000d; // 子弹存活时间
+    private static float BULLET_DAMAGE = 8f;          // 普通子弹伤害
+    private static float BULLET_COOLDOWN_SEC = 0.3f;  // 射击冷却
+    private static int BULLET_MAX_PER_PLAYER = 5;     // 每玩家同时存在子弹上限
+    private static float MIN_SHOOT_MASS = 3.0f;       // 最小射击质量
+
     [Table(Name = "entity", Public = true)]
     public partial struct Entity
     {
@@ -55,6 +64,16 @@ public static partial class Module
     {
         [PrimaryKey]
         public int entity_id;
+    }
+    [Table(Name = "bullet", Public = true)]
+    public partial struct Bullet
+    {
+        [PrimaryKey]
+        public int entity_id;          // 关联 entity 表
+        public int owner_player_id;    // 发射者
+        public float dir_x;            // 飞行方向（已归一化）
+        public float dir_y;
+        public double spawned_at_ms;   // 生成时间戳（毫秒）
     }
     [Table(Name = "circle", Public = true)]
     public partial struct Circle
@@ -103,6 +122,82 @@ public static partial class Module
         //context.Db.test_table.id.Update(item);
         //Log.Info($"id: {item.id}, name: {item.name}");
         //context.Db.test_table.id.Delete(1);
+    }
+
+    // 射击冷却追踪：player_id → 上次射击时间（毫秒）
+    private static readonly System.Collections.Generic.Dictionary<int, double> _shootCooldowns = new();
+
+    [Reducer]
+    public static void ShootBullet(ReducerContext context, float dirX, float dirY)
+    {
+        var player = context.Db.logged_in_player.Identity.Find(context.Sender) ?? throw new Exception("未找到对应玩家");
+
+        // 归一化方向
+        float len = MathF.Sqrt(dirX * dirX + dirY * dirY);
+        if (len < 0.001f) return; // 无方向
+        dirX /= len;
+        dirY /= len;
+
+        // 找到玩家的主球（质量最大的球）
+        int bestEid = 0;
+        float bestMass = 0;
+        Entity bestEntity = default;
+        foreach (var c in context.Db.circle.player_id.Filter(player.player_id))
+        {
+            if (c.isMerging) continue;
+            var ent = context.Db.entity.id.Find(c.entity_id);
+            if (ent == null) continue;
+            if (ent.Value.mass > bestMass)
+            {
+                bestMass = ent.Value.mass;
+                bestEid = c.entity_id;
+                bestEntity = ent.Value;
+            }
+        }
+        if (bestEid == 0) return;
+
+        // 检查质量阈值
+        if (bestEntity.mass < MIN_SHOOT_MASS) return;
+
+        // 检查冷却
+        double now = context.Timestamp.ToTimeSpanSinceUnixEpoch().TotalMilliseconds;
+        if (_shootCooldowns.TryGetValue(player.player_id, out double lastShoot))
+        {
+            if (now - lastShoot < BULLET_COOLDOWN_SEC * 1000) return;
+        }
+        _shootCooldowns[player.player_id] = now;
+
+        // 检查场上子弹上限
+        int bulletCount = 0;
+        foreach (var b in context.Db.bullet.Iter())
+        {
+            if (b.owner_player_id == player.player_id) bulletCount++;
+        }
+        if (bulletCount >= BULLET_MAX_PER_PLAYER) return;
+
+        // 扣质量，更新 HP
+        bestEntity.mass -= BULLET_MASS_COST;
+        if (bestEntity.mass < 0.1f) bestEntity.mass = 0.1f;
+        UpdateHpAfterMassChange(ref bestEntity);
+        context.Db.entity.id.Update(bestEntity);
+
+        // 生成子弹 entity
+        var bulletEntity = context.Db.entity.Insert(new Entity
+        {
+            mass = 0.3f, // 子弹视觉大小
+            position = new DbVector2(bestEntity.position.x, bestEntity.position.y),
+            hp = 0,
+            max_hp = 0
+        });
+        context.Db.bullet.Insert(new Bullet
+        {
+            entity_id = bulletEntity.id,
+            owner_player_id = player.player_id,
+            dir_x = dirX,
+            dir_y = dirY,
+            spawned_at_ms = now
+        });
+        Log.Info($"[射击] 玩家 {player.player_id} 从实体 {bestEid} 发射子弹 {bulletEntity.id}");
     }
 
     // 调试用：对指定 entity 扣血（测试 HP 条用）
@@ -430,6 +525,106 @@ public static partial class Module
             }
             // 从基础实体表删除
             context.Db.entity.id.Delete(deadId);
+        }
+
+        // 第四阶段：子弹移动 + 碰撞检测
+        double now = context.Timestamp.ToTimeSpanSinceUnixEpoch().TotalMilliseconds;
+        var bulletsToDelete = new System.Collections.Generic.HashSet<int>();
+        var bulletHits = new System.Collections.Generic.Dictionary<int, float>(); // entity_id → damage
+
+        foreach (var bullet in context.Db.bullet.Iter())
+        {
+            var bulletEntNullable = context.Db.entity.id.Find(bullet.entity_id);
+            if (bulletEntNullable == null)
+            {
+                bulletsToDelete.Add(bullet.entity_id);
+                continue;
+            }
+            var bulletEnt = bulletEntNullable.Value;
+
+            // 过期判定
+            if (now - bullet.spawned_at_ms >= BULLET_LIFETIME_MS)
+            {
+                bulletsToDelete.Add(bullet.entity_id);
+                continue;
+            }
+
+            // 移动子弹
+            float moveStep = 0.05f * BULLET_SPEED; // 与 MoveAllPlayer 的步长一致（50ms）
+            bulletEnt.position.x += bullet.dir_x * moveStep;
+            bulletEnt.position.y += bullet.dir_y * moveStep;
+            ClampEntityToBounds(ref bulletEnt);
+            context.Db.entity.id.Update(bulletEnt);
+
+            // 碰撞检测：子弹 vs 所有玩家球
+            foreach (var circle in context.Db.circle.Iter())
+            {
+                if (circle.isMerging) continue;
+                if (bulletsToDelete.Contains(bullet.entity_id)) break;
+
+                // 跳过发射者自己的球
+                if (circle.player_id == bullet.owner_player_id) continue;
+
+                var targetEntNullable = context.Db.entity.id.Find(circle.entity_id);
+                if (targetEntNullable == null) continue;
+                var targetEnt = targetEntNullable.Value;
+
+                // 用类似 IsOverLapping 的逻辑检测覆盖
+                if (IsOverLapping(bulletEnt, targetEnt))
+                {
+                    bulletsToDelete.Add(bullet.entity_id);
+                    // 累计伤害
+                    if (!bulletHits.ContainsKey(circle.entity_id))
+                        bulletHits[circle.entity_id] = 0;
+                    bulletHits[circle.entity_id] += BULLET_DAMAGE;
+                    break;
+                }
+            }
+        }
+
+        // 统一应用伤害
+        foreach (var kv in bulletHits)
+        {
+            var targetNullable = context.Db.entity.id.Find(kv.Key);
+            if (targetNullable == null) continue;
+            var target = targetNullable.Value;
+            target.hp -= kv.Value;
+            if (target.hp < 0) target.hp = 0;
+            UpdateHpAfterMassChange(ref target);
+            context.Db.entity.id.Update(target);
+
+            // HP=0 则死亡：散落食物、删除实体
+            if (target.hp <= 0)
+            {
+                Log.Info($"[击杀] 实体 {target.id} 被子弹打死！");
+                // 散落食物
+                int dropCount = 3 + (int)(target.mass * 0.05f);
+                if (dropCount > 8) dropCount = 8;
+                for (int i = 0; i < dropCount; i++)
+                {
+                    float rx = (float)(context.Rng.NextDouble() - 0.5) * 3f;
+                    float ry = (float)(context.Rng.NextDouble() - 0.5) * 3f;
+                    var foodEnt = context.Db.entity.Insert(new Entity
+                    {
+                        mass = target.mass * 0.2f / dropCount,
+                        position = new DbVector2(target.position.x + rx, target.position.y + ry),
+                        hp = 0,
+                        max_hp = 0
+                    });
+                    context.Db.food.Insert(new Food { entity_id = foodEnt.id });
+                }
+                // 删除死亡玩家的 circle 和 entity
+                if (context.Db.circle.entity_id.Find(target.id) != null)
+                    context.Db.circle.entity_id.Delete(target.id);
+                context.Db.entity.id.Delete(target.id);
+            }
+        }
+
+        // 删除过期/命中的子弹
+        foreach (var bid in bulletsToDelete)
+        {
+            context.Db.bullet.entity_id.Delete(bid);
+            context.Db.entity.id.Delete(bid);
         }
     }
     public static bool IsOverLapping(Entity entityA, Entity entityB)

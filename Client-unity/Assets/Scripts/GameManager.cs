@@ -10,9 +10,11 @@ public class GameManager : MonoBehaviour
     public static GameManager Instance { get; private set; }
     public InputField InputField;
     public GameObject canvasGo;
+    public GameObject bulletPrefab;  // 子弹预制体（拖拽）
 
     private static Dictionary<int, GameObject> Entities = new Dictionary<int, GameObject>();
     private static Dictionary<int, GameObject> Circles = new Dictionary<int, GameObject>();
+    private static Dictionary<int, GameObject> Bullets = new Dictionary<int, GameObject>();
 
     private static Dictionary<int, List<int>> PlayerBallMap = new Dictionary<int, List<int>>();
 
@@ -65,6 +67,8 @@ public class GameManager : MonoBehaviour
         Conn.Db.Circle.OnInsert += OnCircleInserted;
         Conn.Db.Circle.OnDelete += OnCircleDeleted;
         Conn.Db.Circle.OnUpdate += OnCircleUpdated;
+        Conn.Db.Bullet.OnInsert += OnBulletInserted;
+        Conn.Db.Bullet.OnDelete += OnBulletDeleted;
 
         isSubscribed = true;
         Debug.Log("? GameManager 成功订阅所有表事件。");
@@ -80,11 +84,20 @@ public class GameManager : MonoBehaviour
         if (entitiesUpdatedThisFrame.Contains(newRow.Id)) return;
         entitiesUpdatedThisFrame.Add(newRow.Id);
 
-        if (Circles.TryGetValue(newRow.Id, out var go) == false) return;
-        var ctrl = go.GetComponent<CircleController>();
-        ctrl.SetTargetPos(new Vector3(newRow.Position.X, newRow.Position.Y, 0));
-        ctrl.SetTargetScale(newRow.Mass);
-        ctrl.SetHp(newRow.Hp, newRow.MaxHp); // 同步 HP
+        // 更新玩家球
+        if (Circles.TryGetValue(newRow.Id, out var go))
+        {
+            var ctrl = go.GetComponent<CircleController>();
+            ctrl.SetTargetPos(new Vector3(newRow.Position.X, newRow.Position.Y, 0));
+            ctrl.SetTargetScale(newRow.Mass);
+            ctrl.SetHp(newRow.Hp, newRow.MaxHp);
+        }
+
+        // 更新子弹
+        if (Bullets.TryGetValue(newRow.Id, out var bulletGo))
+        {
+            bulletGo.transform.position = new Vector3(newRow.Position.X, newRow.Position.Y, 0);
+        }
     }
 
     private void OnCircleDeleted(EventContext context, Circle row)
@@ -198,6 +211,12 @@ public class GameManager : MonoBehaviour
             CameraContoller.Instance.AddFollowTarget(circleGo.transform);
             controller.isLocalPlayer = true;
             controller.ApplyLocalPlayerVisual(); // Start() 执行时 isLocalPlayer 还是 false，这里补上
+
+            // 为本地玩家球添加瞄准方向指示器
+            var aimIndicator = circleGo.GetComponent<AimIndicator>();
+            if (aimIndicator == null) aimIndicator = circleGo.AddComponent<AimIndicator>();
+            aimIndicator.isLocalPlayer = true;
+            aimIndicator.SetActive(true);
         }
     }
 
@@ -271,6 +290,55 @@ public class GameManager : MonoBehaviour
         Entities.Add(newFood.EntityId, foodGo);
     }
 
+    // ===== 子弹相关 =====
+    private void OnBulletInserted(EventContext ctx, Bullet newBullet)
+    {
+        var entity = Conn.Db.Entity.Id.Find(newBullet.EntityId);
+        if (entity == null) return;
+
+        // 使用预制体创建子弹（如果没有预制体，用默认小球体）
+        GameObject bulletGo;
+        if (bulletPrefab != null)
+        {
+            bulletGo = Instantiate(bulletPrefab);
+        }
+        else
+        {
+            bulletGo = GameObject.CreatePrimitive(PrimitiveType.Sphere);
+            Destroy(bulletGo.GetComponent<Collider>()); // 移除碰撞体
+            var sr = bulletGo.AddComponent<SpriteRenderer>();
+            var tex = new Texture2D(16, 16);
+            for (int y = 0; y < 16; y++)
+                for (int x = 0; x < 16; x++)
+                {
+                    float dx = x - 7.5f, dy = y - 7.5f;
+                    tex.SetPixel(x, y, (dx * dx + dy * dy) <= 56f ? Color.yellow : Color.clear);
+                }
+            tex.Apply();
+            sr.sprite = Sprite.Create(tex, new Rect(0, 0, 16, 16), new Vector2(0.5f, 0.5f));
+            var ctrl = bulletGo.AddComponent<BulletController>();
+            ctrl.entityId = newBullet.EntityId;
+        }
+        bulletGo.name = "Bullet" + newBullet.EntityId;
+        bulletGo.transform.position = new Vector3(entity.Position.X, entity.Position.Y, 0);
+        bulletGo.transform.localScale = new Vector3(0.3f, 0.3f, 1f);
+
+        // 确保有 BulletController
+        var bulletCtrl = bulletGo.GetComponent<BulletController>();
+        if (bulletCtrl == null) bulletCtrl = bulletGo.AddComponent<BulletController>();
+        bulletCtrl.entityId = newBullet.EntityId;
+
+        Bullets.Add(newBullet.EntityId, bulletGo);
+    }
+
+    private void OnBulletDeleted(EventContext ctx, Bullet deletedBullet)
+    {
+        if (Bullets.Remove(deletedBullet.EntityId, out var go))
+        {
+            Destroy(go);
+        }
+    }
+
     // ===== UI =====
     public void OnButtonEnterGameClick()
     {
@@ -332,6 +400,17 @@ public class GameManager : MonoBehaviour
             Conn.Db.Circle.OnDelete -= OnCircleDeleted;
             Conn.Db.Circle.OnUpdate -= OnCircleUpdated;
         }
+    }
+
+    /// <summary>
+    /// 获取本地玩家主球的世界坐标位置。
+    /// 供 PlayerInputController 等外部组件调用。
+    /// </summary>
+    public static Vector3 GetLocalMainBallPosition()
+    {
+        if (Instance == null) return Vector3.zero;
+        var t = Instance.FindLocalMainBall();
+        return t != null ? t.position : Vector3.zero;
     }
 
     private Transform FindLocalMainBall()
