@@ -42,6 +42,7 @@ public class CircleController : MonoBehaviour
     private float splitAnimTime = 0.3f;
     private float splitAnimTimer;
     private Vector3 splitStartPos;
+    private Vector3 splitAnimEndPos; // 分裂动画的固定终点，不受服务端位置更新干扰
 
     // ===== 物理组件 =====
     private CircleCollider2D col;
@@ -127,11 +128,12 @@ public class CircleController : MonoBehaviour
         isMergeAnim = false;
         splitAnimTimer = 0f;
         splitStartPos = startPosition;
+        splitAnimEndPos = initialTargetPos; // 锁定终点，动画期间不随服务端位置更新而变
         targetPos = initialTargetPos;
         hasReceivedFirstUpdate = true;
         rb.isKinematic = true;
         rb.position = startPosition;
-        if (col != null) col.enabled = false; // 动画期间禁用，避免从母球位置弹出时物理挤压
+        if (col != null) col.enabled = false;
     }
 
     void Update()
@@ -169,15 +171,15 @@ public class CircleController : MonoBehaviour
         {
             splitAnimTimer += Time.deltaTime;
             float rate = Mathf.Clamp01(splitAnimTimer / splitAnimTime);
-            float t = 1f - Mathf.Pow(1f - rate, 3f);
-            transform.position = Vector3.Lerp(splitStartPos, targetPos, t);
+            float t = 1f - Mathf.Pow(1f - rate, 3f); // ease-out cubic
+            Vector2 pos = Vector2.Lerp((Vector2)splitStartPos, (Vector2)splitAnimEndPos, t);
+            rb.position = pos; // 用 rb.position 保持物理同步，避免动画结束时 snap
 
             if (splitAnimTimer >= splitAnimTime)
             {
                 isSplitAnim = false;
-                // 分裂完成：切回动态物理 + 启用碰撞体
                 rb.isKinematic = false;
-                rb.position = transform.position;
+                rb.position = (Vector2)splitAnimEndPos; // 精确落位
                 if (col != null) col.enabled = true;
             }
         }
