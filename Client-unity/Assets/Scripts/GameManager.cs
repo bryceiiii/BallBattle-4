@@ -84,6 +84,7 @@ public class GameManager : MonoBehaviour
         var ctrl = go.GetComponent<CircleController>();
         ctrl.SetTargetPos(new Vector3(newRow.Position.X, newRow.Position.Y, 0));
         ctrl.SetTargetScale(newRow.Mass);
+        ctrl.SetHp(newRow.Hp, newRow.MaxHp); // 同步 HP
     }
 
     private void OnCircleDeleted(EventContext context, Circle row)
@@ -166,6 +167,7 @@ public class GameManager : MonoBehaviour
         var controller = circleGo.GetComponent<CircleController>();
         controller.entityId = row.EntityId;
         controller.playerId = row.PlayerId;
+        if (entity != null) controller.SetHp(entity.Hp, entity.MaxHp); // 初始化 HP
 
         RegisterPlayerBall(row.PlayerId, row.EntityId);
 
@@ -291,6 +293,28 @@ public class GameManager : MonoBehaviour
             if (Conn != null)
             {
                 print($"当前食物总数: {Conn.Db.Food.Count}");
+            }
+        }
+
+        // [调试] H 键对自己最大球扣 10 HP
+        if (Input.GetKeyDown(KeyCode.H))
+        {
+            if (Conn != null)
+            {
+                var mainBall = FindLocalMainBall();
+                if (mainBall != null)
+                {
+                    var ctrl = mainBall.GetComponent<CircleController>();
+                    if (ctrl != null)
+                    {
+                        Conn.Reducers.DebugDamage(ctrl.entityId, 10f);
+                        Debug.Log($"[调试] 对自己最大球 {ctrl.entityId} 扣血 10");
+                    }
+                }
+                else
+                {
+                    Debug.LogWarning("[调试] 未找到本地玩家的球");
+                }
             }
         }
     }

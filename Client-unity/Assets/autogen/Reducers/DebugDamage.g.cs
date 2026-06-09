@@ -12,17 +12,17 @@ namespace SpacetimeDB.Types
 {
     public sealed partial class RemoteReducers : RemoteBase
     {
-        public delegate void FinishMergeHandler(ReducerEventContext ctx, int smallEntityId);
-        public event FinishMergeHandler? OnFinishMerge;
+        public delegate void DebugDamageHandler(ReducerEventContext ctx, int entityId, float amount);
+        public event DebugDamageHandler? OnDebugDamage;
 
-        public void FinishMerge(int smallEntityId)
+        public void DebugDamage(int entityId, float amount)
         {
-            conn.InternalCallReducer(new Reducer.FinishMerge(smallEntityId));
+            conn.InternalCallReducer(new Reducer.DebugDamage(entityId, amount));
         }
 
-        public bool InvokeFinishMerge(ReducerEventContext ctx, Reducer.FinishMerge args)
+        public bool InvokeDebugDamage(ReducerEventContext ctx, Reducer.DebugDamage args)
         {
-            if (OnFinishMerge == null)
+            if (OnDebugDamage == null)
             {
                 if (InternalOnUnhandledReducerError != null)
                 {
@@ -34,9 +34,10 @@ namespace SpacetimeDB.Types
                 }
                 return false;
             }
-            OnFinishMerge(
+            OnDebugDamage(
                 ctx,
-                args.SmallEntityId
+                args.EntityId,
+                args.Amount
             );
             return true;
         }
@@ -46,21 +47,27 @@ namespace SpacetimeDB.Types
     {
         [SpacetimeDB.Type]
         [DataContract]
-        public sealed partial class FinishMerge : Reducer, IReducerArgs
+        public sealed partial class DebugDamage : Reducer, IReducerArgs
         {
-            [DataMember(Name = "small_entity_id")]
-            public int SmallEntityId;
+            [DataMember(Name = "entity_id")]
+            public int EntityId;
+            [DataMember(Name = "amount")]
+            public float Amount;
 
-            public FinishMerge(int SmallEntityId)
+            public DebugDamage(
+                int EntityId,
+                float Amount
+            )
             {
-                this.SmallEntityId = SmallEntityId;
+                this.EntityId = EntityId;
+                this.Amount = Amount;
             }
 
-            public FinishMerge()
+            public DebugDamage()
             {
             }
 
-            string IReducerArgs.ReducerName => "FinishMerge";
+            string IReducerArgs.ReducerName => "DebugDamage";
         }
     }
 }

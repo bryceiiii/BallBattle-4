@@ -12,6 +12,39 @@ public class CircleController : MonoBehaviour
     public Text nameText;
     public bool isLocalPlayer = false;
 
+    // ===== HP 条调优参数（可在 Unity Inspector 中调整） =====
+    [Header("HP 条位置调优")]
+    public float hpBarTopGap = 0.08f;             // 球顶到 HP 条底部的间距（世界单位）
+    public float hpBarZDepth = -0.01f;            // Z 轴偏移（-值=在球前方）
+    public float hpBarWidthRatio = 1.0f;          // HP 条宽度占球直径的比例（1.0=和球一样宽）
+    public float hpBarMinWidth = 0.3f;            // HP 条最小宽度
+    [Header("HP 条高度（随球增大而变高）")]
+    public float hpBarBaseHeight = 0.12f;          // 基础高度（世界单位）
+    public float hpBarHeightGrowth = 0.02f;        // 每单位直径增加的高度（0=不变）
+
+    /// <summary>
+    /// 根据球的当前直径计算 HP 条高度。
+    /// 小球时 ≈ hpBarBaseHeight，大球时缓慢增长。
+    /// </summary>
+    public float GetHpBarHeight(float diameter)
+    {
+        // 参考直径 = 出生球直径 (mass=5 → sqrt(5)/2 ≈ 1.12)
+        const float REF_DIAM = 1.12f;
+        float extra = Mathf.Max(0f, diameter - REF_DIAM) * hpBarHeightGrowth;
+        return hpBarBaseHeight + extra;
+    }
+
+    // ===== HP 相关（Inspector 可观察） =====
+    [Header("HP 状态（运行时观察）")]
+    public float debugHp = 0f;          // 当前 HP（Inspector 只读观察）
+    public float debugMaxHp = 0f;       // 最大 HP
+    public float debugHpRatio = 0f;     // 血量百分比 0~1
+    private float hp = 100f;
+    private float maxHp = 100f;
+    private Image hpFillImage;           // HP 填充条
+    private RectTransform hpCanvasRect;  // Canvas 的 RectTransform（控制位置+尺寸+显隐）
+    private bool hpBarCreated = false;
+
     // ===== 服务端权威目标值 =====
     private Vector3 targetPos = Vector3.zero;
     private float targetScale = 1f;
@@ -89,6 +122,111 @@ public class CircleController : MonoBehaviour
         if (isLocalPlayer && nameText != null)
         {
             nameText.color = Color.green;
+        }
+    }
+
+    // ===== HP 条 =====
+    /// <summary>
+    /// 创建 HP 条（World Space Canvas，球顶上方）。
+    /// 在首次调用 SetHp 时懒创建，避免 Start 时预制体还未完全实例化。
+    /// </summary>
+    private void CreateHpBar()
+    {
+        if (hpBarCreated) return;
+        hpBarCreated = true;
+
+        // 创建 Canvas 作为子物体
+        var canvasGo = new GameObject("HpCanvas");
+        canvasGo.transform.SetParent(transform, false);
+        // 取消继承父级缩放，Canvas 尺寸由 sizeDelta 独立控制
+        float initDiam = Mathf.Max(transform.localScale.x, 0.001f);
+        float initH = GetHpBarHeight(initDiam);
+        float initOffset = 0.5f + (initH * 0.5f + hpBarTopGap) / initDiam;
+        canvasGo.transform.localPosition = new Vector3(0f, initOffset, hpBarZDepth);
+        canvasGo.transform.localScale = Vector3.one;
+        var canvas = canvasGo.AddComponent<Canvas>();
+        canvas.renderMode = RenderMode.WorldSpace;
+        canvas.worldCamera = Camera.main;
+        // 不添加 GraphicRaycaster（不需要交互）
+
+        // Canvas 的 RectTransform — 局部尺寸 = hpBarWidthRatio（乘父级缩放后=球直径）
+        var canvasRect = canvasGo.GetComponent<RectTransform>();
+        hpCanvasRect = canvasRect;
+        canvasRect.anchorMin = new Vector2(0.5f, 0.5f);
+        canvasRect.anchorMax = new Vector2(0.5f, 0.5f);
+        canvasRect.pivot = new Vector2(0.5f, 0.5f);
+        float initialLocalWidth = Mathf.Max(hpBarWidthRatio, hpBarMinWidth / initDiam);
+        canvasRect.sizeDelta = new Vector2(initialLocalWidth, initH / initDiam);
+
+        // HP 条背景（深灰色）— 填满 Canvas
+        var bgGo = new GameObject("HpBarBg");
+        bgGo.transform.SetParent(canvasGo.transform, false);
+        var bgImage = bgGo.AddComponent<Image>();
+        bgImage.color = new Color(0.15f, 0.15f, 0.15f, 0.85f);
+        var bgRect = bgGo.GetComponent<RectTransform>();
+        bgRect.anchorMin = Vector2.zero;
+        bgRect.anchorMax = Vector2.one;
+        bgRect.sizeDelta = Vector2.zero;
+        bgRect.anchoredPosition = Vector2.zero;
+
+        // BG 添加 Mask，用来裁剪内部的 Fill 超出部分
+        bgGo.AddComponent<Mask>().showMaskGraphic = true;
+
+        // HP 填充条（用宽度控制填充比例，比 Image.Filled 更可靠）
+        var fillGo = new GameObject("HpBarFill");
+        fillGo.transform.SetParent(bgGo.transform, false);
+        hpFillImage = fillGo.AddComponent<Image>();
+        hpFillImage.color = Color.green;
+        hpFillImage.type = Image.Type.Simple; // 普通模式，不依赖 Filled
+        var fillRect = hpFillImage.GetComponent<RectTransform>();
+        // 锚定在左侧（0,0）到（0,1），pivot 在左侧
+        fillRect.anchorMin = new Vector2(0f, 0f);
+        fillRect.anchorMax = new Vector2(0f, 1f);
+        fillRect.pivot = new Vector2(0f, 0.5f);
+        fillRect.sizeDelta = new Vector2(100f, 0f); // 初始宽100%，SetHp 会调整
+
+        // 创建时全隐藏，SetHp 会按血量决定是否显示
+        canvasGo.SetActive(false);
+    }
+
+    /// <summary>
+    /// 由 GameManager 每帧 OnEntityUpdated 调用，同步服务端 HP 数据。
+    /// </summary>
+    public void SetHp(float currentHp, float maxHpValue)
+    {
+        hp = currentHp;
+        maxHp = maxHpValue;
+
+        // 更新调试观察字段
+        debugHp = currentHp;
+        debugMaxHp = maxHpValue;
+
+        if (!hpBarCreated) CreateHpBar();
+
+        var fillRect = hpFillImage != null ? hpFillImage.GetComponent<RectTransform>() : null;
+        if (fillRect == null || hp <= 0 || maxHp <= 0) return;
+
+        float ratio = Mathf.Clamp01(hp / maxHp);
+        debugHpRatio = ratio;
+
+        // 用宽度控制填充比例（比 Image.Filled.fillAmount 更可靠）
+        // BG 的宽度由 Canvas sizeDelta 决定，这里取 BG 宽度 = Canvas 宽度
+        float barFullWidth = hpCanvasRect.sizeDelta.x;
+        float fillWidth = barFullWidth * ratio;
+        fillRect.sizeDelta = new Vector2(fillWidth, 0f);
+
+        // 颜色：绿(>60%) → 黄(30-60%) → 红(<30%)
+        if (ratio > 0.6f)
+            hpFillImage.color = Color.green;
+        else if (ratio > 0.3f)
+            hpFillImage.color = Color.yellow;
+        else
+            hpFillImage.color = Color.red;
+
+        // 控制 Canvas 级显隐：满血隐藏，受伤显示
+        if (hpCanvasRect != null)
+        {
+            hpCanvasRect.gameObject.SetActive(ratio < 1f);
         }
     }
 
@@ -190,6 +328,41 @@ public class CircleController : MonoBehaviour
             float curScale = transform.localScale.x;
             float newS = Mathf.SmoothDamp(curScale, targetScale, ref scaleVelocity, scaleSmoothTime);
             transform.localScale = new Vector3(newS, newS, 1f);
+        }
+
+        // ===== HP 条位置跟随（直接控制 Canvas 的 localPosition） =====
+        if (hpCanvasRect != null)
+        {
+            float diameter = transform.localScale.x;
+            if (diameter < 0.001f) diameter = 0.001f;
+            float curH = GetHpBarHeight(diameter);
+
+            // === 世界单位 → 父级局部空间换算 ===
+            // Canvas 是球的子物体，ballScale 倍率会应用于 Canvas 的 localPosition/sizeDelta
+            // 所以需要把世界单位的目标值除以 ballScale 得到局部值
+
+            // 位置：球顶在局部 Y = 0.5（因为 ballScale.x = 直径）
+            // 加上条高/间距的局部偏移
+            float localOffset = 0.5f + (curH * 0.5f + hpBarTopGap) / diameter;
+            hpCanvasRect.localPosition = new Vector3(0f, localOffset, hpBarZDepth);
+
+            // 取消继承父球缩放，仅通过 sizeDelta 传递父级缩放
+            hpCanvasRect.localScale = Vector3.one;
+
+            // 宽度（局部）：设为 hpBarWidthRatio，乘父级缩放后 = 球直径 × 比例
+            float localWidth = hpBarWidthRatio;
+            // 最小宽度保护也要换算到局部空间
+            float minLocalWidth = hpBarMinWidth / diameter;
+            localWidth = Mathf.Max(localWidth, minLocalWidth);
+            hpCanvasRect.sizeDelta = new Vector2(localWidth, curH / diameter);
+
+            // Canvas 宽度变化时同步更新 Fill 宽度（保持血量比例）
+            if (hpFillImage != null)
+            {
+                float ratio = Mathf.Clamp01(hp / maxHp);
+                float fillLocalWidth = localWidth * ratio;
+                hpFillImage.GetComponent<RectTransform>().sizeDelta = new Vector2(fillLocalWidth, 0f);
+            }
         }
     }
 

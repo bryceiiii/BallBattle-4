@@ -19,16 +19,24 @@ namespace SpacetimeDB.Types
         public float Mass;
         [DataMember(Name = "position")]
         public DbVector2 Position;
+        [DataMember(Name = "hp")]
+        public float Hp;
+        [DataMember(Name = "max_hp")]
+        public float MaxHp;
 
         public Entity(
             int Id,
             float Mass,
-            DbVector2 Position
+            DbVector2 Position,
+            float Hp,
+            float MaxHp
         )
         {
             this.Id = Id;
             this.Mass = Mass;
             this.Position = Position;
+            this.Hp = Hp;
+            this.MaxHp = MaxHp;
         }
 
         public Entity()

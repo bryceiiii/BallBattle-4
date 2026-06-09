@@ -24,6 +24,11 @@ public static partial class Module
         public string name;
     }
     
+    // HP 相关常量
+    private static float HP_BASE = 50f;          // HP 基础值
+    private static float HP_MASS_COEFF = 0.5f;   // HP 随质量增长系数
+    private static float HP_MIN_RATIO = 0.3f;    // HP/mass 下限保护比
+
     [Table(Name = "entity", Public = true)]
     public partial struct Entity
     {
@@ -31,6 +36,8 @@ public static partial class Module
         public int id;
         public float mass;      // 已经为 float
         public DbVector2 position;
+        public float hp;        // 当前生命值
+        public float max_hp;    // 生命上限 = 50 + mass * 0.5
     }
     [Type]
     public partial struct DbVector2
@@ -98,6 +105,21 @@ public static partial class Module
         //context.Db.test_table.id.Delete(1);
     }
 
+    // 调试用：对指定 entity 扣血（测试 HP 条用）
+    [Reducer]
+    public static void DebugDamage(ReducerContext context, int entityId, float amount)
+    {
+        var entityNullable = context.Db.entity.id.Find(entityId);
+        if (entityNullable == null) return;
+        var entity = entityNullable.Value;
+        entity.hp -= amount;
+        if (entity.hp < 0) entity.hp = 0;
+        // 用 UpdateHpAfterMassChange 确保 max_hp 和下限保护也走一遍
+        UpdateHpAfterMassChange(ref entity);
+        context.Db.entity.id.Update(entity);
+        Log.Info($"[调试] 实体 {entityId} 扣血 {amount}，剩余 HP: {entity.hp}/{entity.max_hp}");
+    }
+
     // 重命名为不以 "On" 开头的方法名
     [Reducer]
     public static void EnterGame(ReducerContext context,string name) 
@@ -113,7 +135,9 @@ public static partial class Module
         var entity = context.Db.entity.Insert(new Entity
         {
             mass = PRIMARY_PLAYER_MASS,
-            position = new DbVector2(x,y)//调用构造函数创建DbVector2实例
+            position = new DbVector2(x,y),//调用构造函数创建DbVector2实例
+            hp = ComputeMaxHp(PRIMARY_PLAYER_MASS),
+            max_hp = ComputeMaxHp(PRIMARY_PLAYER_MASS)
         });
         context.Db.circle.Insert(new Circle
         {
@@ -377,7 +401,7 @@ public static partial class Module
         }
 
         // 第三阶段：统一处理数据的 更新 和 删除
-        // 增重
+        // 增重 + HP 更新
         foreach(var kvp in massGains)
         {
             var entityToGainNullable = context.Db.entity.id.Find(kvp.Key);
@@ -385,6 +409,8 @@ public static partial class Module
             {
                 var entityToGain = entityToGainNullable.Value;
                 entityToGain.mass += kvp.Value;
+                // 质量变化后更新 max_hp，缓冲保护 hp 不越界
+                UpdateHpAfterMassChange(ref entityToGain);
                 context.Db.entity.id.Update(entityToGain);
             }
         }
@@ -430,6 +456,29 @@ public static partial class Module
     {
         // 我们在原有公式的基础上，乘以一个可配置的视觉缩放系数
         return (MathF.Sqrt(mass) / 2f) ;
+    }
+
+    // ===== HP 工具函数 =====
+    /// <summary>
+    /// 根据质量计算 HP 上限。公式：HP_BASE + mass * HP_MASS_COEFF
+    /// </summary>
+    public static float ComputeMaxHp(float mass)
+    {
+        return HP_BASE + mass * HP_MASS_COEFF;
+    }
+
+    /// <summary>
+    /// 质量变化后更新 max_hp，并确保 hp 不越界。
+    /// </summary>
+    public static void UpdateHpAfterMassChange(ref Entity entity)
+    {
+        float newMax = ComputeMaxHp(entity.mass);
+        entity.max_hp = newMax;
+        // 缓冲保护：HP 不低于 mass * HP_MIN_RATIO
+        float minHp = entity.mass * HP_MIN_RATIO;
+        if (entity.hp < minHp) entity.hp = minHp;
+        // 上限：hp 不能超过新的 max_hp
+        if (entity.hp > newMax) entity.hp = newMax;
     }
 
     [Table(Name = "move_all_player", Scheduled = nameof(MoveAllPlayer), ScheduledAt = nameof(schedule_at))]
@@ -479,9 +528,15 @@ public static partial class Module
             if (entity.mass >= MIN_SPLIT_MASS)
             {
                 float halfMass = entity.mass / 2f;
+                float halfHp = entity.hp / 2f; // HP 同质量一样对半分
                 
-                // 1. 将旧实体质量减半
+                // 1. 将旧实体质量减半，HP 减半
                 entity.mass = halfMass;
+                entity.hp = halfHp;
+                entity.max_hp = ComputeMaxHp(halfMass);
+                // 下限保护
+                float minHp = halfMass * HP_MIN_RATIO;
+                if (entity.hp < minHp) entity.hp = minHp;
                 context.Db.entity.id.Update(entity);
 
                 // 2. 根据玩家移动方向，计算新实体的生成偏移位置
@@ -502,7 +557,9 @@ public static partial class Module
                 var newEntity = context.Db.entity.Insert(new Entity
                 {
                     mass = halfMass,
-                    position = new DbVector2(entity.position.x + dirX * offset, entity.position.y + dirY * offset)
+                    position = new DbVector2(entity.position.x + dirX * offset, entity.position.y + dirY * offset),
+                    hp = halfHp,
+                    max_hp = ComputeMaxHp(halfMass)
                 });
 
                 // 3. 将新实体与玩家绑定
@@ -627,10 +684,15 @@ public static partial class Module
                     int smallEntityId = ea.mass >= eb.mass ? cb.entity_id : ca.entity_id;
                     int bigEntityId = ea.mass >= eb.mass ? ca.entity_id : cb.entity_id;
 
-                    // 把小球的质量先加到大球上
+                    // 把小球的质量先加到大球上，HP 合并（相加，上限为新 max_hp）
                     var bigEnt = circleEntDic[bigEntityId];
                     var smallEnt = circleEntDic[smallEntityId];
-                    bigEnt.mass += smallEnt.mass;
+                    float mergedMass = bigEnt.mass + smallEnt.mass;
+                    float mergedHp = bigEnt.hp + smallEnt.hp;
+                    float newMaxHp = ComputeMaxHp(mergedMass);
+                    bigEnt.mass = mergedMass;
+                    bigEnt.hp = Math.Min(mergedHp, newMaxHp);
+                    bigEnt.max_hp = newMaxHp;
                     context.Db.entity.id.Update(bigEnt);
 
                     // 标记小球为合并动画中（不再参与移动/贴合判定/吞噬）

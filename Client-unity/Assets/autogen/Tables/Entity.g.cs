@@ -42,12 +42,16 @@ namespace SpacetimeDB.Types
         public global::SpacetimeDB.Col<Entity, int> Id { get; }
         public global::SpacetimeDB.Col<Entity, float> Mass { get; }
         public global::SpacetimeDB.Col<Entity, DbVector2> Position { get; }
+        public global::SpacetimeDB.Col<Entity, float> Hp { get; }
+        public global::SpacetimeDB.Col<Entity, float> MaxHp { get; }
 
         public EntityCols(string tableName)
         {
             Id = new global::SpacetimeDB.Col<Entity, int>(tableName, "id");
             Mass = new global::SpacetimeDB.Col<Entity, float>(tableName, "mass");
             Position = new global::SpacetimeDB.Col<Entity, DbVector2>(tableName, "position");
+            Hp = new global::SpacetimeDB.Col<Entity, float>(tableName, "hp");
+            MaxHp = new global::SpacetimeDB.Col<Entity, float>(tableName, "max_hp");
         }
     }
 
