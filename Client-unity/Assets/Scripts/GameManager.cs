@@ -91,6 +91,12 @@ public class GameManager : MonoBehaviour
             ctrl.SetTargetPos(new Vector3(newRow.Position.X, newRow.Position.Y, 0));
             ctrl.SetTargetScale(newRow.Mass);
             ctrl.SetHp(newRow.Hp, newRow.MaxHp);
+
+            // 本地玩家球更新时同步 HUD
+            if (ctrl.isLocalPlayer)
+            {
+                UpdateHudForLocalPlayer(newRow);
+            }
         }
 
         // 更新子弹（用 MovePosition 确保物理触发事件正常工作）
@@ -457,5 +463,28 @@ public class GameManager : MonoBehaviour
             }
         }
         return mainBall;
+    }
+
+    /// <summary>将本地玩家实体数据同步到 HUD</summary>
+    private void UpdateHudForLocalPlayer(Entity ent)
+    {
+        if (HudController.Instance == null) return;
+
+        // 汇总本地玩家所有球的质量和 HP
+        float totalMass = 0f, totalHp = 0f, totalMaxHp = 0f;
+        foreach (var kv in Circles)
+        {
+            var ctr = kv.Value.GetComponent<CircleController>();
+            if (ctr != null && ctr.isLocalPlayer)
+            {
+                float d = kv.Value.transform.localScale.x; // d = diameter = sqrt(mass)/2
+                totalMass += (d * 2f) * (d * 2f);          // mass = (2*diameter)^2
+                totalHp += ctr.debugHp;
+                totalMaxHp += ctr.debugMaxHp;
+            }
+        }
+
+        HudController.Instance.SetHp(totalHp, totalMaxHp);
+        HudController.Instance.SetMass(totalMass);
     }
 }
