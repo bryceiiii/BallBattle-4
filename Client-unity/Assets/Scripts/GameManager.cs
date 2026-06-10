@@ -121,6 +121,9 @@ public class GameManager : MonoBehaviour
 
             RemoveFromPlayerBallMap(row.PlayerId, row.EntityId);
             GameObject.Destroy(go);
+
+            // 检测本地玩家是否死亡（没有剩余球体）
+            CheckLocalPlayerDeath();
         }
     }
 
@@ -521,5 +524,27 @@ public class GameManager : MonoBehaviour
 
         HudController.Instance.SetHp(totalHp, totalMaxHp);
         HudController.Instance.SetMass(totalMass);
+    }
+
+    /// <summary>检查本地玩家是否已经没有球体（死亡）</summary>
+    private void CheckLocalPlayerDeath()
+    {
+        foreach (var kv in Circles)
+        {
+            if (kv.Value != null && kv.Value.GetComponent<CircleController>()?.isLocalPlayer == true)
+                return; // 还有本地玩家的球，没死
+        }
+        // 本地玩家没有剩余球体 → 显示死亡画面
+        HudController.Instance?.ShowDeathScreen();
+    }
+
+    /// <summary>重新开始游戏（死亡画面按钮回调）</summary>
+    public void RespawnPlayer()
+    {
+        // 调用 EnterGame 重新进入
+        if (Conn != null && !string.IsNullOrEmpty(InputField.text))
+        {
+            Conn.Reducers.EnterGame(InputField.text);
+        }
     }
 }
