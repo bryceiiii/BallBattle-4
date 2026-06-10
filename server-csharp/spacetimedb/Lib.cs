@@ -544,31 +544,37 @@ public static partial class Module
 
             // 移动子弹
             float moveStep = 0.05f * BULLET_SPEED; // 与 MoveAllPlayer 的步长一致（50ms）
+            float origX = bulletEnt.position.x, origY = bulletEnt.position.y;
             bulletEnt.position.x += bullet.dir_x * moveStep;
             bulletEnt.position.y += bullet.dir_y * moveStep;
             ClampEntityToBounds(ref bulletEnt);
             context.Db.entity.id.Update(bulletEnt);
 
-            // 碰撞检测：子弹 vs 所有玩家球
+            // 碰撞检测：检查移动前、中、后三点防止子弹跳帧穿透（子弹速度太快时可能跳过球）
+            float midX = (origX + bulletEnt.position.x) * 0.5f;
+            float midY = (origY + bulletEnt.position.y) * 0.5f;
+            // 先收集所有非发射者的球，然后检测三个采样点
             foreach (var circle in context.Db.circle.Iter())
             {
                 if (circle.isMerging) continue;
                 if (bulletsToDelete.Contains(bullet.entity_id)) break;
-
-                // 跳过发射者自己的球
                 if (circle.player_id == bullet.owner_player_id) continue;
 
                 var targetEntNullable = context.Db.entity.id.Find(circle.entity_id);
                 if (targetEntNullable == null) continue;
                 var targetEnt = targetEntNullable.Value;
-
-                // 子弹碰撞检测：用目标球的半径做判定（不能用 IsOverLapping，
-                // 因为子弹半径仅 0.137，枪弹太大 → 子弹从球体边缘滑过却无法命中）
-                float dx = bulletEnt.position.x - targetEnt.position.x;
-                float dy = bulletEnt.position.y - targetEnt.position.y;
-                float distSq = dx * dx + dy * dy;
                 float targetRadius = MassToDiameter(targetEnt.mass) / 2f;
-                if (distSq <= targetRadius * targetRadius)
+                float r2 = targetRadius * targetRadius;
+
+                // 三个采样点：移动前→中点→移动后，任意一点命中即触发
+                float d0 = (origX - targetEnt.position.x) * (origX - targetEnt.position.x)
+                         + (origY - targetEnt.position.y) * (origY - targetEnt.position.y);
+                float dm = (midX - targetEnt.position.x) * (midX - targetEnt.position.x)
+                         + (midY - targetEnt.position.y) * (midY - targetEnt.position.y);
+                float d1 = (bulletEnt.position.x - targetEnt.position.x) * (bulletEnt.position.x - targetEnt.position.x)
+                         + (bulletEnt.position.y - targetEnt.position.y) * (bulletEnt.position.y - targetEnt.position.y);
+
+                if (d0 <= r2 || dm <= r2 || d1 <= r2)
                 {
                     bulletsToDelete.Add(bullet.entity_id);
                     // 累计伤害
@@ -588,7 +594,9 @@ public static partial class Module
             var target = targetNullable.Value;
             target.hp -= kv.Value;
             if (target.hp < 0) target.hp = 0;
-            UpdateHpAfterMassChange(ref target);
+            // 伤害不调用 UpdateHpAfterMassChange（其 HP_MIN_RATIO 保护会阻止死亡）
+            // 只确保 hp 不超过上限
+            if (target.hp > target.max_hp) target.hp = target.max_hp;
             context.Db.entity.id.Update(target);
 
             // HP=0 则死亡：散落食物、删除实体
