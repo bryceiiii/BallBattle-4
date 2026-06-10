@@ -562,8 +562,13 @@ public static partial class Module
                 if (targetEntNullable == null) continue;
                 var targetEnt = targetEntNullable.Value;
 
-                // 用类似 IsOverLapping 的逻辑检测覆盖
-                if (IsOverLapping(bulletEnt, targetEnt))
+                // 子弹碰撞检测：用目标球的半径做判定（不能用 IsOverLapping，
+                // 因为子弹半径仅 0.137，枪弹太大 → 子弹从球体边缘滑过却无法命中）
+                float dx = bulletEnt.position.x - targetEnt.position.x;
+                float dy = bulletEnt.position.y - targetEnt.position.y;
+                float distSq = dx * dx + dy * dy;
+                float targetRadius = MassToDiameter(targetEnt.mass) / 2f;
+                if (distSq <= targetRadius * targetRadius)
                 {
                     bulletsToDelete.Add(bullet.entity_id);
                     // 累计伤害

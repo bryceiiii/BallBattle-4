@@ -93,10 +93,15 @@ public class GameManager : MonoBehaviour
             ctrl.SetHp(newRow.Hp, newRow.MaxHp);
         }
 
-        // 更新子弹
+        // 更新子弹（用 MovePosition 确保物理触发事件正常工作）
         if (Bullets.TryGetValue(newRow.Id, out var bulletGo))
         {
-            bulletGo.transform.position = new Vector3(newRow.Position.X, newRow.Position.Y, 0);
+            var trgPos = new Vector2(newRow.Position.X, newRow.Position.Y);
+            var rb2d = bulletGo.GetComponent<Rigidbody2D>();
+            if (rb2d != null)
+                rb2d.MovePosition(trgPos);
+            else
+                bulletGo.transform.position = new Vector3(trgPos.x, trgPos.y, 0);
         }
     }
 
@@ -323,10 +328,22 @@ public class GameManager : MonoBehaviour
         bulletGo.transform.position = new Vector3(entity.Position.X, entity.Position.Y, 0);
         bulletGo.transform.localScale = new Vector3(0.3f, 0.3f, 1f);
 
+        // 子弹碰撞体设为 Trigger + Rigidbody Kinematic，防止推动球体导致抖动
+        foreach (var col in bulletGo.GetComponentsInChildren<Collider2D>())
+        {
+            col.isTrigger = true;
+        }
+        var rb2d = bulletGo.GetComponent<Rigidbody2D>();
+        if (rb2d != null)
+        {
+            rb2d.isKinematic = true;
+        }
+
         // 确保有 BulletController
         var bulletCtrl = bulletGo.GetComponent<BulletController>();
         if (bulletCtrl == null) bulletCtrl = bulletGo.AddComponent<BulletController>();
         bulletCtrl.entityId = newBullet.EntityId;
+        bulletCtrl.ownerPlayerId = newBullet.OwnerPlayerId; // 防止自伤
 
         Bullets.Add(newBullet.EntityId, bulletGo);
     }

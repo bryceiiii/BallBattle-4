@@ -12,72 +12,72 @@ public class CircleController : MonoBehaviour
     public Text nameText;
     public bool isLocalPlayer = false;
 
-    // ===== HP Ìõµ÷ÓÅ²ÎÊı£¨¿ÉÔÚ Unity Inspector ÖĞµ÷Õû£© =====
-    [Header("HP ÌõÎ»ÖÃµ÷ÓÅ")]
-    public float hpBarTopGap = 0.08f;             // Çò¶¥µ½ HP Ìõµ×²¿µÄ¼ä¾à£¨ÊÀ½çµ¥Î»£©
-    public float hpBarZDepth = -0.01f;            // Z ÖáÆ«ÒÆ£¨-Öµ=ÔÚÇòÇ°·½£©
-    public float hpBarWidthRatio = 1.0f;          // HP Ìõ¿í¶ÈÕ¼ÇòÖ±¾¶µÄ±ÈÀı£¨1.0=ºÍÇòÒ»Ñù¿í£©
-    public float hpBarMinWidth = 0.3f;            // HP Ìõ×îĞ¡¿í¶È
-    [Header("HP Ìõ¸ß¶È£¨ËæÇòÔö´ó¶ø±ä¸ß£©")]
-    public float hpBarBaseHeight = 0.12f;          // »ù´¡¸ß¶È£¨ÊÀ½çµ¥Î»£©
-    public float hpBarHeightGrowth = 0.02f;        // Ã¿µ¥Î»Ö±¾¶Ôö¼ÓµÄ¸ß¶È£¨0=²»±ä£©
+    // ===== HP æ¡è°ƒä¼˜å‚æ•°ï¼ˆå¯åœ¨ Unity Inspector ä¸­è°ƒæ•´ï¼‰ =====
+    [Header("HP æ¡ä½ç½®è°ƒä¼˜")]
+    public float hpBarTopGap = 0.08f;             // çƒé¡¶åˆ° HP æ¡åº•éƒ¨çš„é—´è·ï¼ˆä¸–ç•Œå•ä½ï¼‰
+    public float hpBarZDepth = -0.01f;            // Z è½´åç§»ï¼ˆ-å€¼=åœ¨çƒå‰æ–¹ï¼‰
+    public float hpBarWidthRatio = 1.0f;          // HP æ¡å®½åº¦å çƒç›´å¾„çš„æ¯”ä¾‹ï¼ˆ1.0=å’Œçƒä¸€æ ·å®½ï¼‰
+    public float hpBarMinWidth = 0.3f;            // HP æ¡æœ€å°å®½åº¦
+    [Header("HP æ¡é«˜åº¦ï¼ˆéšçƒå¢å¤§è€Œå˜é«˜ï¼‰")]
+    public float hpBarBaseHeight = 0.12f;          // åŸºç¡€é«˜åº¦ï¼ˆä¸–ç•Œå•ä½ï¼‰
+    public float hpBarHeightGrowth = 0.02f;        // æ¯å•ä½ç›´å¾„å¢åŠ çš„é«˜åº¦ï¼ˆ0=ä¸å˜ï¼‰
 
     /// <summary>
-    /// ¸ù¾İÇòµÄµ±Ç°Ö±¾¶¼ÆËã HP Ìõ¸ß¶È¡£
-    /// Ğ¡ÇòÊ± ¡Ö hpBarBaseHeight£¬´óÇòÊ±»ºÂıÔö³¤¡£
+    /// æ ¹æ®çƒçš„å½“å‰ç›´å¾„è®¡ç®— HP æ¡é«˜åº¦ã€‚
+    /// å°çƒæ—¶ â‰ˆ hpBarBaseHeightï¼Œå¤§çƒæ—¶ç¼“æ…¢å¢é•¿ã€‚
     /// </summary>
     public float GetHpBarHeight(float diameter)
     {
-        // ²Î¿¼Ö±¾¶ = ³öÉúÇòÖ±¾¶ (mass=5 ¡ú sqrt(5)/2 ¡Ö 1.12)
+        // å‚è€ƒç›´å¾„ = å‡ºç”Ÿçƒç›´å¾„ (mass=5 â†’ sqrt(5)/2 â‰ˆ 1.12)
         const float REF_DIAM = 1.12f;
         float extra = Mathf.Max(0f, diameter - REF_DIAM) * hpBarHeightGrowth;
         return hpBarBaseHeight + extra;
     }
 
-    // ===== HP Ïà¹Ø£¨Inspector ¿É¹Û²ì£© =====
-    [Header("HP ×´Ì¬£¨ÔËĞĞÊ±¹Û²ì£©")]
-    public float debugHp = 0f;          // µ±Ç° HP£¨Inspector Ö»¶Á¹Û²ì£©
-    public float debugMaxHp = 0f;       // ×î´ó HP
-    public float debugHpRatio = 0f;     // ÑªÁ¿°Ù·Ö±È 0~1
+    // ===== HP ç›¸å…³ï¼ˆInspector å¯è§‚å¯Ÿï¼‰ =====
+    [Header("HP çŠ¶æ€ï¼ˆè¿è¡Œæ—¶è§‚å¯Ÿï¼‰")]
+    public float debugHp = 0f;          // å½“å‰ HPï¼ˆInspector åªè¯»è§‚å¯Ÿï¼‰
+    public float debugMaxHp = 0f;       // æœ€å¤§ HP
+    public float debugHpRatio = 0f;     // è¡€é‡ç™¾åˆ†æ¯” 0~1
     private float hp = 100f;
     private float maxHp = 100f;
-    private Image hpFillImage;           // HP Ìî³äÌõ
-    private RectTransform hpCanvasRect;  // Canvas µÄ RectTransform£¨¿ØÖÆÎ»ÖÃ+³ß´ç+ÏÔÒş£©
+    private Image hpFillImage;           // HP å¡«å……æ¡
+    private RectTransform hpCanvasRect;  // Canvas çš„ RectTransformï¼ˆæ§åˆ¶ä½ç½®+å°ºå¯¸+æ˜¾éšï¼‰
     private bool hpBarCreated = false;
 
-    // ===== ·şÎñ¶ËÈ¨ÍşÄ¿±êÖµ =====
+    // ===== æœåŠ¡ç«¯æƒå¨ç›®æ ‡å€¼ =====
     private Vector3 targetPos = Vector3.zero;
     private float targetScale = 1f;
     private bool hasReceivedFirstUpdate = false;
 
-    // ===== Ëõ·ÅÆ½»¬ =====
+    // ===== ç¼©æ”¾å¹³æ»‘ =====
     private float scaleVelocity = 0f;
 
-    // ===== Î»ÖÃÆ½»¬ =====
+    // ===== ä½ç½®å¹³æ»‘ =====
     private Vector2 posVelocity = Vector2.zero;
 
     public float remotePosSmoothTime = 0.15f;
     public float localPosSmoothTime = 0.08f;
     public float scaleSmoothTime = 0.1f;
 
-    // ===== ÊÀ½ç±ß½ç =====
+    // ===== ä¸–ç•Œè¾¹ç•Œ =====
     private const float WORLD_MIN = 0f;
     private const float WORLD_MAX = 50f;
 
-    // ===== ¶¯»­×´Ì¬ =====
+    // ===== åŠ¨ç”»çŠ¶æ€ =====
     private bool isMergeAnim = false;
     private Transform mergeTarget;
     private float mergeAnimTime = 0.8f;
     private float animTimer;
-    private bool mergeAnimFinished = false; // ±ê¼Ç¶¯»­ÊÇ·ñÒÑ²¥Íê£¨Ö»´¥·¢Ò»´Î FinishMerge£©
+    private bool mergeAnimFinished = false; // æ ‡è®°åŠ¨ç”»æ˜¯å¦å·²æ’­å®Œï¼ˆåªè§¦å‘ä¸€æ¬¡ FinishMergeï¼‰
 
     private bool isSplitAnim = false;
     private float splitAnimTime = 0.3f;
     private float splitAnimTimer;
     private Vector3 splitStartPos;
-    private Vector3 splitAnimEndPos; // ·ÖÁÑ¶¯»­µÄ¹Ì¶¨ÖÕµã£¬²»ÊÜ·şÎñ¶ËÎ»ÖÃ¸üĞÂ¸ÉÈÅ
+    private Vector3 splitAnimEndPos; // åˆ†è£‚åŠ¨ç”»çš„å›ºå®šç»ˆç‚¹ï¼Œä¸å—æœåŠ¡ç«¯ä½ç½®æ›´æ–°å¹²æ‰°
 
-    // ===== ÎïÀí×é¼ş =====
+    // ===== ç‰©ç†ç»„ä»¶ =====
     private CircleCollider2D col;
     private Rigidbody2D rb;
 
@@ -86,19 +86,19 @@ public class CircleController : MonoBehaviour
 
     void Awake()
     {
-        // È·±£ Rigidbody2D ´æÔÚ£ºÔ¤ÖÆÌå¿ÉÄÜÉĞÎ´Ìí¼Ó (RequireComponent ½öÔÚ Editor Ìí¼Ó½Å±¾Ê±ÉúĞ§)
+        // ç¡®ä¿ Rigidbody2D å­˜åœ¨ï¼šé¢„åˆ¶ä½“å¯èƒ½å°šæœªæ·»åŠ  (RequireComponent ä»…åœ¨ Editor æ·»åŠ è„šæœ¬æ—¶ç”Ÿæ•ˆ)
         rb = GetComponent<Rigidbody2D>();
         if (rb == null)
         {
             rb = gameObject.AddComponent<Rigidbody2D>();
         }
 
-        // ÅäÖÃ Rigidbody2D£ºÇòÇò´ó×÷Õ½·ç¸ñÎïÀíÅö×²
+        // é…ç½® Rigidbody2Dï¼šçƒçƒå¤§ä½œæˆ˜é£æ ¼ç‰©ç†ç¢°æ’
         rb.gravityScale = 0f;
         rb.drag = 0.3f;
         rb.angularDrag = 0f;
         rb.constraints = RigidbodyConstraints2D.FreezeRotation;
-        rb.collisionDetectionMode = CollisionDetectionMode2D.Discrete; // ÇòËÙµÍÎŞĞèÁ¬Ğø¼ì²â
+        rb.collisionDetectionMode = CollisionDetectionMode2D.Discrete; // çƒé€Ÿä½æ— éœ€è¿ç»­æ£€æµ‹
         rb.interpolation = RigidbodyInterpolation2D.Interpolate;
         rb.isKinematic = false;
 
@@ -107,15 +107,15 @@ public class CircleController : MonoBehaviour
 
     void Start()
     {
-        // ´ËÊ± isLocalPlayer ¿ÉÄÜÉĞÎ´±» GameManager ÉèÖÃ£¨Instantiate ÔÚ¸³ÖµÇ°Ö´ĞĞ Start£©
-        // ÓÉ GameManager ÔÚÉèÖÃ isLocalPlayer ºóµ÷ÓÃ ApplyLocalPlayerVisual() ²¹³ä
+        // æ­¤æ—¶ isLocalPlayer å¯èƒ½å°šæœªè¢« GameManager è®¾ç½®ï¼ˆInstantiate åœ¨èµ‹å€¼å‰æ‰§è¡Œ Startï¼‰
+        // ç”± GameManager åœ¨è®¾ç½® isLocalPlayer åè°ƒç”¨ ApplyLocalPlayerVisual() è¡¥å……
         ApplyLocalPlayerVisual();
     }
 
     /// <summary>
-    /// Ó¦ÓÃ±¾µØÍæ¼ÒÊÓ¾õ£¨Ãû×ÖÂÌÉ«£©¡£
-    /// ÓÉ GameManager ÔÚÉèÖÃ isLocalPlayer ºóµ÷ÓÃ£¬
-    /// ÒòÎª Instantiate Ê± Start() ÏÈÓÚ isLocalPlayer ¸³ÖµÖ´ĞĞ¡£
+    /// åº”ç”¨æœ¬åœ°ç©å®¶è§†è§‰ï¼ˆåå­—ç»¿è‰²ï¼‰ã€‚
+    /// ç”± GameManager åœ¨è®¾ç½® isLocalPlayer åè°ƒç”¨ï¼Œ
+    /// å› ä¸º Instantiate æ—¶ Start() å…ˆäº isLocalPlayer èµ‹å€¼æ‰§è¡Œã€‚
     /// </summary>
     public void ApplyLocalPlayerVisual()
     {
@@ -125,20 +125,20 @@ public class CircleController : MonoBehaviour
         }
     }
 
-    // ===== HP Ìõ =====
+    // ===== HP æ¡ =====
     /// <summary>
-    /// ´´½¨ HP Ìõ£¨World Space Canvas£¬Çò¶¥ÉÏ·½£©¡£
-    /// ÔÚÊ×´Îµ÷ÓÃ SetHp Ê±ÀÁ´´½¨£¬±ÜÃâ Start Ê±Ô¤ÖÆÌå»¹Î´ÍêÈ«ÊµÀı»¯¡£
+    /// åˆ›å»º HP æ¡ï¼ˆWorld Space Canvasï¼Œçƒé¡¶ä¸Šæ–¹ï¼‰ã€‚
+    /// åœ¨é¦–æ¬¡è°ƒç”¨ SetHp æ—¶æ‡’åˆ›å»ºï¼Œé¿å… Start æ—¶é¢„åˆ¶ä½“è¿˜æœªå®Œå…¨å®ä¾‹åŒ–ã€‚
     /// </summary>
     private void CreateHpBar()
     {
         if (hpBarCreated) return;
         hpBarCreated = true;
 
-        // ´´½¨ Canvas ×÷Îª×ÓÎïÌå
+        // åˆ›å»º Canvas ä½œä¸ºå­ç‰©ä½“
         var canvasGo = new GameObject("HpCanvas");
         canvasGo.transform.SetParent(transform, false);
-        // È¡Ïû¼Ì³Ğ¸¸¼¶Ëõ·Å£¬Canvas ³ß´çÓÉ sizeDelta ¶ÀÁ¢¿ØÖÆ
+        // å–æ¶ˆç»§æ‰¿çˆ¶çº§ç¼©æ”¾ï¼ŒCanvas å°ºå¯¸ç”± sizeDelta ç‹¬ç«‹æ§åˆ¶
         float initDiam = Mathf.Max(transform.localScale.x, 0.001f);
         float initH = GetHpBarHeight(initDiam);
         float initOffset = 0.5f + (initH * 0.5f + hpBarTopGap) / initDiam;
@@ -147,9 +147,9 @@ public class CircleController : MonoBehaviour
         var canvas = canvasGo.AddComponent<Canvas>();
         canvas.renderMode = RenderMode.WorldSpace;
         canvas.worldCamera = Camera.main;
-        // ²»Ìí¼Ó GraphicRaycaster£¨²»ĞèÒª½»»¥£©
+        // ä¸æ·»åŠ  GraphicRaycasterï¼ˆä¸éœ€è¦äº¤äº’ï¼‰
 
-        // Canvas µÄ RectTransform ¡ª ¾Ö²¿³ß´ç = hpBarWidthRatio£¨³Ë¸¸¼¶Ëõ·Åºó=ÇòÖ±¾¶£©
+        // Canvas çš„ RectTransform â€” å±€éƒ¨å°ºå¯¸ = hpBarWidthRatioï¼ˆä¹˜çˆ¶çº§ç¼©æ”¾å=çƒç›´å¾„ï¼‰
         var canvasRect = canvasGo.GetComponent<RectTransform>();
         hpCanvasRect = canvasRect;
         canvasRect.anchorMin = new Vector2(0.5f, 0.5f);
@@ -158,7 +158,7 @@ public class CircleController : MonoBehaviour
         float initialLocalWidth = Mathf.Max(hpBarWidthRatio, hpBarMinWidth / initDiam);
         canvasRect.sizeDelta = new Vector2(initialLocalWidth, initH / initDiam);
 
-        // HP Ìõ±³¾°£¨Éî»ÒÉ«£©¡ª ÌîÂú Canvas
+        // HP æ¡èƒŒæ™¯ï¼ˆæ·±ç°è‰²ï¼‰â€” å¡«æ»¡ Canvas
         var bgGo = new GameObject("HpBarBg");
         bgGo.transform.SetParent(canvasGo.transform, false);
         var bgImage = bgGo.AddComponent<Image>();
@@ -169,35 +169,35 @@ public class CircleController : MonoBehaviour
         bgRect.sizeDelta = Vector2.zero;
         bgRect.anchoredPosition = Vector2.zero;
 
-        // BG Ìí¼Ó Mask£¬ÓÃÀ´²Ã¼ôÄÚ²¿µÄ Fill ³¬³ö²¿·Ö
+        // BG æ·»åŠ  Maskï¼Œç”¨æ¥è£å‰ªå†…éƒ¨çš„ Fill è¶…å‡ºéƒ¨åˆ†
         bgGo.AddComponent<Mask>().showMaskGraphic = true;
 
-        // HP Ìî³äÌõ£¨ÓÃ¿í¶È¿ØÖÆÌî³ä±ÈÀı£¬±È Image.Filled ¸ü¿É¿¿£©
+        // HP å¡«å……æ¡ï¼ˆç”¨å®½åº¦æ§åˆ¶å¡«å……æ¯”ä¾‹ï¼Œæ¯” Image.Filled æ›´å¯é ï¼‰
         var fillGo = new GameObject("HpBarFill");
         fillGo.transform.SetParent(bgGo.transform, false);
         hpFillImage = fillGo.AddComponent<Image>();
         hpFillImage.color = Color.green;
-        hpFillImage.type = Image.Type.Simple; // ÆÕÍ¨Ä£Ê½£¬²»ÒÀÀµ Filled
+        hpFillImage.type = Image.Type.Simple; // æ™®é€šæ¨¡å¼ï¼Œä¸ä¾èµ– Filled
         var fillRect = hpFillImage.GetComponent<RectTransform>();
-        // Ãª¶¨ÔÚ×ó²à£¨0,0£©µ½£¨0,1£©£¬pivot ÔÚ×ó²à
+        // é”šå®šåœ¨å·¦ä¾§ï¼ˆ0,0ï¼‰åˆ°ï¼ˆ0,1ï¼‰ï¼Œpivot åœ¨å·¦ä¾§
         fillRect.anchorMin = new Vector2(0f, 0f);
         fillRect.anchorMax = new Vector2(0f, 1f);
         fillRect.pivot = new Vector2(0f, 0.5f);
-        fillRect.sizeDelta = new Vector2(100f, 0f); // ³õÊ¼¿í100%£¬SetHp »áµ÷Õû
+        fillRect.sizeDelta = new Vector2(100f, 0f); // åˆå§‹å®½100%ï¼ŒSetHp ä¼šè°ƒæ•´
 
-        // ´´½¨Ê±È«Òş²Ø£¬SetHp »á°´ÑªÁ¿¾ö¶¨ÊÇ·ñÏÔÊ¾
+        // åˆ›å»ºæ—¶å…¨éšè—ï¼ŒSetHp ä¼šæŒ‰è¡€é‡å†³å®šæ˜¯å¦æ˜¾ç¤º
         canvasGo.SetActive(false);
     }
 
     /// <summary>
-    /// ÓÉ GameManager Ã¿Ö¡ OnEntityUpdated µ÷ÓÃ£¬Í¬²½·şÎñ¶Ë HP Êı¾İ¡£
+    /// ç”± GameManager æ¯å¸§ OnEntityUpdated è°ƒç”¨ï¼ŒåŒæ­¥æœåŠ¡ç«¯ HP æ•°æ®ã€‚
     /// </summary>
     public void SetHp(float currentHp, float maxHpValue)
     {
         hp = currentHp;
         maxHp = maxHpValue;
 
-        // ¸üĞÂµ÷ÊÔ¹Û²ì×Ö¶Î
+        // æ›´æ–°è°ƒè¯•è§‚å¯Ÿå­—æ®µ
         debugHp = currentHp;
         debugMaxHp = maxHpValue;
 
@@ -209,13 +209,13 @@ public class CircleController : MonoBehaviour
         float ratio = Mathf.Clamp01(hp / maxHp);
         debugHpRatio = ratio;
 
-        // ÓÃ¿í¶È¿ØÖÆÌî³ä±ÈÀı£¨±È Image.Filled.fillAmount ¸ü¿É¿¿£©
-        // BG µÄ¿í¶ÈÓÉ Canvas sizeDelta ¾ö¶¨£¬ÕâÀïÈ¡ BG ¿í¶È = Canvas ¿í¶È
+        // ç”¨å®½åº¦æ§åˆ¶å¡«å……æ¯”ä¾‹ï¼ˆæ¯” Image.Filled.fillAmount æ›´å¯é ï¼‰
+        // BG çš„å®½åº¦ç”± Canvas sizeDelta å†³å®šï¼Œè¿™é‡Œå– BG å®½åº¦ = Canvas å®½åº¦
         float barFullWidth = hpCanvasRect.sizeDelta.x;
         float fillWidth = barFullWidth * ratio;
         fillRect.sizeDelta = new Vector2(fillWidth, 0f);
 
-        // ÑÕÉ«£ºÂÌ(>60%) ¡ú »Æ(30-60%) ¡ú ºì(<30%)
+        // é¢œè‰²ï¼šç»¿(>60%) â†’ é»„(30-60%) â†’ çº¢(<30%)
         if (ratio > 0.6f)
             hpFillImage.color = Color.green;
         else if (ratio > 0.3f)
@@ -223,7 +223,7 @@ public class CircleController : MonoBehaviour
         else
             hpFillImage.color = Color.red;
 
-        // ¿ØÖÆ Canvas ¼¶ÏÔÒş£ºÂúÑªÒş²Ø£¬ÊÜÉËÏÔÊ¾
+        // æ§åˆ¶ Canvas çº§æ˜¾éšï¼šæ»¡è¡€éšè—ï¼Œå—ä¼¤æ˜¾ç¤º
         if (hpCanvasRect != null)
         {
             hpCanvasRect.gameObject.SetActive(ratio < 1f);
@@ -266,7 +266,7 @@ public class CircleController : MonoBehaviour
         isMergeAnim = false;
         splitAnimTimer = 0f;
         splitStartPos = startPosition;
-        splitAnimEndPos = initialTargetPos; // Ëø¶¨ÖÕµã£¬¶¯»­ÆÚ¼ä²»Ëæ·şÎñ¶ËÎ»ÖÃ¸üĞÂ¶ø±ä
+        splitAnimEndPos = initialTargetPos; // é”å®šç»ˆç‚¹ï¼ŒåŠ¨ç”»æœŸé—´ä¸éšæœåŠ¡ç«¯ä½ç½®æ›´æ–°è€Œå˜
         targetPos = initialTargetPos;
         hasReceivedFirstUpdate = true;
         rb.isKinematic = true;
@@ -276,7 +276,7 @@ public class CircleController : MonoBehaviour
 
     void Update()
     {
-        // ===== ºÏ²¢¶¯»­ =====
+        // ===== åˆå¹¶åŠ¨ç”» =====
         if (isMergeAnim)
         {
             animTimer += Time.deltaTime;
@@ -290,39 +290,39 @@ public class CircleController : MonoBehaviour
                 mergeAnimFinished = true;
                 isMergeAnim = false;
 
-                // Í¨Öª·şÎñ¶Ë£º¶¯»­Íê³É£¬¿ÉÒÔÕæÕıÉ¾³ı´ËÇò
+                // é€šçŸ¥æœåŠ¡ç«¯ï¼šåŠ¨ç”»å®Œæˆï¼Œå¯ä»¥çœŸæ­£åˆ é™¤æ­¤çƒ
                 var conn = SpacetimeDBNetworkManager.Instance?.Db;
                 if (conn != null && entityId != 0)
                 {
                     conn.Reducers.FinishMerge(entityId);
                 }
 
-                // ¶¯»­Íê³ÉºóµÄ³¬Ê±±£»¤£ºÈç¹û·şÎñ¶ËÒòÄ³ÖÖÔ­ÒòÃ»É¾³ı£¨ÈçÍøÂçÑÓ³Ù£©£¬
-                // ³¬¹ı 1.5 Ãëºó»Ö¸´ÎïÀí×´Ì¬
+                // åŠ¨ç”»å®Œæˆåçš„è¶…æ—¶ä¿æŠ¤ï¼šå¦‚æœæœåŠ¡ç«¯å› æŸç§åŸå› æ²¡åˆ é™¤ï¼ˆå¦‚ç½‘ç»œå»¶è¿Ÿï¼‰ï¼Œ
+                // è¶…è¿‡ 1.5 ç§’åæ¢å¤ç‰©ç†çŠ¶æ€
                 StartCoroutine(MergeTimeoutRecovery());
             }
             return;
         }
 
-        // ===== ·ÖÁÑ¶¯»­ =====
+        // ===== åˆ†è£‚åŠ¨ç”» =====
         if (isSplitAnim)
         {
             splitAnimTimer += Time.deltaTime;
             float rate = Mathf.Clamp01(splitAnimTimer / splitAnimTime);
             float t = 1f - Mathf.Pow(1f - rate, 3f); // ease-out cubic
             Vector2 pos = Vector2.Lerp((Vector2)splitStartPos, (Vector2)splitAnimEndPos, t);
-            rb.position = pos; // ÓÃ rb.position ±£³ÖÎïÀíÍ¬²½£¬±ÜÃâ¶¯»­½áÊøÊ± snap
+            rb.position = pos; // ç”¨ rb.position ä¿æŒç‰©ç†åŒæ­¥ï¼Œé¿å…åŠ¨ç”»ç»“æŸæ—¶ snap
 
             if (splitAnimTimer >= splitAnimTime)
             {
                 isSplitAnim = false;
                 rb.isKinematic = false;
-                rb.position = (Vector2)splitAnimEndPos; // ¾«È·ÂäÎ»
+                rb.position = (Vector2)splitAnimEndPos; // ç²¾ç¡®è½ä½
                 if (col != null) col.enabled = true;
             }
         }
 
-        // ===== Ëõ·ÅÆ½»¬ =====
+        // ===== ç¼©æ”¾å¹³æ»‘ =====
         if (targetScale > 0.01f)
         {
             float curScale = transform.localScale.x;
@@ -330,33 +330,33 @@ public class CircleController : MonoBehaviour
             transform.localScale = new Vector3(newS, newS, 1f);
         }
 
-        // ===== HP ÌõÎ»ÖÃ¸úËæ£¨Ö±½Ó¿ØÖÆ Canvas µÄ localPosition£© =====
+        // ===== HP æ¡ä½ç½®è·Ÿéšï¼ˆç›´æ¥æ§åˆ¶ Canvas çš„ localPositionï¼‰ =====
         if (hpCanvasRect != null)
         {
             float diameter = transform.localScale.x;
             if (diameter < 0.001f) diameter = 0.001f;
             float curH = GetHpBarHeight(diameter);
 
-            // === ÊÀ½çµ¥Î» ¡ú ¸¸¼¶¾Ö²¿¿Õ¼ä»»Ëã ===
-            // Canvas ÊÇÇòµÄ×ÓÎïÌå£¬ballScale ±¶ÂÊ»áÓ¦ÓÃÓÚ Canvas µÄ localPosition/sizeDelta
-            // ËùÒÔĞèÒª°ÑÊÀ½çµ¥Î»µÄÄ¿±êÖµ³ıÒÔ ballScale µÃµ½¾Ö²¿Öµ
+            // === ä¸–ç•Œå•ä½ â†’ çˆ¶çº§å±€éƒ¨ç©ºé—´æ¢ç®— ===
+            // Canvas æ˜¯çƒçš„å­ç‰©ä½“ï¼ŒballScale å€ç‡ä¼šåº”ç”¨äº Canvas çš„ localPosition/sizeDelta
+            // æ‰€ä»¥éœ€è¦æŠŠä¸–ç•Œå•ä½çš„ç›®æ ‡å€¼é™¤ä»¥ ballScale å¾—åˆ°å±€éƒ¨å€¼
 
-            // Î»ÖÃ£ºÇò¶¥ÔÚ¾Ö²¿ Y = 0.5£¨ÒòÎª ballScale.x = Ö±¾¶£©
-            // ¼ÓÉÏÌõ¸ß/¼ä¾àµÄ¾Ö²¿Æ«ÒÆ
+            // ä½ç½®ï¼šçƒé¡¶åœ¨å±€éƒ¨ Y = 0.5ï¼ˆå› ä¸º ballScale.x = ç›´å¾„ï¼‰
+            // åŠ ä¸Šæ¡é«˜/é—´è·çš„å±€éƒ¨åç§»
             float localOffset = 0.5f + (curH * 0.5f + hpBarTopGap) / diameter;
             hpCanvasRect.localPosition = new Vector3(0f, localOffset, hpBarZDepth);
 
-            // È¡Ïû¼Ì³Ğ¸¸ÇòËõ·Å£¬½öÍ¨¹ı sizeDelta ´«µİ¸¸¼¶Ëõ·Å
+            // å–æ¶ˆç»§æ‰¿çˆ¶çƒç¼©æ”¾ï¼Œä»…é€šè¿‡ sizeDelta ä¼ é€’çˆ¶çº§ç¼©æ”¾
             hpCanvasRect.localScale = Vector3.one;
 
-            // ¿í¶È£¨¾Ö²¿£©£ºÉèÎª hpBarWidthRatio£¬³Ë¸¸¼¶Ëõ·Åºó = ÇòÖ±¾¶ ¡Á ±ÈÀı
+            // å®½åº¦ï¼ˆå±€éƒ¨ï¼‰ï¼šè®¾ä¸º hpBarWidthRatioï¼Œä¹˜çˆ¶çº§ç¼©æ”¾å = çƒç›´å¾„ Ã— æ¯”ä¾‹
             float localWidth = hpBarWidthRatio;
-            // ×îĞ¡¿í¶È±£»¤Ò²Òª»»Ëãµ½¾Ö²¿¿Õ¼ä
+            // æœ€å°å®½åº¦ä¿æŠ¤ä¹Ÿè¦æ¢ç®—åˆ°å±€éƒ¨ç©ºé—´
             float minLocalWidth = hpBarMinWidth / diameter;
             localWidth = Mathf.Max(localWidth, minLocalWidth);
             hpCanvasRect.sizeDelta = new Vector2(localWidth, curH / diameter);
 
-            // Canvas ¿í¶È±ä»¯Ê±Í¬²½¸üĞÂ Fill ¿í¶È£¨±£³ÖÑªÁ¿±ÈÀı£©
+            // Canvas å®½åº¦å˜åŒ–æ—¶åŒæ­¥æ›´æ–° Fill å®½åº¦ï¼ˆä¿æŒè¡€é‡æ¯”ä¾‹ï¼‰
             if (hpFillImage != null)
             {
                 float ratio = Mathf.Clamp01(hp / maxHp);
@@ -367,15 +367,15 @@ public class CircleController : MonoBehaviour
     }
 
     /// <summary>
-    /// ÎïÀí²½Çı¶¯Î»ÖÃ£ºÓÃ MovePosition + SmoothDamp ´úÌæ rb.velocity¡£
+    /// ç‰©ç†æ­¥é©±åŠ¨ä½ç½®ï¼šç”¨ MovePosition + SmoothDamp ä»£æ›¿ rb.velocityã€‚
     /// 
-    /// ÎªÊ²Ã´²»ÓÃ rb.velocity£º
-    ///   Update() Éè velocity ¡ú FixedUpdate() ÎïÀíÅö×²ĞŞ¸Ä velocity ¡ú ÏÂÒ»Ö¡ Update() ÓÖ¸²¸Ç
-    ///   ¡ú Á½¸öÏµÍ³ÇÀ¸ÄÍ¬Ò»¸ö±äÁ¿ ¡ú Õñµ´¶¶¶¯
+    /// ä¸ºä»€ä¹ˆä¸ç”¨ rb.velocityï¼š
+    ///   Update() è®¾ velocity â†’ FixedUpdate() ç‰©ç†ç¢°æ’ä¿®æ”¹ velocity â†’ ä¸‹ä¸€å¸§ Update() åˆè¦†ç›–
+    ///   â†’ ä¸¤ä¸ªç³»ç»ŸæŠ¢æ”¹åŒä¸€ä¸ªå˜é‡ â†’ æŒ¯è¡æŠ–åŠ¨
     /// 
-    /// MovePosition µÄÓÅÊÆ£º
-    ///   ¸æËßÎïÀíÒıÇæ"ÎÒÒªÒÆµ½ÕâÀï"£¬ÒıÇæÔÚÒÆ¶¯¹ı³ÌÖĞ×ÔÈ»´¦ÀíÅö×²ÍÆ¼·£¬
-    ///   Åö×²ºóµÄÎ»ÖÃÆ«ÒÆ±» drag Ë¥¼õ£¬ÏÂ¸ö SmoothDamp ²½×ÔÈ»ÊÕÁ²¡£
+    /// MovePosition çš„ä¼˜åŠ¿ï¼š
+    ///   å‘Šè¯‰ç‰©ç†å¼•æ“"æˆ‘è¦ç§»åˆ°è¿™é‡Œ"ï¼Œå¼•æ“åœ¨ç§»åŠ¨è¿‡ç¨‹ä¸­è‡ªç„¶å¤„ç†ç¢°æ’æ¨æŒ¤ï¼Œ
+    ///   ç¢°æ’åçš„ä½ç½®åç§»è¢« drag è¡°å‡ï¼Œä¸‹ä¸ª SmoothDamp æ­¥è‡ªç„¶æ”¶æ•›ã€‚
     /// </summary>
     void FixedUpdate()
     {
@@ -389,7 +389,7 @@ public class CircleController : MonoBehaviour
     }
 
     /// <summary>
-    /// Ç¯ÖÆµ½ÊÀ½ç±ß½ç¡£Ê¹ÓÃ MovePosition ¶ø·ÇÖ±½Ó¸³Öµ position£¬
+    /// é’³åˆ¶åˆ°ä¸–ç•Œè¾¹ç•Œã€‚ä½¿ç”¨ MovePosition è€Œéç›´æ¥èµ‹å€¼ positionï¼Œ
     /// </summary>
     private void ClampToWorldBounds()
     {
@@ -406,14 +406,14 @@ public class CircleController : MonoBehaviour
     }
 
     /// <summary>
-    /// ºÏ²¢¶¯»­³¬Ê±»Ö¸´£ºÈô·şÎñ¶ËÒòÍøÂçÑÓ³ÙÎ´¼°Ê±É¾³ı´ËÇò£¬
-    /// ³¬¹ı 1.5 Ãëºó»Ö¸´ÎïÀí×´Ì¬£¬±ÜÃâÇò"¿¨ËÀ"ÔÚ²»¿É½»»¥×´Ì¬¡£
-    /// Õı³£Çé¿öÏÂ·şÎñ¶Ë»áÔÚ´ËÖ®Ç°Í¨¹ı OnCircleDeleted Ïú»Ù´Ë GameObject¡£
+    /// åˆå¹¶åŠ¨ç”»è¶…æ—¶æ¢å¤ï¼šè‹¥æœåŠ¡ç«¯å› ç½‘ç»œå»¶è¿ŸæœªåŠæ—¶åˆ é™¤æ­¤çƒï¼Œ
+    /// è¶…è¿‡ 1.5 ç§’åæ¢å¤ç‰©ç†çŠ¶æ€ï¼Œé¿å…çƒ"å¡æ­»"åœ¨ä¸å¯äº¤äº’çŠ¶æ€ã€‚
+    /// æ­£å¸¸æƒ…å†µä¸‹æœåŠ¡ç«¯ä¼šåœ¨æ­¤ä¹‹å‰é€šè¿‡ OnCircleDeleted é”€æ¯æ­¤ GameObjectã€‚
     /// </summary>
     private IEnumerator MergeTimeoutRecovery()
     {
         yield return new WaitForSeconds(1.5f);
-        // Èç¹û´Ë GameObject »¹Ã»±»·şÎñ¶ËÉ¾³ı£¨ËµÃ÷ FinishMerge Î´ÉúĞ§£©
+        // å¦‚æœæ­¤ GameObject è¿˜æ²¡è¢«æœåŠ¡ç«¯åˆ é™¤ï¼ˆè¯´æ˜ FinishMerge æœªç”Ÿæ•ˆï¼‰
         if (gameObject != null && isMergeAnim == false)
         {
             rb.isKinematic = false;
