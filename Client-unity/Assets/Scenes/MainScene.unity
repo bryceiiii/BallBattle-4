@@ -2032,6 +2032,8 @@ MonoBehaviour:
   circlePrefab: {fileID: 1521401735835601956, guid: be89c476c70a5a84faaa077441d78561, type: 3}
   healthOrbPrefab: {fileID: 7178747877447876419, guid: fa5a771487ffbd641aec41fc1070d3e3, type: 3}
   splitOrbPrefab: {fileID: 8993546225460653294, guid: 05683e810e69a624e917dd3e34973da6, type: 3}
+  splitBulletPrefab: {fileID: 8993546225460653294, guid: 05683e810e69a624e917dd3e34973da6, type: 3}
+  maxSplitAmmo: 5
 --- !u!1001 &1893851718
 PrefabInstance:
   m_ObjectHideFlags: 0
@@ -2182,7 +2184,7 @@ PrefabInstance:
       objectReference: {fileID: 10905, guid: 0000000000000000f000000000000000, type: 0}
     - target: {fileID: 4332109458544419219, guid: 87f91968c39798642b9251ea4bfd7ab7, type: 3}
       propertyPath: m_Color.a
-      value: 0.5921569
+      value: 0.3529412
       objectReference: {fileID: 0}
     - target: {fileID: 4332109458544419219, guid: 87f91968c39798642b9251ea4bfd7ab7, type: 3}
       propertyPath: m_Color.b

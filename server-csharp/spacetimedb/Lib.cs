@@ -144,15 +144,12 @@ public static partial class Module
     private static readonly System.Collections.Generic.Dictionary<int, double> _shootCooldowns = new();
 
     [Reducer]
-    public static void ShootBullet(ReducerContext context, float dirX, float dirY, int bulletType)
+    public static void ShootBullet(ReducerContext context, float targetX, float targetY, int bulletType)
     {
         var player = context.Db.logged_in_player.Identity.Find(context.Sender) ?? throw new Exception("未找到对应玩家");
 
-        // 归一化方向
-        float len = MathF.Sqrt(dirX * dirX + dirY * dirY);
-        if (len < 0.001f) return;
-        dirX /= len;
-        dirY /= len;
+        // 检查零目标坐标
+        if (MathF.Abs(targetX) < 0.001f && MathF.Abs(targetY) < 0.001f) return;
 
         // 检查冷却
         double now = context.Timestamp.ToTimeSpanSinceUnixEpoch().TotalMilliseconds;
@@ -205,6 +202,13 @@ public static partial class Module
             UpdateHpAfterMassChange(ref ent);
             context.Db.entity.id.Update(ent);
 
+            // 每球独立计算朝向目标的方向
+            float bDirX = targetX - ent.position.x;
+            float bDirY = targetY - ent.position.y;
+            float bLen = MathF.Sqrt(bDirX * bDirX + bDirY * bDirY);
+            if (bLen < 0.001f) { bDirX = 1f; bDirY = 0f; }
+            else { bDirX /= bLen; bDirY /= bLen; }
+
             // 生成子弹
             var bulletEntity = context.Db.entity.Insert(new Entity
             {
@@ -217,8 +221,8 @@ public static partial class Module
             {
                 entity_id = bulletEntity.id,
                 owner_player_id = player.player_id,
-                dir_x = dirX,
-                dir_y = dirY,
+                dir_x = bDirX,
+                dir_y = bDirY,
                 spawned_at_ms = now,
                 bullet_type = bulletType
             });
