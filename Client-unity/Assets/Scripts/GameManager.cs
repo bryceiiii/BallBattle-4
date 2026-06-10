@@ -317,11 +317,18 @@ public class GameManager : MonoBehaviour
         var entity = Conn.Db.Entity.Id.Find(newBullet.EntityId);
         if (entity == null) return;
 
-        // 使用预制体创建子弹（如果没有预制体，用默认小球体）
+        // 按子弹类型选预制体：分裂弹用专属预制体，普通弹用默认预制体
         GameObject bulletGo;
-        if (bulletPrefab != null)
+        bool isSplit = newBullet.BulletType == 1;
+        GameObject chosenPrefab = null;
+        if (isSplit && PrefabsManager.Instance != null && PrefabsManager.Instance.splitBulletPrefab != null)
+            chosenPrefab = PrefabsManager.Instance.splitBulletPrefab;
+        else if (bulletPrefab != null)
+            chosenPrefab = bulletPrefab;
+
+        if (chosenPrefab != null)
         {
-            bulletGo = Instantiate(bulletPrefab);
+            bulletGo = Instantiate(chosenPrefab);
         }
         else
         {
@@ -405,7 +412,8 @@ public class GameManager : MonoBehaviour
             var player = Conn.Db.LoggedInPlayer.Identity.Find(localIdentity);
             if (player != null && player.PlayerId == ammo.PlayerId)
             {
-                HudController.Instance?.SetAmmoCount(1, ammo.AmmoSplit);
+                int max = PrefabsManager.Instance != null ? PrefabsManager.Instance.maxSplitAmmo : 5;
+                HudController.Instance?.SetAmmoCountMax(1, ammo.AmmoSplit, max);
             }
         }
     }

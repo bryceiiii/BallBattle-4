@@ -9,7 +9,13 @@ public class PrefabsManager : MonoBehaviour
     public GameObject foodPrefab;
     public GameObject circlePrefab;
     public GameObject healthOrbPrefab;   // 回血球预制体
-    public GameObject splitOrbPrefab;    // 分裂弹预制体
+    public GameObject splitOrbPrefab;    // 分裂弹食物预制体
+
+    [Header("子弹预制体")]
+    public GameObject splitBulletPrefab;  // 分裂弹子弹预制体
+
+    [Header("弹药上限")]
+    public int maxSplitAmmo = 5;          // 分裂弹最大存储数
 
 
 

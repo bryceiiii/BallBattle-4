@@ -42,6 +42,7 @@ public static partial class Module
     private static float HEALTH_ORB_CHANCE = 0.10f;   // 回血球生成概率（10%）
     private static float HEALTH_ORB_HEAL = 15f;        // 回血量
     private static float SPLIT_ORB_CHANCE = 0.08f;     // 分裂弹生成概率（8%）
+    private static int MAX_SPLIT_AMMO = 5;             // 分裂弹最大存储数
     // food_type: 0=普通, 1=回血, 2=分裂弹
 
     [Table(Name = "entity", Public = true)]
@@ -161,14 +162,13 @@ public static partial class Module
         }
         _shootCooldowns[player.player_id] = now;
 
-        // 特殊子弹：检查弹药
-        if (bulletType == 1) // 分裂弹
+        // 特殊子弹：读取弹药库存（分裂弹按球数消耗）
+        int splitAmmoLeft = 0;
+        if (bulletType == 1)
         {
             var ammo = context.Db.player_ammo.player_id.Find(player.player_id);
-            if (ammo == null || ammo.Value.ammo_split <= 0) return; // 无弹药
-            var a = ammo.Value;
-            a.ammo_split -= 1;
-            context.Db.player_ammo.player_id.Update(a);
+            if (ammo == null || ammo.Value.ammo_split <= 0) return;
+            splitAmmoLeft = ammo.Value.ammo_split;
         }
 
         // 统计当前场上子弹数
@@ -191,6 +191,13 @@ public static partial class Module
             // 子弹上限检查
             if (bulletCount >= BULLET_MAX_PER_PLAYER) break;
             bulletCount++;
+
+            // 特殊子弹：每个发射的球消耗 1 弹药
+            if (bulletType == 1)
+            {
+                if (splitAmmoLeft <= 0) break;
+                splitAmmoLeft--;
+            }
 
             // 扣质量（每个球独立消耗）
             ent.mass -= BULLET_MASS_COST;
@@ -216,6 +223,18 @@ public static partial class Module
                 bullet_type = bulletType
             });
             Log.Info($"[射击] 玩家 {player.player_id} 实体 {c.entity_id} 发射子弹 {bulletEntity.id} 类型 {bulletType}");
+        }
+
+        // 更新弹药（在循环后写入，确保原子性）
+        if (bulletType == 1)
+        {
+            var ammo = context.Db.player_ammo.player_id.Find(player.player_id);
+            if (ammo != null)
+            {
+                var a = ammo.Value;
+                a.ammo_split = splitAmmoLeft;
+                context.Db.player_ammo.player_id.Update(a);
+            }
         }
     }
 
@@ -575,7 +594,7 @@ public static partial class Module
                 context.Db.entity.id.Update(entityToHeal);
             }
         }
-        // 分裂弹拾取：增加玩家的分裂弹药
+        // 分裂弹拾取：增加玩家的分裂弹药（上限 MAX_SPLIT_AMMO）
         foreach(var kvp in splitAmmoGains)
         {
             var ammo = context.Db.player_ammo.player_id.Find(kvp.Key);
@@ -586,7 +605,7 @@ public static partial class Module
             else
             {
                 var a = ammo.Value;
-                a.ammo_split += kvp.Value;
+                a.ammo_split = Math.Min(a.ammo_split + kvp.Value, MAX_SPLIT_AMMO);
                 context.Db.player_ammo.player_id.Update(a);
             }
         }

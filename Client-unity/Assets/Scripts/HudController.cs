@@ -89,6 +89,14 @@ public class HudController : MonoBehaviour
             ammoCounts[index].text = index == 0 ? "∞" : count.ToString();
     }
 
+    /// <summary>更新弹药栏数量（带上限显示）</summary>
+    public void SetAmmoCountMax(int index, int count, int max)
+    {
+        if (ammoCounts == null || index < 0 || index >= ammoCounts.Length) return;
+        if (ammoCounts[index] != null)
+            ammoCounts[index].text = index == 0 ? "∞" : $"{count}/{max}";
+    }
+
     /// <summary>显示/更新 Buff 状态</summary>
     public void SetBuff(int slot, Sprite icon, float remainingSeconds)
     {
