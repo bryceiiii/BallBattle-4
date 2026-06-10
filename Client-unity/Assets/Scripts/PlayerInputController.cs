@@ -4,15 +4,13 @@ using SpacetimeDB.Types;
 public class PlayerInputController : MonoBehaviour
 {
     private float sendDirTimer;
-    private readonly float sendInterval = 0.025f; // 25ms发一次，≤服务端50ms逻辑帧
+    private readonly float sendInterval = 0.025f;
     private DbVector2 lastSendDir = new DbVector2(0, 0);
 
-    /// <summary>
-    /// 当前移动方向（公开属性，供其他组件读取用于死推算等）
-    /// </summary>
     public Vector2 CurrentDirection { get; private set; }
+    public int SelectedAmmoType { get; private set; } = 0; // 0=普通, 1=分裂弹
 
-    private     void Update()
+    private void Update()
     {
         if (SpacetimeDBNetworkManager.Instance?.Db == null) return;
 
@@ -24,21 +22,18 @@ public class PlayerInputController : MonoBehaviour
         }
         HandleSplitInput();
         HandleShootInput();
+        HandleAmmoSwitch();
     }
 
     private void HandleMovementInput()
     {
         float moveX = Input.GetAxisRaw("Horizontal");
         float moveY = Input.GetAxisRaw("Vertical");
-
-        // 微小输入归零，防止手柄漂移
         if (Mathf.Abs(moveX) < 0.01f) moveX = 0;
         if (Mathf.Abs(moveY) < 0.01f) moveY = 0;
 
         CurrentDirection = new Vector2(moveX, moveY);
         DbVector2 curDir = new DbVector2(moveX, moveY);
-
-        // 方向没变直接跳过，减少无效网络包
         if (curDir.X == lastSendDir.X && curDir.Y == lastSendDir.Y) return;
 
         SpacetimeDBNetworkManager.Instance.Db.Reducers.UpdatePlayerDir(curDir);
@@ -48,19 +43,29 @@ public class PlayerInputController : MonoBehaviour
     private void HandleSplitInput()
     {
         if (Input.GetKeyDown(KeyCode.Space))
-        {
             SpacetimeDBNetworkManager.Instance.Db.Reducers.SplitPlayer();
+    }
+
+    /// <summary>数字键 1-2 切换弹种</summary>
+    private void HandleAmmoSwitch()
+    {
+        for (int i = 1; i <= 2; i++)
+        {
+            if (Input.GetKeyDown(KeyCode.Alpha0 + i))
+            {
+                SelectedAmmoType = i - 1; // 0=普通, 1=分裂弹
+                HudController.Instance?.SelectAmmo(i - 1);
+            }
         }
     }
 
     private void HandleShootInput()
     {
-        if (!Input.GetMouseButtonDown(0)) return; // 鼠标左键
+        if (!Input.GetMouseButtonDown(0)) return;
 
         var conn = SpacetimeDBNetworkManager.Instance?.Db;
         if (conn == null) return;
 
-        // 计算从本地玩家主球到鼠标的方向
         Vector3 ballPos = GameManager.GetLocalMainBallPosition();
         if (ballPos == Vector3.zero) return;
 
@@ -74,10 +79,8 @@ public class PlayerInputController : MonoBehaviour
 
         float dirX = mouseWorld.x - ballPos.x;
         float dirY = mouseWorld.y - ballPos.y;
-
-        // 零方向不发射
         if (Mathf.Abs(dirX) < 0.001f && Mathf.Abs(dirY) < 0.001f) return;
 
-        conn.Reducers.ShootBullet(dirX, dirY);
+        conn.Reducers.ShootBullet(dirX, dirY, SelectedAmmoType);
     }
 }

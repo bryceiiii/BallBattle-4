@@ -44,6 +44,7 @@ namespace SpacetimeDB.Types
         public global::SpacetimeDB.Col<Bullet, float> DirX { get; }
         public global::SpacetimeDB.Col<Bullet, float> DirY { get; }
         public global::SpacetimeDB.Col<Bullet, double> SpawnedAtMs { get; }
+        public global::SpacetimeDB.Col<Bullet, int> BulletType { get; }
 
         public BulletCols(string tableName)
         {
@@ -52,6 +53,7 @@ namespace SpacetimeDB.Types
             DirX = new global::SpacetimeDB.Col<Bullet, float>(tableName, "dir_x");
             DirY = new global::SpacetimeDB.Col<Bullet, float>(tableName, "dir_y");
             SpawnedAtMs = new global::SpacetimeDB.Col<Bullet, double>(tableName, "spawned_at_ms");
+            BulletType = new global::SpacetimeDB.Col<Bullet, int>(tableName, "bullet_type");
         }
     }
 

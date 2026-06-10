@@ -41,6 +41,8 @@ public static partial class Module
     // 特殊食物常量
     private static float HEALTH_ORB_CHANCE = 0.10f;   // 回血球生成概率（10%）
     private static float HEALTH_ORB_HEAL = 15f;        // 回血量
+    private static float SPLIT_ORB_CHANCE = 0.08f;     // 分裂弹生成概率（8%）
+    // food_type: 0=普通, 1=回血, 2=分裂弹
 
     [Table(Name = "entity", Public = true)]
     public partial struct Entity
@@ -79,6 +81,14 @@ public static partial class Module
         public float dir_x;            // 飞行方向（已归一化）
         public float dir_y;
         public double spawned_at_ms;   // 生成时间戳（毫秒）
+        public int bullet_type;        // 0=普通, 1=分裂弹
+    }
+    [Table(Name = "player_ammo", Public = true)]
+    public partial struct PlayerAmmo
+    {
+        [PrimaryKey]
+        public int player_id;
+        public int ammo_split;         // 分裂弹数量
     }
     [Table(Name = "circle", Public = true)]
     public partial struct Circle
@@ -133,7 +143,7 @@ public static partial class Module
     private static readonly System.Collections.Generic.Dictionary<int, double> _shootCooldowns = new();
 
     [Reducer]
-    public static void ShootBullet(ReducerContext context, float dirX, float dirY)
+    public static void ShootBullet(ReducerContext context, float dirX, float dirY, int bulletType)
     {
         var player = context.Db.logged_in_player.Identity.Find(context.Sender) ?? throw new Exception("未找到对应玩家");
 
@@ -143,13 +153,23 @@ public static partial class Module
         dirX /= len;
         dirY /= len;
 
-        // 检查冷却（全玩家共享，防止 spam 点击）
+        // 检查冷却
         double now = context.Timestamp.ToTimeSpanSinceUnixEpoch().TotalMilliseconds;
         if (_shootCooldowns.TryGetValue(player.player_id, out double lastShoot))
         {
             if (now - lastShoot < BULLET_COOLDOWN_SEC * 1000) return;
         }
         _shootCooldowns[player.player_id] = now;
+
+        // 特殊子弹：检查弹药
+        if (bulletType == 1) // 分裂弹
+        {
+            var ammo = context.Db.player_ammo.player_id.Find(player.player_id);
+            if (ammo == null || ammo.Value.ammo_split <= 0) return; // 无弹药
+            var a = ammo.Value;
+            a.ammo_split -= 1;
+            context.Db.player_ammo.player_id.Update(a);
+        }
 
         // 统计当前场上子弹数
         int bulletCount = 0;
@@ -192,9 +212,10 @@ public static partial class Module
                 owner_player_id = player.player_id,
                 dir_x = dirX,
                 dir_y = dirY,
-                spawned_at_ms = now
+                spawned_at_ms = now,
+                bullet_type = bulletType
             });
-            Log.Info($"[射击] 玩家 {player.player_id} 实体 {c.entity_id} 发射子弹 {bulletEntity.id}");
+            Log.Info($"[射击] 玩家 {player.player_id} 实体 {c.entity_id} 发射子弹 {bulletEntity.id} 类型 {bulletType}");
         }
     }
 
@@ -326,10 +347,21 @@ public static partial class Module
             float randomFloat = (float)context.Rng.NextDouble(); // 0.0 到 1.0 之间
             float foodCurrentMass = 1.0f + randomFloat;
 
-            // 随机生成回血球（10% 概率）
-            bool isHealth = context.Rng.NextDouble() < HEALTH_ORB_CHANCE;
-            int foodType = isHealth ? 1 : 0;
-            if (isHealth) foodCurrentMass = 1.5f; // 回血球略大以区分
+            // 随机生成特殊食物
+            double roll = context.Rng.NextDouble();
+            int foodType;
+            if (roll < HEALTH_ORB_CHANCE)
+            {
+                foodType = 1; foodCurrentMass = 1.5f; // 回血球
+            }
+            else if (roll < HEALTH_ORB_CHANCE + SPLIT_ORB_CHANCE)
+            {
+                foodType = 2; foodCurrentMass = 1.8f; // 分裂弹（略大）
+            }
+            else
+            {
+                foodType = 0;
+            }
 
             var entity = context.Db.entity.Insert(new Entity
             {
@@ -377,6 +409,7 @@ public static partial class Module
         // 第二阶段：检测吞噬并收集要删除的 ID 以及要增加的质量
         var massGains = new System.Collections.Generic.Dictionary<int, float>();
         var healGains = new System.Collections.Generic.Dictionary<int, float>(); // 回血
+        var splitAmmoGains = new System.Collections.Generic.Dictionary<int, int>(); // 玩家 → 分裂弹数量
         var entitiesToDelete = new System.Collections.Generic.HashSet<int>();
 
         // 【性能优化】将 playerBalls 字典构建提前到循环外，只构建一次
@@ -434,6 +467,13 @@ public static partial class Module
                             if (!healGains.ContainsKey(entityA.id))
                                 healGains[entityA.id] = 0;
                             healGains[entityA.id] += HEALTH_ORB_HEAL;
+                        }
+                        // 分裂弹：给玩家增加分裂弹药
+                        if (isFood && foodNullable.Value.food_type == 2)
+                        {
+                            if (!splitAmmoGains.ContainsKey(circleA.player_id))
+                                splitAmmoGains[circleA.player_id] = 0;
+                            splitAmmoGains[circleA.player_id] += 1;
                         }
                     }
                 }
@@ -535,6 +575,21 @@ public static partial class Module
                 context.Db.entity.id.Update(entityToHeal);
             }
         }
+        // 分裂弹拾取：增加玩家的分裂弹药
+        foreach(var kvp in splitAmmoGains)
+        {
+            var ammo = context.Db.player_ammo.player_id.Find(kvp.Key);
+            if (ammo == null)
+            {
+                context.Db.player_ammo.Insert(new PlayerAmmo { player_id = kvp.Key, ammo_split = 1 });
+            }
+            else
+            {
+                var a = ammo.Value;
+                a.ammo_split += kvp.Value;
+                context.Db.player_ammo.player_id.Update(a);
+            }
+        }
 
         // 删除被吃掉的实体
         foreach(var deadId in entitiesToDelete)
@@ -557,6 +612,7 @@ public static partial class Module
         double now = context.Timestamp.ToTimeSpanSinceUnixEpoch().TotalMilliseconds;
         var bulletsToDelete = new System.Collections.Generic.HashSet<int>();
         var bulletHits = new System.Collections.Generic.Dictionary<int, float>(); // entity_id → damage
+        var splitHits = new System.Collections.Generic.HashSet<int>();           // 被分裂弹命中的 circle entity_id
 
         foreach (var bullet in context.Db.bullet.Iter())
         {
@@ -610,10 +666,16 @@ public static partial class Module
                 if (d0 <= r2 || dm <= r2 || d1 <= r2)
                 {
                     bulletsToDelete.Add(bullet.entity_id);
-                    // 累计伤害
-                    if (!bulletHits.ContainsKey(circle.entity_id))
-                        bulletHits[circle.entity_id] = 0;
-                    bulletHits[circle.entity_id] += BULLET_DAMAGE;
+                    if (bullet.bullet_type == 1) // 分裂弹 → 强制目标分裂
+                    {
+                        splitHits.Add(circle.entity_id);
+                    }
+                    else // 普通子弹 → 伤害
+                    {
+                        if (!bulletHits.ContainsKey(circle.entity_id))
+                            bulletHits[circle.entity_id] = 0;
+                        bulletHits[circle.entity_id] += BULLET_DAMAGE;
+                    }
                     break;
                 }
             }
@@ -657,6 +719,48 @@ public static partial class Module
                     context.Db.circle.entity_id.Delete(target.id);
                 context.Db.entity.id.Delete(target.id);
             }
+        }
+
+        // 分裂弹效果：对命中的球强制分裂
+        foreach (var targetEid in splitHits)
+        {
+            var tgtCircleNullable = context.Db.circle.entity_id.Find(targetEid);
+            if (tgtCircleNullable == null) continue;
+            var tgtEntNullable = context.Db.entity.id.Find(targetEid);
+            if (tgtEntNullable == null) continue;
+            var tgtEnt = tgtEntNullable.Value;
+            if (tgtEnt.mass < MIN_SPLIT_MASS) continue;
+
+            // 执行分裂（与 SplitPlayer 同样的逻辑）
+            float halfMass = tgtEnt.mass / 2f;
+            float halfHp = tgtEnt.hp / 2f;
+            tgtEnt.mass = halfMass;
+            tgtEnt.hp = halfHp;
+            tgtEnt.max_hp = ComputeMaxHp(halfMass);
+            float minHp = halfMass * HP_MIN_RATIO;
+            if (tgtEnt.hp < minHp) tgtEnt.hp = minHp;
+            context.Db.entity.id.Update(tgtEnt);
+
+            // 分裂方向：随机
+            float angle = (float)(context.Rng.NextDouble() * MathF.PI * 2);
+            float dx = MathF.Cos(angle), dy = MathF.Sin(angle);
+            float offset = MassToDiameter(halfMass) + 1.0f;
+            var newEnt = context.Db.entity.Insert(new Entity
+            {
+                mass = halfMass,
+                position = new DbVector2(tgtEnt.position.x + dx * offset, tgtEnt.position.y + dy * offset),
+                hp = halfHp,
+                max_hp = ComputeMaxHp(halfMass)
+            });
+            context.Db.circle.Insert(new Circle
+            {
+                entity_id = newEnt.id,
+                player_id = tgtCircleNullable.Value.player_id,
+                touchStartMs = 0,
+                isMerging = false,
+                isSplitting = true,
+                splitFromEntityId = targetEid
+            });
         }
 
         // 删除过期/命中的子弹

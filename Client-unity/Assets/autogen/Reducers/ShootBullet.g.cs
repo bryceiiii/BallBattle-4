@@ -12,12 +12,12 @@ namespace SpacetimeDB.Types
 {
     public sealed partial class RemoteReducers : RemoteBase
     {
-        public delegate void ShootBulletHandler(ReducerEventContext ctx, float dirX, float dirY);
+        public delegate void ShootBulletHandler(ReducerEventContext ctx, float dirX, float dirY, int bulletType);
         public event ShootBulletHandler? OnShootBullet;
 
-        public void ShootBullet(float dirX, float dirY)
+        public void ShootBullet(float dirX, float dirY, int bulletType)
         {
-            conn.InternalCallReducer(new Reducer.ShootBullet(dirX, dirY));
+            conn.InternalCallReducer(new Reducer.ShootBullet(dirX, dirY, bulletType));
         }
 
         public bool InvokeShootBullet(ReducerEventContext ctx, Reducer.ShootBullet args)
@@ -37,7 +37,8 @@ namespace SpacetimeDB.Types
             OnShootBullet(
                 ctx,
                 args.DirX,
-                args.DirY
+                args.DirY,
+                args.BulletType
             );
             return true;
         }
@@ -53,14 +54,18 @@ namespace SpacetimeDB.Types
             public float DirX;
             [DataMember(Name = "dir_y")]
             public float DirY;
+            [DataMember(Name = "bullet_type")]
+            public int BulletType;
 
             public ShootBullet(
                 float DirX,
-                float DirY
+                float DirY,
+                int BulletType
             )
             {
                 this.DirX = DirX;
                 this.DirY = DirY;
+                this.BulletType = BulletType;
             }
 
             public ShootBullet()

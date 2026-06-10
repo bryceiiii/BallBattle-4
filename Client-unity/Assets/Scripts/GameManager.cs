@@ -69,6 +69,8 @@ public class GameManager : MonoBehaviour
         Conn.Db.Circle.OnUpdate += OnCircleUpdated;
         Conn.Db.Bullet.OnInsert += OnBulletInserted;
         Conn.Db.Bullet.OnDelete += OnBulletDeleted;
+        Conn.Db.PlayerAmmo.OnInsert += OnPlayerAmmoInserted;
+        Conn.Db.PlayerAmmo.OnUpdate += OnPlayerAmmoUpdated;
 
         isSubscribed = true;
         Debug.Log("? GameManager 成功订阅所有表事件。");
@@ -301,6 +303,8 @@ public class GameManager : MonoBehaviour
         GameObject foodGo;
         if (newFood.FoodType == 1)
             foodGo = PrefabsManager.Instance.SpawnHealthOrb(newFood.EntityId, entity.Position.X, entity.Position.Y, entity.Mass);
+        else if (newFood.FoodType == 2)
+            foodGo = PrefabsManager.Instance.SpawnSplitOrb(newFood.EntityId, entity.Position.X, entity.Position.Y, entity.Mass);
         else
             foodGo = PrefabsManager.Instance.SpawnFood(newFood.EntityId, entity.Position.X, entity.Position.Y, entity.Mass);
 
@@ -380,6 +384,29 @@ public class GameManager : MonoBehaviour
         else
         {
             Debug.LogError("SpacetimeDB 网络尚未连接或者尚未初始化！");
+        }
+    }
+
+    // ===== 弹药相关 =====
+    private void OnPlayerAmmoInserted(EventContext ctx, PlayerAmmo ammo)
+    {
+        UpdateHudAmmo(ammo);
+    }
+
+    private void OnPlayerAmmoUpdated(EventContext ctx, PlayerAmmo oldAmmo, PlayerAmmo newAmmo)
+    {
+        UpdateHudAmmo(newAmmo);
+    }
+
+    private void UpdateHudAmmo(PlayerAmmo ammo)
+    {
+        if (localIdentity != null)
+        {
+            var player = Conn.Db.LoggedInPlayer.Identity.Find(localIdentity);
+            if (player != null && player.PlayerId == ammo.PlayerId)
+            {
+                HudController.Instance?.SetAmmoCount(1, ammo.AmmoSplit);
+            }
         }
     }
 

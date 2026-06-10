@@ -23,13 +23,16 @@ namespace SpacetimeDB.Types
         public float DirY;
         [DataMember(Name = "spawned_at_ms")]
         public double SpawnedAtMs;
+        [DataMember(Name = "bullet_type")]
+        public int BulletType;
 
         public Bullet(
             int EntityId,
             int OwnerPlayerId,
             float DirX,
             float DirY,
-            double SpawnedAtMs
+            double SpawnedAtMs,
+            int BulletType
         )
         {
             this.EntityId = EntityId;
@@ -37,6 +40,7 @@ namespace SpacetimeDB.Types
             this.DirX = DirX;
             this.DirY = DirY;
             this.SpawnedAtMs = SpawnedAtMs;
+            this.BulletType = BulletType;
         }
 
         public Bullet()

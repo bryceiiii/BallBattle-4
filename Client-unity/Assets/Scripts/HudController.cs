@@ -76,7 +76,7 @@ public class HudController : MonoBehaviour
         for (int i = 0; i < ammoHighlights.Length; i++)
         {
             if (ammoHighlights[i] != null)
-                ammoHighlights[i].color = i == index ? new Color(1f, 1f, 0.5f, 0.8f) : Color.clear;
+                ammoHighlights[i].color = i == index ? new Color(1f, 1f, 0.5f, 0.3f) : Color.clear;
         }
         _selectedAmmo = index;
     }
