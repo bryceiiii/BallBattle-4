@@ -10,7 +10,7 @@ public class GameManager : MonoBehaviour
     public static GameManager Instance { get; private set; }
     public InputField InputField;
     public GameObject canvasGo;
-    public GameObject bulletPrefab;  // 子弹预制体（拖拽）
+    public GameObject bulletPrefab;      // 子弹预制体（拖拽）
 
     private static Dictionary<int, GameObject> Entities = new Dictionary<int, GameObject>();
     private static Dictionary<int, GameObject> Circles = new Dictionary<int, GameObject>();
@@ -290,8 +290,14 @@ public class GameManager : MonoBehaviour
     private void OnFoodInserted(EventContext ctx, Food newFood)
     {
         var entity = Conn.Db.Entity.Id.Find(newFood.EntityId);
-        Debug.Log($"[Food 表更新] 发现新的食物插入！EntityId: {newFood.EntityId}, Position: ({entity.Position.X}, {entity.Position.Y}), Mass: {entity.Mass}");
-        GameObject foodGo = PrefabsManager.Instance.SpawnFood(newFood.EntityId, entity.Position.X, entity.Position.Y, entity.Mass);
+        if (entity == null) return;
+
+        GameObject foodGo;
+        if (newFood.FoodType == 1)
+            foodGo = PrefabsManager.Instance.SpawnHealthOrb(newFood.EntityId, entity.Position.X, entity.Position.Y, entity.Mass);
+        else
+            foodGo = PrefabsManager.Instance.SpawnFood(newFood.EntityId, entity.Position.X, entity.Position.Y, entity.Mass);
+
         Entities.Add(newFood.EntityId, foodGo);
     }
 

@@ -38,6 +38,10 @@ public static partial class Module
     private static int BULLET_MAX_PER_PLAYER = 5;     // 每玩家同时存在子弹上限
     private static float MIN_SHOOT_MASS = 3.0f;       // 最小射击质量
 
+    // 特殊食物常量
+    private static float HEALTH_ORB_CHANCE = 0.10f;   // 回血球生成概率（10%）
+    private static float HEALTH_ORB_HEAL = 15f;        // 回血量
+
     [Table(Name = "entity", Public = true)]
     public partial struct Entity
     {
@@ -64,6 +68,7 @@ public static partial class Module
     {
         [PrimaryKey]
         public int entity_id;
+        public int food_type;   // 0=普通, 1=回血球
     }
     [Table(Name = "bullet", Public = true)]
     public partial struct Bullet
@@ -321,6 +326,11 @@ public static partial class Module
             float randomFloat = (float)context.Rng.NextDouble(); // 0.0 到 1.0 之间
             float foodCurrentMass = 1.0f + randomFloat;
 
+            // 随机生成回血球（10% 概率）
+            bool isHealth = context.Rng.NextDouble() < HEALTH_ORB_CHANCE;
+            int foodType = isHealth ? 1 : 0;
+            if (isHealth) foodCurrentMass = 1.5f; // 回血球略大以区分
+
             var entity = context.Db.entity.Insert(new Entity
             {
                 mass = foodCurrentMass,
@@ -328,7 +338,8 @@ public static partial class Module
             });
             context.Db.food.Insert(new Food
             {
-                entity_id = entity.id
+                entity_id = entity.id,
+                food_type = foodType
             });
             foodCount++;
         }
@@ -365,6 +376,7 @@ public static partial class Module
 
         // 第二阶段：检测吞噬并收集要删除的 ID 以及要增加的质量
         var massGains = new System.Collections.Generic.Dictionary<int, float>();
+        var healGains = new System.Collections.Generic.Dictionary<int, float>(); // 回血
         var entitiesToDelete = new System.Collections.Generic.HashSet<int>();
 
         // 【性能优化】将 playerBalls 字典构建提前到循环外，只构建一次
@@ -402,7 +414,8 @@ public static partial class Module
                 // A是玩家球，判断是否重叠覆盖B
                 if (IsOverLapping(entityA, entityB))
                 {
-                    bool isFood = context.Db.food.entity_id.Find(entityB.id) != null;
+                    var foodNullable = context.Db.food.entity_id.Find(entityB.id);
+                    bool isFood = foodNullable != null;
                     bool isOtherPlayer = circleBNullable != null;
 
                     if (isFood || (isOtherPlayer && entityA.mass > entityB.mass))
@@ -413,8 +426,15 @@ public static partial class Module
                         // 记录A应该增加的质量
                         if (!massGains.ContainsKey(entityA.id))
                             massGains[entityA.id] = 0;
-                        
                         massGains[entityA.id] += entityB.mass;
+
+                        // 回血球：记录回血量
+                        if (isFood && foodNullable.Value.food_type == 1)
+                        {
+                            if (!healGains.ContainsKey(entityA.id))
+                                healGains[entityA.id] = 0;
+                            healGains[entityA.id] += HEALTH_ORB_HEAL;
+                        }
                     }
                 }
             }
@@ -489,7 +509,7 @@ public static partial class Module
         }
 
         // 第三阶段：统一处理数据的 更新 和 删除
-        // 增重 + HP 更新
+        // 增重 + HP 更新 + 回血
         foreach(var kvp in massGains)
         {
             var entityToGainNullable = context.Db.entity.id.Find(kvp.Key);
@@ -500,6 +520,19 @@ public static partial class Module
                 // 质量变化后更新 max_hp，缓冲保护 hp 不越界
                 UpdateHpAfterMassChange(ref entityToGain);
                 context.Db.entity.id.Update(entityToGain);
+            }
+        }
+        // 回血
+        foreach(var kvp in healGains)
+        {
+            var entityToHealNullable = context.Db.entity.id.Find(kvp.Key);
+            if (entityToHealNullable != null)
+            {
+                var entityToHeal = entityToHealNullable.Value;
+                entityToHeal.hp += kvp.Value;
+                if (entityToHeal.hp > entityToHeal.max_hp)
+                    entityToHeal.hp = entityToHeal.max_hp;
+                context.Db.entity.id.Update(entityToHeal);
             }
         }
 

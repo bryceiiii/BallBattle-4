@@ -8,6 +8,7 @@ public class PrefabsManager : MonoBehaviour
 
     public GameObject foodPrefab;
     public GameObject circlePrefab;
+    public GameObject healthOrbPrefab;   // »ØÑªÇòÔ¤ÖÆÌå
     
 
 
@@ -26,6 +27,16 @@ public class PrefabsManager : MonoBehaviour
         food.transform.localScale = new Vector3(diameter, diameter, 1f);
         food.name = "Food" + entityId;
         return food;
+    }
+
+    public GameObject SpawnHealthOrb(int entityId, float x, float y, float mass)
+    {
+        var prefab = healthOrbPrefab != null ? healthOrbPrefab : foodPrefab;
+        var orb = Instantiate(prefab, new Vector3(x, y, 0f), Quaternion.identity);
+        var diameter = MassToDiameter(mass);
+        orb.transform.localScale = new Vector3(diameter, diameter, 1f);
+        orb.name = "HealthOrb" + entityId;
+        return orb;
     }
     public GameObject SpawnCircle(int entityId, float x, float y, float mass,string name)
     {

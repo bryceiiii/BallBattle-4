@@ -40,10 +40,12 @@ namespace SpacetimeDB.Types
     public sealed class FoodCols
     {
         public global::SpacetimeDB.Col<Food, int> EntityId { get; }
+        public global::SpacetimeDB.Col<Food, int> FoodType { get; }
 
         public FoodCols(string tableName)
         {
             EntityId = new global::SpacetimeDB.Col<Food, int>(tableName, "entity_id");
+            FoodType = new global::SpacetimeDB.Col<Food, int>(tableName, "food_type");
         }
     }
 

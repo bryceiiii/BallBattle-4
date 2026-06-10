@@ -15,10 +15,16 @@ namespace SpacetimeDB.Types
     {
         [DataMember(Name = "entity_id")]
         public int EntityId;
+        [DataMember(Name = "food_type")]
+        public int FoodType;
 
-        public Food(int EntityId)
+        public Food(
+            int EntityId,
+            int FoodType
+        )
         {
             this.EntityId = EntityId;
+            this.FoodType = FoodType;
         }
 
         public Food()
