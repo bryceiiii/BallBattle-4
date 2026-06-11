@@ -6,6 +6,8 @@ using System.Diagnostics.Contracts;
 public static partial class Module
 {
     private static int WORLD_SIZE = 50;
+    // 服务器tick步长(秒)，与 MoveAllPlayerTimer 的 interval 保持一致
+    private static float SERVER_DELTA = 0.033f;  // 33ms ≈ 30Hz
     // 将质量相关的常量改为 float 类型
     private static float PRIMARY_PLAYER_MASS = 5.0f;
     private static int TARGET_FOOD_COUNT = 200;
@@ -308,7 +310,7 @@ public static partial class Module
         });
         context.Db.move_all_player.Insert(new MoveAllPlayerTimer
         {
-            schedule_at = new ScheduleAt.Interval(TimeSpan.FromMilliseconds(50))//1秒钟调用20次
+            schedule_at = new ScheduleAt.Interval(TimeSpan.FromMilliseconds(33)) // 30Hz，比原来的50ms(20Hz)更流畅
         });
         // 自动合并开关：注释下面一行 = 关闭全局自动合并
         context.Db.merge_player_timer.Insert(new MergePlayerTimer
@@ -435,7 +437,7 @@ public static partial class Module
 
             // 质量减速系数
             float speedScale = 1f / (entity.mass * 0.06f + 1f);
-            float moveStep = 0.05f * START_PLAYER_SPEED * speedScale;
+            float moveStep = SERVER_DELTA * START_PLAYER_SPEED * speedScale;
             entity.position.x += player.dir.x * moveStep;
             entity.position.y += player.dir.y * moveStep;
 
@@ -712,7 +714,7 @@ public static partial class Module
             }
 
             // 移动子弹
-            float moveStep = 0.05f * BULLET_SPEED; // 与 MoveAllPlayer 的步长一致（50ms）
+            float moveStep = SERVER_DELTA * BULLET_SPEED; // 与主循环步长一致
             float origX = bulletEnt.position.x, origY = bulletEnt.position.y;
             bulletEnt.position.x += bullet.dir_x * moveStep;
             bulletEnt.position.y += bullet.dir_y * moveStep;

@@ -56,9 +56,9 @@ public class CircleController : MonoBehaviour
     // ===== 位置平滑 =====
     private Vector2 posVelocity = Vector2.zero;
 
-    public float remotePosSmoothTime = 0.15f;
-    public float localPosSmoothTime = 0.08f;
-    public float scaleSmoothTime = 0.1f;
+    public float remotePosSmoothTime = 0.10f;   // 远程玩家插值时间（秒），配合30Hz服务器足够平滑
+    public float localPosSmoothTime = 0.04f;     // 本地玩家用更快的响应
+    public float scaleSmoothTime = 0.06f;        // 缩放过渡
 
     // ===== 世界边界 =====
     private const float WORLD_MIN = 0f;
