@@ -1,0 +1,73 @@
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body { background:#1a1a2e; font-family:Arial,sans-serif; display:flex; justify-content:center; align-items:center; min-height:100vh; }
+  .panel { width:480px; background:rgba(6,6,18,0.92); border-radius:12px; padding:30px 40px; text-align:center; }
+  h1 { color:#e6e6f2; font-size:26px; font-weight:700; }
+  .subtitle { color:#8088a6; font-size:14px; margin-bottom:24px; }
+  .row { display:flex; align-items:center; margin-bottom:14px; gap:12px; }
+  label { color:#8088a6; font-size:13px; width:70px; text-align:right; flex-shrink:0; }
+  input, select { flex:1; background:#1e1e33; border:1px solid #4d4d73; color:#e6e6f2; padding:8px 12px; border-radius:6px; font-size:14px; outline:none; }
+  input:focus, select:focus { border-color:#4d8cff; }
+  .lan-group { display:none; }
+  .lan-group.visible { display:flex; flex-wrap:wrap; gap:12px; justify-content:center; margin-bottom:14px; }
+  .lan-group.visible label { width:auto; }
+  .lan-group.visible input { width:140px; }
+  .status { color:#8088a6; font-size:13px; margin:14px 0; min-height:20px; }
+  .status.good { color:#40bf66; }
+  .status.bad { color:#ff5959; }
+  .btns { display:flex; gap:14px; justify-content:center; margin-bottom:20px; }
+  .btn { padding:10px 28px; border:none; border-radius:8px; font-size:16px; font-weight:700; cursor:pointer; color:#fff; }
+  .btn-primary { background:#4d8cff; }
+  .btn-primary:hover { background:#5d9cff; }
+  .btn-green { background:#40bf66; }
+  .btn-green:hover { background:#50cf76; }
+  .btn:disabled { opacity:0.4; cursor:default; }
+  .hint { color:#4e5378; font-size:12px; line-height:1.6; }
+</style>
+
+<div class="panel">
+  <h1>BallBattle-4</h1>
+  <div class="subtitle">多人联机大厅</div>
+
+  <div class="row">
+    <label>玩家名</label>
+    <input type="text" placeholder="输入你的名字" value="Player001">
+  </div>
+
+  <div class="row">
+    <label>连接模式</label>
+    <select id="mode" onchange="toggleLan()">
+      <option>本机</option>
+      <option selected>局域网</option>
+      <option>云端</option>
+    </select>
+  </div>
+
+  <div class="lan-group visible" id="lanGroup">
+    <label>服务器IP</label>
+    <input type="text" value="192.168.1.105" placeholder="192.168.1.100">
+    <label style="margin-left:8px">端口</label>
+    <input type="text" value="3000" style="width:70px">
+  </div>
+
+  <div class="status good" id="status">已连接到服务器！</div>
+
+  <div class="btns">
+    <button class="btn btn-primary" disabled>启动本机服务器</button>
+    <button class="btn btn-green">进入游戏</button>
+  </div>
+
+  <div class="hint">
+    你的局域网IP: 192.168.1.105:3000<br>
+    把这个地址发给朋友，让他们填入上面的IP栏
+  </div>
+</div>
+
+<script>
+function toggleLan(){
+  var m=document.getElementById('mode').value;
+  document.getElementById('lanGroup').className='lan-group'+(m==='局域网'?' visible':'');
+  var s=document.getElementById('status');
+  if(m==='本机'){ s.className='status'; s.textContent=''; }
+}
+</script>

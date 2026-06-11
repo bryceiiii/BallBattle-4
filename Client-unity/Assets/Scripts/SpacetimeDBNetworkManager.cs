@@ -1,7 +1,7 @@
-﻿// 必须同时引入这两个命名空间！
+// 必须同时引入这两个命名空间！
 using SpacetimeDB;
 using SpacetimeDB.ClientApi;
-using SpacetimeDB.Types; 
+using SpacetimeDB.Types;
 using UnityEngine;
 using System;
 
@@ -10,20 +10,48 @@ public class SpacetimeDBNetworkManager : MonoBehaviour
     // 全局单例，方便其他脚本调用
     public static SpacetimeDBNetworkManager Instance { get; private set; }
 
-    public enum Environment
+    public enum ConnectionMode
     {
-        Local,
-        Cloud
+        Local,       // 本机单机 (127.0.0.1:3000)
+        LAN,         // 局域网/远程自定义IP
+        Cloud        // SpacetimeDB 云端
     }
 
-    [Header("服务器配置")]
-    [Tooltip("选择要连接的服务器环境")]
-    public Environment serverEnvironment = Environment.Local;
+    [Header("连接模式")]
+    [Tooltip("Local=本机单机 | LAN=局域网/远程IP | Cloud=SpacetimeDB云端")]
+    public ConnectionMode connectionMode = ConnectionMode.Local;
 
-    const string LocalUri = "http://127.0.0.1:3000";
+    [Header("LAN / 远程服务器设置")]
+    [Tooltip("远程服务器 IP 地址")]
+    public string remoteHost = "192.168.1.100";
+    [Tooltip("远程服务器端口 (SpacetimeDB默认3000)")]
+    public int remotePort = 3000;
+
+    [Header("模块名称")]
+    [Tooltip("本地/LAN模式的模块名")]
+    public string localModuleName = "ballbattle4";
+    [Tooltip("云端模式的模块名")]
+    public string cloudModuleName = "ballbattle4v2";
+
+    // 云服务地址（通常不需要修改）
     const string CloudUri = "wss://maincloud.spacetimedb.com";
 
+    /// <summary>当前实际使用的连接URI</summary>
+    public string ActiveUri { get; private set; }
+
+    /// <summary>当前实际使用的模块名</summary>
+    public string ActiveModuleName { get; private set; }
+
+    /// <summary>数据库连接对象</summary>
     public DbConnection Db { get; private set; }
+
+    /// <summary>是否已连接</summary>
+    public bool IsConnected { get; private set; }
+
+    // 连接成功事件
+    public static event Action OnConnected;
+    // 连接失败事件
+    public static event Action<string> OnConnectFailed;
 
     private void Awake()
     {
@@ -36,45 +64,95 @@ public class SpacetimeDBNetworkManager : MonoBehaviour
         DontDestroyOnLoad(gameObject);
     }
 
-    void Start()
+    /// <summary>
+    /// 使用当前Inspector中的设置开始连接。
+    /// 可以在运行时修改 connectionMode/remoteHost/remotePort 后调用。
+    /// </summary>
+    public void Connect()
     {
-        AuthToken.Init();// 初始化认证系统
+        AuthToken.Init();
 
-        // 动态选择模块名
-        string moduleName = serverEnvironment == Environment.Cloud ? "ballbattle4v2" : "ballbattle4";
-        string activeUri = serverEnvironment == Environment.Cloud ? CloudUri : LocalUri;
+        switch (connectionMode)
+        {
+            case ConnectionMode.Local:
+                ActiveUri = $"http://127.0.0.1:3000";
+                ActiveModuleName = localModuleName;
+                break;
 
-        Debug.Log($"[SpacetimeDB] 正在连接到 {serverEnvironment} 服务器: {activeUri} 模块: {moduleName}");
+            case ConnectionMode.LAN:
+                ActiveUri = $"http://{remoteHost}:{remotePort}";
+                ActiveModuleName = localModuleName;
+                break;
+
+            case ConnectionMode.Cloud:
+                ActiveUri = CloudUri;
+                ActiveModuleName = cloudModuleName;
+                break;
+        }
+
+        Debug.Log($"[SpacetimeDB] 模式={connectionMode} | URI={ActiveUri} | 模块={ActiveModuleName}");
 
         DbConnectionBuilder<DbConnection> builder = DbConnection.Builder();
-        builder.WithUri(activeUri);
-        builder.WithDatabaseName(moduleName);
-
+        builder.WithUri(ActiveUri);
+        builder.WithDatabaseName(ActiveModuleName);
         builder.OnConnect(HandleConnect);
         builder.OnConnectError(HandleConnectError);
 
         Db = builder.Build();
     }
 
-    // 增加一个静态委托，当连接成功、Db 初始化完成后通知 GameManager 等脚本
-    public static event Action OnConnected;
+    /// <summary>
+    /// 运行时动态设置LAN模式并连接。
+    /// 适合从UI输入IP后调用。
+    /// </summary>
+    public void ConnectToLAN(string host, int port, string moduleName = "ballbattle4")
+    {
+        connectionMode = ConnectionMode.LAN;
+        remoteHost = host;
+        remotePort = port;
+        localModuleName = moduleName;
+        Connect();
+    }
+
+    /// <summary>
+    /// 运行时连接本地服务器。
+    /// </summary>
+    public void ConnectLocal(string moduleName = "ballbattle4")
+    {
+        connectionMode = ConnectionMode.Local;
+        localModuleName = moduleName;
+        Connect();
+    }
+
+    /// <summary>
+    /// 运行时连接云端。
+    /// </summary>
+    public void ConnectCloud(string moduleName = "ballbattle4v2")
+    {
+        connectionMode = ConnectionMode.Cloud;
+        cloudModuleName = moduleName;
+        Connect();
+    }
 
     private void HandleConnectError(Exception error)
     {
-        Debug.LogError($"<color=red>❌ 连接 SpacetimeDB 服务器失败：{error.Message}</color>");
+        IsConnected = false;
+        string msg = $"❌ 连接失败：{error.Message}";
+        Debug.LogError($"<color=red>{msg}</color>");
+        OnConnectFailed?.Invoke(error.Message);
     }
 
     private void HandleConnect(DbConnection conn, Identity identity, string token)
     {
-        Debug.Log("<color=green>✅ 成功连接 SpacetimeDB 服务器！</color>");
+        IsConnected = true;
+        Debug.Log($"<color=green>已连接到 {ActiveUri} (模块: {ActiveModuleName})</color>");
         AuthToken.SaveToken(token);
-        print(token);
-        print(identity);
 
-        conn.SubscriptionBuilder().SubscribeToAllTables();// 连接成功后订阅所有表，确保数据能够同步到客户端
-        
-        // 触发连接成功事件，让依赖网络的对象 (如 GameManager) 开始订阅
+        // 先触发 OnConnected 让 GameManager 绑定好所有回调，
+        // 再订阅表数据，避免数据先到而回调未注册。
         OnConnected?.Invoke();
+
+        conn.SubscriptionBuilder().SubscribeToAllTables();
     }
 
     private void Update()

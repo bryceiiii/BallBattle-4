@@ -37,28 +37,27 @@ public class GameManager : MonoBehaviour
             return;
         }
         Instance = this;
+
+        // 如果 canvasGo 存在，初始隐藏（等 LobbyUIController 或旧流程来显示）
+        if (canvasGo != null) canvasGo.SetActive(false);
     }
 
     void Start()
     {
         Application.runInBackground = true;
 
-        if (Conn != null)
-        {
-            SubscribeToTables();
-        }
-        else
-        {
-            Debug.LogWarning("SpacetimeDB 尚未初始化，稍后连上服务器时会自动订阅表。");
-            SpacetimeDBNetworkManager.OnConnected += SubscribeToTables;
-        }
+        // 不再自动连接——连接由 LobbyUIController 或外部调用触发
+        // 监听连接成功事件，在连接建立后再订阅表
+        SpacetimeDBNetworkManager.OnConnected += SubscribeToTables;
     }
 
     private void SubscribeToTables()
     {
         if (isSubscribed) return;
+        if (Conn == null) return;
+        if (Conn.Db == null) return; // 连接尚未完全就绪
 
-        if (Conn != null && Conn.Identity.HasValue)
+        if (Conn.Identity.HasValue)
         {
             localIdentity = Conn.Identity.Value;
             Debug.Log($"已成功获取并赋值 localIdentity: {localIdentity}");
@@ -79,7 +78,7 @@ public class GameManager : MonoBehaviour
         Conn.Db.Shield.OnDelete += OnShieldDeleted;
 
         isSubscribed = true;
-        Debug.Log("? GameManager 成功订阅所有表事件。");
+        Debug.Log("GameManager 成功订阅所有表事件。");
     }
 
     private void LateUpdate()
@@ -154,10 +153,10 @@ public class GameManager : MonoBehaviour
                 else
                 {
                     // 找不到目标（目标已被删除或异常），直接通知服务端完成合并
-                    var conn = SpacetimeDBNetworkManager.Instance?.Db;
-                    if (conn != null)
+                    var conndb = SpacetimeDBNetworkManager.Instance?.Db;
+                    if (conndb != null)
                     {
-                        conn.Reducers.FinishMerge(newC.EntityId);
+                        conndb.Reducers.FinishMerge(newC.EntityId);
                     }
                 }
             }
@@ -390,19 +389,20 @@ public class GameManager : MonoBehaviour
         }
     }
 
-    // ===== UI =====
+    // ===== 旧版UI（兼容旧场景） =====
     public void OnButtonEnterGameClick()
     {
-        canvasGo.SetActive(false);
+        if (Conn == null)
+        {
+            Debug.LogError("SpacetimeDB 尚未连接！请先点击连接按钮。");
+            return;
+        }
 
-        if (Conn != null)
-        {
-            Conn.Reducers.EnterGame(InputField.text);
-        }
-        else
-        {
-            Debug.LogError("SpacetimeDB 网络尚未连接或者尚未初始化！");
-        }
+        string playerName = InputField != null ? InputField.text.Trim() : "Player";
+        if (string.IsNullOrEmpty(playerName)) playerName = "Player" + UnityEngine.Random.Range(100, 999);
+
+        canvasGo.SetActive(false);
+        Conn.Reducers.EnterGame(playerName);
     }
 
     // ===== 弹药相关 =====
@@ -468,13 +468,6 @@ public class GameManager : MonoBehaviour
                 return;
             }
         }
-    }
-
-    /// <summary>获取服务端当前时间（近似）</summary>
-    private double GetServerTimeMs()
-    {
-        // 用 System.DateTime 近似（客户端时间，与服务端可能有微小偏差）
-        return System.DateTime.UtcNow.Subtract(new System.DateTime(1970, 1, 1)).TotalMilliseconds;
     }
 
     private void UpdateHudAmmo(PlayerAmmo ammo)
@@ -618,9 +611,11 @@ public class GameManager : MonoBehaviour
     public void RespawnPlayer()
     {
         // 调用 EnterGame 重新进入
-        if (Conn != null && !string.IsNullOrEmpty(InputField.text))
+        if (Conn != null)
         {
-            Conn.Reducers.EnterGame(InputField.text);
+            string playerName = InputField != null ? InputField.text.Trim() : "Player";
+            if (string.IsNullOrEmpty(playerName)) playerName = "Player" + UnityEngine.Random.Range(100, 999);
+            Conn.Reducers.EnterGame(playerName);
         }
     }
 }
