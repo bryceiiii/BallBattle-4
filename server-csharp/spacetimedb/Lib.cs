@@ -43,7 +43,10 @@ public static partial class Module
     private static float HEALTH_ORB_HEAL = 15f;        // 回血量
     private static float SPLIT_ORB_CHANCE = 0.08f;     // 分裂弹生成概率（8%）
     private static int MAX_SPLIT_AMMO = 5;             // 分裂弹最大存储数
-    // food_type: 0=普通, 1=回血, 2=分裂弹
+    private static float SHIELD_ORB_CHANCE = 0.07f;     // 护盾球生成概率（7%）
+    private static float SHIELD_ABSORB = 20f;           // 护盾吸收量
+    private static double SHIELD_DURATION_MS = 10000d;  // 护盾持续 10 秒
+    // food_type: 0=普通, 1=回血, 2=分裂弹, 3=护盾球
 
     [Table(Name = "entity", Public = true)]
     public partial struct Entity
@@ -90,6 +93,15 @@ public static partial class Module
         [PrimaryKey]
         public int player_id;
         public int ammo_split;         // 分裂弹数量
+    }
+    [Table(Name = "shield", Public = true)]
+    public partial struct Shield
+    {
+        [PrimaryKey]
+        public int entity_id;          // 护盾所属球实体
+        public float shield_hp;        // 剩余护盾值
+        public float shield_max;       // 最大护盾值（=SHIELD_ABSORB）
+        public double expire_at_ms;    // 过期时间（毫秒时间戳）
     }
     [Table(Name = "circle", Public = true)]
     public partial struct Circle
@@ -379,7 +391,11 @@ public static partial class Module
             }
             else if (roll < HEALTH_ORB_CHANCE + SPLIT_ORB_CHANCE)
             {
-                foodType = 2; foodCurrentMass = 1.8f; // 分裂弹（略大）
+                foodType = 2; foodCurrentMass = 1.8f; // 分裂弹
+            }
+            else if (roll < HEALTH_ORB_CHANCE + SPLIT_ORB_CHANCE + SHIELD_ORB_CHANCE)
+            {
+                foodType = 3; foodCurrentMass = 1.6f; // 护盾球
             }
             else
             {
@@ -433,6 +449,7 @@ public static partial class Module
         var massGains = new System.Collections.Generic.Dictionary<int, float>();
         var healGains = new System.Collections.Generic.Dictionary<int, float>(); // 回血
         var splitAmmoGains = new System.Collections.Generic.Dictionary<int, int>(); // 玩家 → 分裂弹数量
+        var shieldGains = new System.Collections.Generic.Dictionary<int, float>();  // entity_id → 护盾值
         var entitiesToDelete = new System.Collections.Generic.HashSet<int>();
 
         // 【性能优化】将 playerBalls 字典构建提前到循环外，只构建一次
@@ -497,6 +514,13 @@ public static partial class Module
                             if (!splitAmmoGains.ContainsKey(circleA.player_id))
                                 splitAmmoGains[circleA.player_id] = 0;
                             splitAmmoGains[circleA.player_id] += 1;
+                        }
+                        // 护盾球：给该球增加护盾
+                        if (isFood && foodNullable.Value.food_type == 3)
+                        {
+                            if (!shieldGains.ContainsKey(entityA.id))
+                                shieldGains[entityA.id] = 0;
+                            shieldGains[entityA.id] += SHIELD_ABSORB;
                         }
                     }
                 }
@@ -613,6 +637,30 @@ public static partial class Module
                 context.Db.player_ammo.player_id.Update(a);
             }
         }
+        // 护盾球：给球体增加护盾
+        double nowMs = context.Timestamp.ToTimeSpanSinceUnixEpoch().TotalMilliseconds;
+        foreach(var kvp in shieldGains)
+        {
+            var existingShield = context.Db.shield.entity_id.Find(kvp.Key);
+            if (existingShield == null)
+            {
+                context.Db.shield.Insert(new Shield
+                {
+                    entity_id = kvp.Key,
+                    shield_hp = kvp.Value,
+                    shield_max = kvp.Value,
+                    expire_at_ms = nowMs + SHIELD_DURATION_MS
+                });
+            }
+            else
+            {
+                var s = existingShield.Value;
+                s.shield_hp += kvp.Value;
+                s.shield_max += kvp.Value;
+                s.expire_at_ms = nowMs + SHIELD_DURATION_MS; // 刷新过期时间
+                context.Db.shield.entity_id.Update(s);
+            }
+        }
 
         // 删除被吃掉的实体
         foreach(var deadId in entitiesToDelete)
@@ -636,6 +684,15 @@ public static partial class Module
         var bulletsToDelete = new System.Collections.Generic.HashSet<int>();
         var bulletHits = new System.Collections.Generic.Dictionary<int, float>(); // entity_id → damage
         var splitHits = new System.Collections.Generic.HashSet<int>();           // 被分裂弹命中的 circle entity_id
+
+        // 护盾过期检测
+        foreach (var shield in context.Db.shield.Iter())
+        {
+            if (now >= shield.expire_at_ms)
+            {
+                context.Db.shield.entity_id.Delete(shield.entity_id);
+            }
+        }
 
         foreach (var bullet in context.Db.bullet.Iter())
         {
@@ -710,10 +767,24 @@ public static partial class Module
             var targetNullable = context.Db.entity.id.Find(kv.Key);
             if (targetNullable == null) continue;
             var target = targetNullable.Value;
-            target.hp -= kv.Value;
+
+            float damage = kv.Value;
+            // 护盾吸收伤害
+            var shieldNullable = context.Db.shield.entity_id.Find(kv.Key);
+            if (shieldNullable != null)
+            {
+                var s = shieldNullable.Value;
+                float absorbed = s.shield_hp >= damage ? damage : s.shield_hp;
+                s.shield_hp -= absorbed;
+                damage -= absorbed;
+                if (s.shield_hp <= 0)
+                    context.Db.shield.entity_id.Delete(kv.Key);
+                else
+                    context.Db.shield.entity_id.Update(s);
+            }
+
+            target.hp -= damage;
             if (target.hp < 0) target.hp = 0;
-            // 伤害不调用 UpdateHpAfterMassChange（其 HP_MIN_RATIO 保护会阻止死亡）
-            // 只确保 hp 不超过上限
             if (target.hp > target.max_hp) target.hp = target.max_hp;
             context.Db.entity.id.Update(target);
 

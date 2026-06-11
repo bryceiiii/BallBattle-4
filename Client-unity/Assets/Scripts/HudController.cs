@@ -11,6 +11,7 @@ public class HudController : MonoBehaviour
     // ===== HP 条引用（从预制体拖拽） =====
     [Header("HP 条")]
     public Image hpFillImage;
+    public Image shieldFillImage;  // 护盾填充条
     public Text hpText;
     public Text massText;
 
@@ -32,6 +33,7 @@ public class HudController : MonoBehaviour
     public Button respawnButton;
 
     private int _selectedAmmo = 0;
+    private double _shieldExpireMs;  // 护盾过期时间戳
 
     void Awake()
     {
@@ -48,12 +50,70 @@ public class HudController : MonoBehaviour
             hpFillImage.fillOrigin = 0;
             hpFillImage.fillAmount = 1f;
         }
+        if (shieldFillImage != null)
+        {
+            shieldFillImage.type = Image.Type.Filled;
+            shieldFillImage.fillMethod = Image.FillMethod.Horizontal;
+            shieldFillImage.fillOrigin = 0;
+            shieldFillImage.fillAmount = 0;
+        }
 
         // 自动创建死亡面板（预制体未提供时）
         if (deathPanel == null)
             BuildDeathPanel();
 
         SelectAmmo(0);
+    }
+
+    void Update()
+    {
+        // 护盾倒计时
+        if (_shieldExpireMs > 0 && buffTimers != null && buffTimers.Length > 0 && buffTimers[0] != null)
+        {
+            double remaining = (_shieldExpireMs - NowMs()) / 1000.0;
+            if (remaining <= 0)
+            {
+                _shieldExpireMs = 0;
+                ClearBuff(0);
+            }
+            else
+            {
+                buffTimers[0].text = $"{remaining:F1}s";
+            }
+        }
+    }
+
+    private static double NowMs()
+    {
+        return System.DateTime.UtcNow.Subtract(new System.DateTime(1970, 1, 1)).TotalMilliseconds;
+    }
+
+    /// <summary>设置护盾（只激活图标和记录过期时间，倒计时由 Update 驱动）</summary>
+    public void SetShield(double expireAtMs)
+    {
+        _shieldExpireMs = expireAtMs;
+        if (buffIcons != null && buffIcons.Length > 0 && buffIcons[0] != null)
+            buffIcons[0].gameObject.SetActive(true);
+    }
+
+    /// <summary>更新护盾条显示</summary>
+    public void SetShieldBar(float shieldHp, float shieldMax)
+    {
+        if (shieldFillImage == null) return;
+        if (shieldHp <= 0 || shieldMax <= 0)
+        {
+            shieldFillImage.fillAmount = 0;
+            return;
+        }
+        shieldFillImage.fillAmount = Mathf.Clamp01(shieldHp / shieldMax);
+    }
+
+    /// <summary>清除护盾（过期或被打碎）</summary>
+    public void ClearShield()
+    {
+        _shieldExpireMs = 0;
+        SetShieldBar(0, 1);
+        ClearBuff(0);
     }
 
     private void BuildDeathPanel()

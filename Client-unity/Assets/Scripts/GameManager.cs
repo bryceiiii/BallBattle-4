@@ -21,6 +21,9 @@ public class GameManager : MonoBehaviour
     // ===== 每帧每实体只处理最后一次更新 =====
     private static HashSet<int> entitiesUpdatedThisFrame = new HashSet<int>();
 
+    // ===== 护盾特效追踪 =====
+    private static Dictionary<int, GameObject> shieldEffects = new Dictionary<int, GameObject>();
+
     private Identity localIdentity;
     public DbConnection Conn => SpacetimeDBNetworkManager.Instance?.Db;
 
@@ -71,6 +74,9 @@ public class GameManager : MonoBehaviour
         Conn.Db.Bullet.OnDelete += OnBulletDeleted;
         Conn.Db.PlayerAmmo.OnInsert += OnPlayerAmmoInserted;
         Conn.Db.PlayerAmmo.OnUpdate += OnPlayerAmmoUpdated;
+        Conn.Db.Shield.OnInsert += OnShieldInserted;
+        Conn.Db.Shield.OnUpdate += OnShieldUpdated;
+        Conn.Db.Shield.OnDelete += OnShieldDeleted;
 
         isSubscribed = true;
         Debug.Log("? GameManager 成功订阅所有表事件。");
@@ -308,6 +314,8 @@ public class GameManager : MonoBehaviour
             foodGo = PrefabsManager.Instance.SpawnHealthOrb(newFood.EntityId, entity.Position.X, entity.Position.Y, entity.Mass);
         else if (newFood.FoodType == 2)
             foodGo = PrefabsManager.Instance.SpawnSplitOrb(newFood.EntityId, entity.Position.X, entity.Position.Y, entity.Mass);
+        else if (newFood.FoodType == 3)
+            foodGo = PrefabsManager.Instance.SpawnShieldOrb(newFood.EntityId, entity.Position.X, entity.Position.Y, entity.Mass);
         else
             foodGo = PrefabsManager.Instance.SpawnFood(newFood.EntityId, entity.Position.X, entity.Position.Y, entity.Mass);
 
@@ -408,6 +416,67 @@ public class GameManager : MonoBehaviour
         UpdateHudAmmo(newAmmo);
     }
 
+    private void OnShieldInserted(EventContext ctx, Shield shield)
+    {
+        UpdateHudShield(shield);
+    }
+
+    private void OnShieldUpdated(EventContext ctx, Shield oldShield, Shield newShield)
+    {
+        UpdateHudShield(newShield);
+    }
+
+    private void OnShieldDeleted(EventContext ctx, Shield shield)
+    {
+        // 清理护盾特效
+        if (shieldEffects.TryGetValue(shield.EntityId, out var fx))
+        {
+            Destroy(fx);
+            shieldEffects.Remove(shield.EntityId);
+        }
+
+        // 检查护盾是否属于本地玩家
+        foreach (var kv in Circles)
+        {
+            var ctrl = kv.Value?.GetComponent<CircleController>();
+            if (ctrl != null && ctrl.isLocalPlayer && ctrl.entityId == shield.EntityId)
+            {
+                HudController.Instance?.ClearShield();
+                return;
+            }
+        }
+    }
+
+    private void UpdateHudShield(Shield shield)
+    {
+        // 检查护盾是否属于本地玩家的球
+        foreach (var kv in Circles)
+        {
+            var ctrl = kv.Value?.GetComponent<CircleController>();
+            if (ctrl != null && ctrl.isLocalPlayer && ctrl.entityId == shield.EntityId)
+            {
+                HudController.Instance?.SetShield(shield.ExpireAtMs);
+                HudController.Instance?.SetShieldBar(shield.ShieldHp, shield.ShieldMax);
+
+                // 护盾特效
+                if (PrefabsManager.Instance.shieldEffectPrefab != null && !shieldEffects.ContainsKey(shield.EntityId))
+                {
+                    var fx = Instantiate(PrefabsManager.Instance.shieldEffectPrefab, kv.Value.transform);
+                    fx.transform.localPosition = Vector3.zero;
+                    shieldEffects[shield.EntityId] = fx;
+                }
+                return;
+            }
+        }
+    }
+
+    /// <summary>获取服务端当前时间（近似）</summary>
+    private double GetServerTimeMs()
+    {
+        // 用 System.DateTime 近似（客户端时间，与服务端可能有微小偏差）
+        return System.DateTime.UtcNow.Subtract(new System.DateTime(1970, 1, 1)).TotalMilliseconds;
+    }
+
     private void UpdateHudAmmo(PlayerAmmo ammo)
     {
         if (localIdentity != null)
@@ -466,6 +535,13 @@ public class GameManager : MonoBehaviour
             Conn.Db.Circle.OnInsert -= OnCircleInserted;
             Conn.Db.Circle.OnDelete -= OnCircleDeleted;
             Conn.Db.Circle.OnUpdate -= OnCircleUpdated;
+            Conn.Db.Bullet.OnInsert -= OnBulletInserted;
+            Conn.Db.Bullet.OnDelete -= OnBulletDeleted;
+            Conn.Db.PlayerAmmo.OnInsert -= OnPlayerAmmoInserted;
+            Conn.Db.PlayerAmmo.OnUpdate -= OnPlayerAmmoUpdated;
+            Conn.Db.Shield.OnInsert -= OnShieldInserted;
+            Conn.Db.Shield.OnUpdate -= OnShieldUpdated;
+            Conn.Db.Shield.OnDelete -= OnShieldDeleted;
         }
     }
 

@@ -34,6 +34,7 @@ namespace SpacetimeDB.Types
             AddTable(LoggedInPlayer = new(conn));
             AddTable(LoggedOutPlayer = new(conn));
             AddTable(PlayerAmmo = new(conn));
+            AddTable(Shield = new(conn));
             AddTable(TestTable = new(conn));
         }
     }
@@ -538,6 +539,7 @@ namespace SpacetimeDB.Types
             new QueryBuilder().From.LoggedInPlayer().ToSql(),
             new QueryBuilder().From.LoggedOutPlayer().ToSql(),
             new QueryBuilder().From.PlayerAmmo().ToSql(),
+            new QueryBuilder().From.Shield().ToSql(),
             new QueryBuilder().From.TestTable().ToSql(),
         }
         ;
@@ -552,6 +554,7 @@ namespace SpacetimeDB.Types
         public global::SpacetimeDB.Table<Player, LoggedInPlayerCols, LoggedInPlayerIxCols> LoggedInPlayer() => new("logged_in_player", new LoggedInPlayerCols("logged_in_player"), new LoggedInPlayerIxCols("logged_in_player"));
         public global::SpacetimeDB.Table<Player, LoggedOutPlayerCols, LoggedOutPlayerIxCols> LoggedOutPlayer() => new("logged_out_player", new LoggedOutPlayerCols("logged_out_player"), new LoggedOutPlayerIxCols("logged_out_player"));
         public global::SpacetimeDB.Table<PlayerAmmo, PlayerAmmoCols, PlayerAmmoIxCols> PlayerAmmo() => new("player_ammo", new PlayerAmmoCols("player_ammo"), new PlayerAmmoIxCols("player_ammo"));
+        public global::SpacetimeDB.Table<Shield, ShieldCols, ShieldIxCols> Shield() => new("shield", new ShieldCols("shield"), new ShieldIxCols("shield"));
         public global::SpacetimeDB.Table<TestTable, TestTableCols, TestTableIxCols> TestTable() => new("test_table", new TestTableCols("test_table"), new TestTableIxCols("test_table"));
     }
 

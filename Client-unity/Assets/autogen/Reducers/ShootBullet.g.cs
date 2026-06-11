@@ -12,12 +12,12 @@ namespace SpacetimeDB.Types
 {
     public sealed partial class RemoteReducers : RemoteBase
     {
-        public delegate void ShootBulletHandler(ReducerEventContext ctx, float dirX, float dirY, int bulletType);
+        public delegate void ShootBulletHandler(ReducerEventContext ctx, float targetX, float targetY, int bulletType);
         public event ShootBulletHandler? OnShootBullet;
 
-        public void ShootBullet(float dirX, float dirY, int bulletType)
+        public void ShootBullet(float targetX, float targetY, int bulletType)
         {
-            conn.InternalCallReducer(new Reducer.ShootBullet(dirX, dirY, bulletType));
+            conn.InternalCallReducer(new Reducer.ShootBullet(targetX, targetY, bulletType));
         }
 
         public bool InvokeShootBullet(ReducerEventContext ctx, Reducer.ShootBullet args)
@@ -36,8 +36,8 @@ namespace SpacetimeDB.Types
             }
             OnShootBullet(
                 ctx,
-                args.DirX,
-                args.DirY,
+                args.TargetX,
+                args.TargetY,
                 args.BulletType
             );
             return true;
@@ -50,21 +50,21 @@ namespace SpacetimeDB.Types
         [DataContract]
         public sealed partial class ShootBullet : Reducer, IReducerArgs
         {
-            [DataMember(Name = "dir_x")]
-            public float DirX;
-            [DataMember(Name = "dir_y")]
-            public float DirY;
+            [DataMember(Name = "target_x")]
+            public float TargetX;
+            [DataMember(Name = "target_y")]
+            public float TargetY;
             [DataMember(Name = "bullet_type")]
             public int BulletType;
 
             public ShootBullet(
-                float DirX,
-                float DirY,
+                float TargetX,
+                float TargetY,
                 int BulletType
             )
             {
-                this.DirX = DirX;
-                this.DirY = DirY;
+                this.TargetX = TargetX;
+                this.TargetY = TargetY;
                 this.BulletType = BulletType;
             }
 

@@ -10,12 +10,16 @@ public class PrefabsManager : MonoBehaviour
     public GameObject circlePrefab;
     public GameObject healthOrbPrefab;   // 回血球预制体
     public GameObject splitOrbPrefab;    // 分裂弹食物预制体
+    public GameObject shieldOrbPrefab;   // 护盾球预制体
 
     [Header("子弹预制体")]
     public GameObject splitBulletPrefab;  // 分裂弹子弹预制体
 
     [Header("弹药上限")]
     public int maxSplitAmmo = 5;          // 分裂弹最大存储数
+
+    [Header("特效")]
+    public GameObject shieldEffectPrefab;  // 护盾特效预制体
 
 
 
@@ -50,6 +54,16 @@ public class PrefabsManager : MonoBehaviour
         var diameter = MassToDiameter(mass);
         orb.transform.localScale = new Vector3(diameter, diameter, 1f);
         orb.name = "SplitOrb" + entityId;
+        return orb;
+    }
+
+    public GameObject SpawnShieldOrb(int entityId, float x, float y, float mass)
+    {
+        var prefab = shieldOrbPrefab != null ? shieldOrbPrefab : foodPrefab;
+        var orb = Instantiate(prefab, new Vector3(x, y, 0f), Quaternion.identity);
+        var diameter = MassToDiameter(mass);
+        orb.transform.localScale = new Vector3(diameter, diameter, 1f);
+        orb.name = "ShieldOrb" + entityId;
         return orb;
     }
     public GameObject SpawnCircle(int entityId, float x, float y, float mass,string name)
