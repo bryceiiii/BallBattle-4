@@ -50,14 +50,19 @@ public class CircleController : MonoBehaviour
     private float targetScale = 1f;
     private bool hasReceivedFirstUpdate = false;
 
+    // ===== 本地玩家预测（消除服务器往返延迟的感知） =====
+    private Vector2 _serverBasePos;      // 最近一次服务端确认的位置
+    private float _lastServerUpdateTime;   // 最近一次收到服务端位置的时间
+    private float _serverMass = 1f;        // 服务端质量（用于速度计算）
+
     // ===== 缩放平滑 =====
     private float scaleVelocity = 0f;
 
     // ===== 位置平滑 =====
     private Vector2 posVelocity = Vector2.zero;
 
-    public float remotePosSmoothTime = 0.10f;   // 远程玩家插值时间（秒），配合30Hz服务器足够平滑
-    public float localPosSmoothTime = 0.04f;     // 本地玩家用更快的响应
+    public float remotePosSmoothTime = 0.10f;   // 远程玩家插值
+    public float localPosSmoothTime = 0.03f;     // 本地预测下的修正用极小值
     public float scaleSmoothTime = 0.06f;        // 缩放过渡
 
     // ===== 世界边界 =====
@@ -233,12 +238,15 @@ public class CircleController : MonoBehaviour
     public void SetTargetPos(Vector3 newPos)
     {
         targetPos = newPos;
+        _serverBasePos = newPos;
+        _lastServerUpdateTime = Time.time;
         hasReceivedFirstUpdate = true;
     }
 
     public void SetTargetScale(float newMass)
     {
         targetScale = PrefabsManager.Instance.MassToDiameter(newMass);
+        _serverMass = newMass;
     }
 
     public void UpdateName(string name)
@@ -322,6 +330,30 @@ public class CircleController : MonoBehaviour
             }
         }
 
+        // ===== 本地玩家预测：输入变化立即反映到位置 =====
+        if (isLocalPlayer && hasReceivedFirstUpdate)
+        {
+            float sinceServer = Time.time - _lastServerUpdateTime;
+            float predWindow = Mathf.Min(sinceServer, 0.10f); // 最多预测100ms
+
+            Vector2 dir = PlayerInputController.Instance?.CurrentDirection ?? Vector2.zero;
+            if (dir.sqrMagnitude > 0.001f)
+            {
+                float speedScale = 1f / (_serverMass * 0.06f + 1f);
+                float speed = 13f * speedScale;
+                Vector3 predicted = (Vector3)(_serverBasePos + dir * speed * predWindow);
+                predicted.z = 0f;
+
+                // 用 targetPos 传递预测值给 FixedUpdate 的 SmoothDamp
+                targetPos = predicted;
+            }
+            else
+            {
+                // 停下来了，直接回归服务端位置
+                targetPos = _serverBasePos;
+            }
+        }
+
         // ===== 缩放平滑 =====
         if (targetScale > 0.01f)
         {
@@ -367,15 +399,11 @@ public class CircleController : MonoBehaviour
     }
 
     /// <summary>
-    /// 物理步驱动位置：用 MovePosition + SmoothDamp 代替 rb.velocity。
-    /// 
-    /// 为什么不用 rb.velocity：
-    ///   Update() 设 velocity → FixedUpdate() 物理碰撞修改 velocity → 下一帧 Update() 又覆盖
-    ///   → 两个系统抢改同一个变量 → 振荡抖动
-    /// 
-    /// MovePosition 的优势：
-    ///   告诉物理引擎"我要移到这里"，引擎在移动过程中自然处理碰撞推挤，
-    ///   碰撞后的位置偏移被 drag 衰减，下个 SmoothDamp 步自然收敛。
+    /// 物理步驱动位置：
+    /// - 本地玩家：targetPos 已被 Update() 预测推进，SmoothDamp 用极小 smoothTime 柔和跟随
+    /// - 远程玩家：targetPos 由服务端设置，SmoothDamp 插值平滑
+    /// 预测和权威位置的调和：SetTargetPos 收到新位置时 _serverBasePos 更新，
+    /// 下一次 Update() 预测从新基准点开始，不会累积误差。
     /// </summary>
     void FixedUpdate()
     {

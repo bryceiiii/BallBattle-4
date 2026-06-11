@@ -7,13 +7,14 @@ public static partial class Module
 {
     private static int WORLD_SIZE = 50;
     // 服务器tick步长(秒)，与 MoveAllPlayerTimer 的 interval 保持一致
-    private static float SERVER_DELTA = 0.033f;  // 33ms ≈ 30Hz
+    private static float SERVER_DELTA = 0.020f;  // 20ms ≈ 50Hz，极致响应
     // 将质量相关的常量改为 float 类型
     private static float PRIMARY_PLAYER_MASS = 5.0f;
     private static int TARGET_FOOD_COUNT = 200;
     private static float FOOD_MASS = 2.0f;
     private static int START_PLAYER_SPEED = 13;
     private static float MIN_SPLIT_MASS = 10.0f; // 允许分裂的最小质量
+    private static int MAX_CIRCLES_PER_PLAYER = 16; // 每人最多球数，防止分裂过多导致O(n?)碰撞检测卡顿
     //合并配置
     private static int MERGE_CHECK_INTERVAL = 1500;
     private static float BASE_MERGE_SEC = 2.0f;    //基础贴合等待2秒
@@ -310,7 +311,7 @@ public static partial class Module
         });
         context.Db.move_all_player.Insert(new MoveAllPlayerTimer
         {
-            schedule_at = new ScheduleAt.Interval(TimeSpan.FromMilliseconds(33)) // 30Hz，比原来的50ms(20Hz)更流畅
+            schedule_at = new ScheduleAt.Interval(TimeSpan.FromMilliseconds(20)) // 50Hz 极限频率
         });
         // 自动合并开关：注释下面一行 = 关闭全局自动合并
         context.Db.merge_player_timer.Insert(new MergePlayerTimer
@@ -950,6 +951,13 @@ public static partial class Module
         foreach (var circle in context.Db.circle.player_id.Filter(player.player_id))
         {
             playerCircles.Add(circle);
+        }
+
+        // 分裂总数上限：防止O(n?)碰撞检测在50Hz下导致服务器卡顿
+        if (playerCircles.Count >= MAX_CIRCLES_PER_PLAYER)
+        {
+            Log.Info($"Split rejected: player {player.player_id} already has {playerCircles.Count} circles (max {MAX_CIRCLES_PER_PLAYER})");
+            return;
         }
 
         foreach (var circle in playerCircles)

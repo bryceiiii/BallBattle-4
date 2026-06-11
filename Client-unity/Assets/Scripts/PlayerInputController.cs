@@ -6,20 +6,21 @@ public class PlayerInputController : MonoBehaviour
     private float sendDirTimer;
     private readonly float sendInterval = 0.025f;
     private DbVector2 lastSendDir = new DbVector2(0, 0);
-
+    private float _sendDirCooldown; // 防止同一帧内重复发送
+    public static PlayerInputController Instance { get; private set; }
     public Vector2 CurrentDirection { get; private set; }
     public int SelectedAmmoType { get; private set; } = 0; // 0=普通, 1=分裂弹
 
+    private void Awake()
+    {
+        if (Instance == null) { Instance = this; DontDestroyOnLoad(gameObject); }
+        else { Destroy(gameObject); return; }
+    }
     private void Update()
     {
         if (SpacetimeDBNetworkManager.Instance?.Db == null) return;
 
-        sendDirTimer += Time.deltaTime;
-        if (sendDirTimer >= sendInterval)
-        {
-            HandleMovementInput();
-            sendDirTimer = 0;
-        }
+        HandleMovementInput();
         HandleSplitInput();
         HandleShootInput();
         HandleAmmoSwitch();
@@ -32,7 +33,9 @@ public class PlayerInputController : MonoBehaviour
         if (Mathf.Abs(moveX) < 0.01f) moveX = 0;
         if (Mathf.Abs(moveY) < 0.01f) moveY = 0;
 
-        CurrentDirection = new Vector2(moveX, moveY);
+        Vector2 rawDir = new Vector2(moveX, moveY);
+        CurrentDirection = rawDir;
+
         DbVector2 curDir = new DbVector2(moveX, moveY);
         if (curDir.X == lastSendDir.X && curDir.Y == lastSendDir.Y) return;
 
