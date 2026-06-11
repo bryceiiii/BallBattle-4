@@ -86,6 +86,9 @@ public class GameManager : MonoBehaviour
         entitiesUpdatedThisFrame.Clear();
     }
 
+    /// <summary>
+    /// 同玩家球手动推开，替代 Rigidbody2D 物理碰撞，避免 SmoothDamp 振荡抖动。
+    /// 每帧对所有同玩家球对做重叠检测，重叠则各推一半。
     private void OnEntityUpdated(EventContext context, Entity oldRow, Entity newRow)
     {
         if (entitiesUpdatedThisFrame.Contains(newRow.Id)) return;
@@ -106,15 +109,15 @@ public class GameManager : MonoBehaviour
             }
         }
 
-        // 更新子弹（用 MovePosition 确保物理触发事件正常工作）
+        // 更新子弹（SmoothDamp 插值）
         if (Bullets.TryGetValue(newRow.Id, out var bulletGo))
         {
-            var trgPos = new Vector2(newRow.Position.X, newRow.Position.Y);
-            var rb2d = bulletGo.GetComponent<Rigidbody2D>();
-            if (rb2d != null)
-                rb2d.MovePosition(trgPos);
+            var trgPos = new Vector3(newRow.Position.X, newRow.Position.Y, 0);
+            var ctrl = bulletGo.GetComponent<BulletController>();
+            if (ctrl != null)
+                ctrl.SetTargetPos(trgPos);
             else
-                bulletGo.transform.position = new Vector3(trgPos.x, trgPos.y, 0);
+                bulletGo.transform.position = trgPos;
         }
     }
 
@@ -224,7 +227,7 @@ public class GameManager : MonoBehaviour
             controller.SetTargetPos(new Vector3(entity.Position.X, entity.Position.Y, 0));
         }
 
-        // 碰撞逻辑：同玩家球物理互推（不穿透），不同玩家球忽略碰撞（穿透，大吞小）
+        // 碰撞：同玩家球物理互推，不同玩家球穿透（服务端判吞噬）
         SetupCrossPlayerCollisionIgnore(controller);
 
         if (player.Identity == localIdentity)
@@ -266,9 +269,7 @@ public class GameManager : MonoBehaviour
     }
 
     /// <summary>
-    /// 碰撞模型（球球大作战经典规则）：
-    /// 同玩家球 → 物理碰撞互推（Rigidbody2D 自然处理）
-    /// 不同玩家球 → 穿透（大球覆盖小球，服务器判吞噬）
+    /// 同玩家球 → 物理碰撞互推；不同玩家球 → 穿透（服务端判吞噬）
     /// </summary>
     private void SetupCrossPlayerCollisionIgnore(CircleController newController)
     {
@@ -281,16 +282,12 @@ public class GameManager : MonoBehaviour
             var otherCtrl = kv.Value.GetComponent<CircleController>();
             if (otherCtrl == null) continue;
 
-            // 不同玩家 → 穿透
             if (otherCtrl.playerId != newController.playerId)
             {
                 var otherCol = kv.Value.GetComponent<CircleCollider2D>();
                 if (otherCol != null)
-                {
                     Physics2D.IgnoreCollision(thisCol, otherCol, true);
-                }
             }
-            // 同玩家 → 不设置 IgnoreCollision（默认物理碰撞互推）
         }
     }
 

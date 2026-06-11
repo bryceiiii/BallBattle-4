@@ -3280,6 +3280,8 @@ MonoBehaviour:
   ownerPlayerId: -1
   maxLifetime: 3
   fadeDuration: 0.5
+  smoothTime: 0.04
+  speedMultiplier: 4
   hitEffectPrefab: {fileID: 0}
   hitEffectDuration: 0.3
 --- !u!4 &1721672410

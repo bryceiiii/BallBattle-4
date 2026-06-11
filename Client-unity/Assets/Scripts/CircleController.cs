@@ -50,11 +50,6 @@ public class CircleController : MonoBehaviour
     private float targetScale = 1f;
     private bool hasReceivedFirstUpdate = false;
 
-    // ===== 本地玩家预测（消除服务器往返延迟的感知） =====
-    private Vector2 _serverBasePos;      // 最近一次服务端确认的位置
-    private float _lastServerUpdateTime;   // 最近一次收到服务端位置的时间
-    private float _serverMass = 1f;        // 服务端质量（用于速度计算）
-
     // ===== 缩放平滑 =====
     private float scaleVelocity = 0f;
 
@@ -238,15 +233,12 @@ public class CircleController : MonoBehaviour
     public void SetTargetPos(Vector3 newPos)
     {
         targetPos = newPos;
-        _serverBasePos = newPos;
-        _lastServerUpdateTime = Time.time;
         hasReceivedFirstUpdate = true;
     }
 
     public void SetTargetScale(float newMass)
     {
         targetScale = PrefabsManager.Instance.MassToDiameter(newMass);
-        _serverMass = newMass;
     }
 
     public void UpdateName(string name)
@@ -330,30 +322,6 @@ public class CircleController : MonoBehaviour
             }
         }
 
-        // ===== 本地玩家预测：输入变化立即反映到位置 =====
-        if (isLocalPlayer && hasReceivedFirstUpdate)
-        {
-            float sinceServer = Time.time - _lastServerUpdateTime;
-            float predWindow = Mathf.Min(sinceServer, 0.10f); // 最多预测100ms
-
-            Vector2 dir = PlayerInputController.Instance?.CurrentDirection ?? Vector2.zero;
-            if (dir.sqrMagnitude > 0.001f)
-            {
-                float speedScale = 1f / (_serverMass * 0.06f + 1f);
-                float speed = 13f * speedScale;
-                Vector3 predicted = (Vector3)(_serverBasePos + dir * speed * predWindow);
-                predicted.z = 0f;
-
-                // 用 targetPos 传递预测值给 FixedUpdate 的 SmoothDamp
-                targetPos = predicted;
-            }
-            else
-            {
-                // 停下来了，直接回归服务端位置
-                targetPos = _serverBasePos;
-            }
-        }
-
         // ===== 缩放平滑 =====
         if (targetScale > 0.01f)
         {
@@ -400,10 +368,9 @@ public class CircleController : MonoBehaviour
 
     /// <summary>
     /// 物理步驱动位置：
-    /// - 本地玩家：targetPos 已被 Update() 预测推进，SmoothDamp 用极小 smoothTime 柔和跟随
-    /// - 远程玩家：targetPos 由服务端设置，SmoothDamp 插值平滑
-    /// 预测和权威位置的调和：SetTargetPos 收到新位置时 _serverBasePos 更新，
-    /// 下一次 Update() 预测从新基准点开始，不会累积误差。
+    /// - 本地玩家球：velocity 弹簧拉向 targetPos，高 drag 快速收敛不振荡。
+    ///   物理引擎处理同玩家球互推，velocity 方式让分离力自然衰减。
+    /// - 远程玩家球：SmoothDamp + MovePosition 平滑插值。
     /// </summary>
     void FixedUpdate()
     {

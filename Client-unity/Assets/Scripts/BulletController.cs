@@ -12,6 +12,8 @@ public class BulletController : MonoBehaviour
     [Header("参数")]
     public float maxLifetime = 3f;       // 最大存活时间（与服务端一致）
     public float fadeDuration = 0.5f;    // 消失前淡出时间
+    public float smoothTime = 0.04f;     // SmoothDamp 插值时间
+    public float speedMultiplier = 1f;   // 视觉速度倍率：1=服务端速度，>1 更快，<1 更慢
 
     [Header("命中效果")]
     public GameObject hitEffectPrefab;    // 命中特效预制体（可拖拽）
@@ -19,6 +21,28 @@ public class BulletController : MonoBehaviour
 
     private float age = 0f;
     private bool hasHit = false;
+
+    private Vector3 _targetPos;
+    private Vector2 _posVelocity;
+    private bool _hasTarget = false;
+    private Vector3 _lastReceivedPos;  // 上一次服务端位置，用于推算方向
+
+    public void SetTargetPos(Vector3 serverPos)
+    {
+        if (!_hasTarget)
+        {
+            _targetPos = serverPos;
+            transform.position = serverPos;
+            _hasTarget = true;
+        }
+        else
+        {
+            // 根据上一个位置推算方向，乘以倍率外推 target
+            Vector3 delta = serverPos - _lastReceivedPos;
+            _targetPos = serverPos + delta * (speedMultiplier - 1f);
+        }
+        _lastReceivedPos = serverPos;
+    }
 
     void OnTriggerEnter2D(Collider2D other)
     {
@@ -58,6 +82,14 @@ public class BulletController : MonoBehaviour
     void Update()
     {
         age += Time.deltaTime;
+
+        // SmoothDamp 插值
+        if (_hasTarget)
+        {
+            Vector2 desired = Vector2.SmoothDamp(transform.position, _targetPos,
+                ref _posVelocity, smoothTime);
+            transform.position = new Vector3(desired.x, desired.y, 0);
+        }
 
         // 淡出
         if (age >= maxLifetime - fadeDuration && !hasHit)
