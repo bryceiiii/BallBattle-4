@@ -3,8 +3,6 @@ using SpacetimeDB.Types;
 
 public class PlayerInputController : MonoBehaviour
 {
-    private float sendDirTimer;
-    private readonly float sendInterval = 0.025f;
     private DbVector2 lastSendDir = new DbVector2(0, 0);
     private float _sendDirCooldown; // 防止同一帧内重复发送
     public static PlayerInputController Instance { get; private set; }

@@ -72,9 +72,22 @@ public class SpacetimeDBNetworkManager : MonoBehaviour
     {
         AuthToken.Init();
 
+        // 手机端检测：Local 模式（127.0.0.1）在真机上指向手机自身，无法连接 PC 服务器
+        bool isMobile = Application.platform == RuntimePlatform.Android
+                     || Application.platform == RuntimePlatform.IPhonePlayer;
+
         switch (connectionMode)
         {
             case ConnectionMode.Local:
+                if (isMobile)
+                {
+                    string msg = "⚠️ 手机端不支持\"本机服务器\"模式！\n"
+                               + "127.0.0.1 在手机上指向手机自身，不是你的电脑。\n"
+                               + "请改用局域网模式，输入你电脑的局域网IP（如 192.168.x.x）。";
+                    Debug.LogError(msg);
+                    OnConnectFailed?.Invoke(msg);
+                    return; // 阻止连接
+                }
                 ActiveUri = $"http://127.0.0.1:3000";
                 ActiveModuleName = localModuleName;
                 break;
@@ -90,7 +103,7 @@ public class SpacetimeDBNetworkManager : MonoBehaviour
                 break;
         }
 
-        Debug.Log($"[SpacetimeDB] 模式={connectionMode} | URI={ActiveUri} | 模块={ActiveModuleName}");
+        Debug.Log($"[SpacetimeDB] 平台={Application.platform} | 模式={connectionMode} | URI={ActiveUri} | 模块={ActiveModuleName}");
 
         DbConnectionBuilder<DbConnection> builder = DbConnection.Builder();
         builder.WithUri(ActiveUri);

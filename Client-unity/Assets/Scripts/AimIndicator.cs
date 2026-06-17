@@ -57,15 +57,31 @@ public class AimIndicator : MonoBehaviour
     {
         if (!isLocalPlayer || _arrow == null || mainCam == null) return;
 
-        // 鼠标世界坐标
-        Vector3 mouseScreen = Input.mousePosition;
-        mouseScreen.z = -mainCam.transform.position.z;
-        Vector3 mouseWorld = mainCam.ScreenToWorldPoint(mouseScreen);
-        mouseWorld.z = 0f;
+        Vector3 dir;
 
-        // 方向
-        Vector3 dir = mouseWorld - transform.position;
-        dir.z = 0f;
+        // 手机模式：使用当前的瞄准方向（= 移动方向）
+        if (PlatformInputManager.Instance != null && PlatformInputManager.Instance.IsMobileMode)
+        {
+            Vector2 aimDir = PlatformInputManager.Instance.GetCurrentDirection();
+            if (aimDir.sqrMagnitude < 0.001f)
+            {
+                _arrow.gameObject.SetActive(false);
+                return;
+            }
+            _arrow.gameObject.SetActive(true);
+            dir = new Vector3(aimDir.x, aimDir.y, 0f);
+        }
+        else
+        {
+            // PC模式：鼠标世界坐标
+            Vector3 mouseScreen = Input.mousePosition;
+            mouseScreen.z = -mainCam.transform.position.z;
+            Vector3 mouseWorld = mainCam.ScreenToWorldPoint(mouseScreen);
+            mouseWorld.z = 0f;
+            dir = mouseWorld - transform.position;
+            dir.z = 0f;
+        }
+
         if (dir.sqrMagnitude < 0.001f) return;
         dir.Normalize();
 
@@ -74,7 +90,7 @@ public class AimIndicator : MonoBehaviour
         float dist = ballRadius + offsetFromEdge;
         _arrow.position = transform.position + dir * dist;
 
-        // 旋转指向鼠标
+        // 旋转指向瞄准方向
         float angle = Mathf.Atan2(dir.y, dir.x) * Mathf.Rad2Deg;
         _arrow.rotation = Quaternion.Euler(0, 0, angle);
 
