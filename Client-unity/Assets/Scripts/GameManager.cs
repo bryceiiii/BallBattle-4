@@ -28,6 +28,7 @@ public class GameManager : MonoBehaviour
     public DbConnection Conn => SpacetimeDBNetworkManager.Instance?.Db;
 
     private bool isSubscribed = false;
+    private bool _mainThreadSubscribed = false; // [新增] 主线程订阅标志
 
     void Awake()
     {
@@ -57,6 +58,17 @@ public class GameManager : MonoBehaviour
         if (Conn == null) return;
         if (Conn.Db == null) return; // 连接尚未完全就绪
 
+        // [Android 关键] 检测当前是否在 Unity 主线程
+        // SpacetimeDB SDK 在 Android 上从后台线程调用 OnConnected 回调
+        // 事件订阅（OnInsert += ...）在后台线程可能不会触发
+        // 因此：后台线程直接 return，由 Update() 在主线程重试
+        if (!IsMainThread())
+        {
+            Debug.LogWarning("[GameManager] SubscribeToTables 在后台线程被调用，忽略，等待主线程兜底");
+            isSubscribed = true; // 标记为已订阅避免重复进入
+            return;
+        }
+
         if (Conn.Identity.HasValue)
         {
             localIdentity = Conn.Identity.Value;
@@ -78,8 +90,36 @@ public class GameManager : MonoBehaviour
         Conn.Db.Shield.OnDelete += OnShieldDeleted;
 
         isSubscribed = true;
-        Debug.Log("GameManager 成功订阅所有表事件。");
+        _mainThreadSubscribed = true;
+        Debug.Log("[GameManager] 已在主线程完成所有表事件订阅");
+
+        // 调用 SubscribeToAllTables 请求服务端推送数据
+        try
+        {
+            Conn.SubscriptionBuilder().SubscribeToAllTables();
+            Debug.Log("[GameManager] 已调用 SubscribeToAllTables");
+        }
+        catch (Exception e)
+        {
+            Debug.LogError($"[GameManager] SubscribeToAllTables 失败: {e.Message}");
+        }
     }
+
+    /// <summary>
+    /// 检测当前是否在 Unity 主线程。
+    /// Android IL2CPP 上 SpacetimeDB SDK 会在后台线程调用 OnConnected
+    /// </summary>
+    private static bool IsMainThread()
+    {
+#if UNITY_ANDROID || UNITY_IOS
+        // 简单方法：通过一个标志位（每次 Update 都在主线程设置）
+        return _lastUpdateFrame == Time.frameCount;
+#else
+        return true; // PC 上 OnConnected 永远在主线程
+#endif
+    }
+
+    private static int _lastUpdateFrame = -1;
 
     private void LateUpdate()
     {
@@ -482,6 +522,18 @@ public class GameManager : MonoBehaviour
 
     void Update()
     {
+        _lastUpdateFrame = Time.frameCount; // [主线程标记] 每次 Update 都更新，供 IsMainThread() 判断
+
+        // [Android 兜底] 后台线程订阅事件没生效时，主线程重新订阅
+        if (!_mainThreadSubscribed && SpacetimeDBNetworkManager.Instance != null
+            && SpacetimeDBNetworkManager.Instance.IsConnected)
+        {
+            Debug.Log("[GameManager] 主线程兜底：发现已连接但未在主线程订阅，重新订阅");
+            // 重置 isSubscribed，让 SubscribeToTables 能再进来
+            isSubscribed = false;
+            SubscribeToTables();
+        }
+
         if (Input.GetMouseButtonDown(0))
         {
             if (Conn != null)

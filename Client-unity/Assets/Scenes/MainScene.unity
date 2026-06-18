@@ -1986,7 +1986,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   mobileCanvasPrefab: {fileID: 0}
   pcInputController: {fileID: 469995246}
-  forceMobileInEditor: 1
+  forceMobileInEditor: 0
 --- !u!4 &1153791110
 Transform:
   m_ObjectHideFlags: 0

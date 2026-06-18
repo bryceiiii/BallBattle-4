@@ -59,6 +59,20 @@ public class LobbyUIController : MonoBehaviour
         SelectMode(0);
     }
 
+    void Update()
+    {
+        // 兜底轮询：不依赖事件，直接检测连接状态
+        var net = SpacetimeDBNetworkManager.Instance;
+        if (net != null && _isConnected != net.IsConnected)
+        {
+            _isConnected = net.IsConnected;
+            if (_isConnected)
+                OnNetworkConnected();
+            else
+                OnNetworkConnectFailed("");
+        }
+    }
+
     void OnDestroy()
     {
         SpacetimeDBNetworkManager.OnConnected -= OnNetworkConnected;
