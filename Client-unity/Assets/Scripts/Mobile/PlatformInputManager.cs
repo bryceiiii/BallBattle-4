@@ -93,25 +93,6 @@ public class PlatformInputManager : MonoBehaviour
         if (_mobileInput != null)
             _mobileInput.forceMobileMode = true;
 
-        // 激活手机 HUD 适配
-        var hudAdapter = HudController.Instance?.GetComponent<MobileHudAdapter>();
-        if (hudAdapter != null)
-            hudAdapter.ApplyMobileLayout();
-        else if (HudController.Instance != null)
-        {
-            hudAdapter = HudController.Instance.gameObject.AddComponent<MobileHudAdapter>();
-            hudAdapter.ApplyMobileLayout();
-        }
-
-        // 激活手机大厅适配
-        var lobbyAdapter = LobbyUIController.Instance?.GetComponent<MobileLobbyAdapter>();
-        if (lobbyAdapter != null)
-            lobbyAdapter.ApplyMobileLayout();
-        else if (LobbyUIController.Instance != null)
-        {
-            lobbyAdapter = LobbyUIController.Instance.gameObject.AddComponent<MobileLobbyAdapter>();
-            lobbyAdapter.ApplyMobileLayout();
-        }
     }
 
     private void DisablePCInput()

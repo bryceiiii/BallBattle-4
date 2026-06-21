@@ -22,6 +22,8 @@ public class CircleController : MonoBehaviour
     public float hpBarBaseHeight = 0.12f;          // 基础高度（世界单位）
     public float hpBarHeightGrowth = 0.02f;        // 每单位直径增加的高度（0=不变）
 
+    // HP 条已作为子物体放在玩家预制体层级下，无需额外字段
+
     /// <summary>
     /// 根据球的当前直径计算 HP 条高度。
     /// 小球时 ≈ hpBarBaseHeight，大球时缓慢增长。
@@ -41,7 +43,8 @@ public class CircleController : MonoBehaviour
     public float debugHpRatio = 0f;     // 血量百分比 0~1
     private float hp = 100f;
     private float maxHp = 100f;
-    private Image hpFillImage;           // HP 填充条
+    private Image hpFillImage;           // HP 填充条 Image
+    private RectTransform hpFillRect;    // HP 填充条 RectTransform（缓存，避免每帧 GetComponent）
     private RectTransform hpCanvasRect;  // Canvas 的 RectTransform（控制位置+尺寸+显隐）
     private bool hpBarCreated = false;
 
@@ -127,66 +130,41 @@ public class CircleController : MonoBehaviour
 
     // ===== HP 条 =====
     /// <summary>
-    /// 创建 HP 条（World Space Canvas，球顶上方）。
-    /// 在首次调用 SetHp 时懒创建，避免 Start 时预制体还未完全实例化。
+    /// 从现有子物体中找到 HpCanvas 并缓存引用。
+    /// HpCanvas 已在玩家预制体层级下手动放置。
+    /// 结构：HpBarFill（下层填充条）→ HpBarBg（上层背景框，透明区域透出 Fill）。
     /// </summary>
     private void CreateHpBar()
     {
         if (hpBarCreated) return;
         hpBarCreated = true;
 
-        // 创建 Canvas 作为子物体
-        var canvasGo = new GameObject("HpCanvas");
-        canvasGo.transform.SetParent(transform, false);
-        // 取消继承父级缩放，Canvas 尺寸由 sizeDelta 独立控制
-        float initDiam = Mathf.Max(transform.localScale.x, 0.001f);
-        float initH = GetHpBarHeight(initDiam);
-        float initOffset = 0.5f + (initH * 0.5f + hpBarTopGap) / initDiam;
-        canvasGo.transform.localPosition = new Vector3(0f, initOffset, hpBarZDepth);
-        canvasGo.transform.localScale = Vector3.one;
-        var canvas = canvasGo.AddComponent<Canvas>();
-        canvas.renderMode = RenderMode.WorldSpace;
-        canvas.worldCamera = Camera.main;
-        // 不添加 GraphicRaycaster（不需要交互）
+        // 从现有子物体中查找 HpCanvas
+        var canvasT = transform.Find("HpCanvas");
+        if (canvasT == null)
+        {
+            Debug.LogWarning($"[CircleController] 未找到 HpCanvas 子物体 on {name}", this);
+            return;
+        }
 
-        // Canvas 的 RectTransform — 局部尺寸 = hpBarWidthRatio（乘父级缩放后=球直径）
-        var canvasRect = canvasGo.GetComponent<RectTransform>();
-        hpCanvasRect = canvasRect;
-        canvasRect.anchorMin = new Vector2(0.5f, 0.5f);
-        canvasRect.anchorMax = new Vector2(0.5f, 0.5f);
-        canvasRect.pivot = new Vector2(0.5f, 0.5f);
-        float initialLocalWidth = Mathf.Max(hpBarWidthRatio, hpBarMinWidth / initDiam);
-        canvasRect.sizeDelta = new Vector2(initialLocalWidth, initH / initDiam);
+        var go = canvasT.gameObject;
+        hpCanvasRect = canvasT.GetComponent<RectTransform>();
 
-        // HP 条背景（深灰色）— 填满 Canvas
-        var bgGo = new GameObject("HpBarBg");
-        bgGo.transform.SetParent(canvasGo.transform, false);
-        var bgImage = bgGo.AddComponent<Image>();
-        bgImage.color = new Color(0.15f, 0.15f, 0.15f, 0.85f);
-        var bgRect = bgGo.GetComponent<RectTransform>();
-        bgRect.anchorMin = Vector2.zero;
-        bgRect.anchorMax = Vector2.one;
-        bgRect.sizeDelta = Vector2.zero;
-        bgRect.anchoredPosition = Vector2.zero;
+        // WorldSpace Canvas 的 worldCamera 运行时赋值
+        var canvas = go.GetComponent<Canvas>();
+        if (canvas != null && canvas.renderMode == RenderMode.WorldSpace)
+            canvas.worldCamera = Camera.main;
 
-        // BG 添加 Mask，用来裁剪内部的 Fill 超出部分
-        bgGo.AddComponent<Mask>().showMaskGraphic = true;
+        // 查找填充条子物体
+        var fillT = canvasT.Find("HpBarFill");
+        if (fillT != null)
+        {
+            hpFillImage = fillT.GetComponent<Image>();
+            hpFillRect = fillT.GetComponent<RectTransform>();
+        }
 
-        // HP 填充条（用宽度控制填充比例，比 Image.Filled 更可靠）
-        var fillGo = new GameObject("HpBarFill");
-        fillGo.transform.SetParent(bgGo.transform, false);
-        hpFillImage = fillGo.AddComponent<Image>();
-        hpFillImage.color = Color.green;
-        hpFillImage.type = Image.Type.Simple; // 普通模式，不依赖 Filled
-        var fillRect = hpFillImage.GetComponent<RectTransform>();
-        // 锚定在左侧（0,0）到（0,1），pivot 在左侧
-        fillRect.anchorMin = new Vector2(0f, 0f);
-        fillRect.anchorMax = new Vector2(0f, 1f);
-        fillRect.pivot = new Vector2(0f, 0.5f);
-        fillRect.sizeDelta = new Vector2(100f, 0f); // 初始宽100%，SetHp 会调整
-
-        // 创建时全隐藏，SetHp 会按血量决定是否显示
-        canvasGo.SetActive(false);
+        // 初始隐藏，SetHp 按血量决定是否显示
+        go.SetActive(false);
     }
 
     /// <summary>
@@ -203,17 +181,15 @@ public class CircleController : MonoBehaviour
 
         if (!hpBarCreated) CreateHpBar();
 
-        var fillRect = hpFillImage != null ? hpFillImage.GetComponent<RectTransform>() : null;
-        if (fillRect == null || hp <= 0 || maxHp <= 0) return;
+        if (hpFillRect == null || hp <= 0 || maxHp <= 0) return;
 
         float ratio = Mathf.Clamp01(hp / maxHp);
         debugHpRatio = ratio;
 
-        // 用宽度控制填充比例（比 Image.Filled.fillAmount 更可靠）
-        // BG 的宽度由 Canvas sizeDelta 决定，这里取 BG 宽度 = Canvas 宽度
+        // 用宽度控制填充比例
         float barFullWidth = hpCanvasRect.sizeDelta.x;
         float fillWidth = barFullWidth * ratio;
-        fillRect.sizeDelta = new Vector2(fillWidth, 0f);
+        hpFillRect.sizeDelta = new Vector2(fillWidth, 0f);
 
         // 颜色：绿(>60%) → 黄(30-60%) → 红(<30%)
         if (ratio > 0.6f)
@@ -357,11 +333,11 @@ public class CircleController : MonoBehaviour
             hpCanvasRect.sizeDelta = new Vector2(localWidth, curH / diameter);
 
             // Canvas 宽度变化时同步更新 Fill 宽度（保持血量比例）
-            if (hpFillImage != null)
+            if (hpFillRect != null)
             {
                 float ratio = Mathf.Clamp01(hp / maxHp);
                 float fillLocalWidth = localWidth * ratio;
-                hpFillImage.GetComponent<RectTransform>().sizeDelta = new Vector2(fillLocalWidth, 0f);
+                hpFillRect.sizeDelta = new Vector2(fillLocalWidth, 0f);
             }
         }
     }
