@@ -116,9 +116,12 @@ public class MobileCanvasSetup : MonoBehaviour
         var joystick = bgGo.AddComponent<VirtualJoystick>();
         joystick.backgroundRect = bgRt;
         joystick.handleRect = handleRt;
-        joystick.handleMoveRange = 0.85f;
-        joystick.deadZone = 0.08f;
-        joystick.followFinger = false; // 固定位置摇杆（更稳定）
+        joystick.handleMoveRange = 0.9f;
+        joystick.deadZone = 0.04f;       // 极小死区，仅过滤硬件噪声
+        joystick.powerCurve = 1.6f;       // 轻推精准，重推有力
+        joystick.directionSmoothTime = 0.12f; // 方向平滑过渡
+        joystick.resetSpeed = 10f;
+        joystick.followFinger = false;    // 固定位置，肌肉记忆
 
         return joystick;
     }
