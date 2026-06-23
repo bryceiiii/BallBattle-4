@@ -60,7 +60,7 @@ public class SpacetimeDBNetworkManager : MonoBehaviour
                 ActiveModuleName = localModuleName;
                 break;
             case ConnectionMode.LAN:
-                ActiveUri = $"http://{remoteHost}:{remotePort}";
+                ActiveUri = $"https://{remoteHost}:{remotePort}";
                 ActiveModuleName = localModuleName;
                 break;
             case ConnectionMode.Cloud:

@@ -62,12 +62,13 @@ public class GameManager : MonoBehaviour
         // SpacetimeDB SDK 在 Android 上从后台线程调用 OnConnected 回调
         // 事件订阅（OnInsert += ...）在后台线程可能不会触发
         // 因此：后台线程直接 return，由 Update() 在主线程重试
+        // 不在主线程时，推迟到下一帧主线程执行
         if (!IsMainThread())
         {
-            Debug.LogWarning("[GameManager] SubscribeToTables 在后台线程被调用，忽略，等待主线程兜底");
-            isSubscribed = true; // 标记为已订阅避免重复进入
-            return;
+            Debug.Log("[GameManager] 后台线程推迟订阅，将在主线程执行");
+            return;  // ← 不要设 isSubscribed=true，让兜底来
         }
+
 
         if (Conn.Identity.HasValue)
         {
