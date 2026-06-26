@@ -7,7 +7,8 @@ public static partial class Module
 {
     private static int WORLD_SIZE = 50;
     // 服务器tick步长(秒)，与 MoveAllPlayerTimer 的 interval 保持一致
-    private static float SERVER_DELTA = 0.020f;  // 20ms ≈ 50Hz，极致响应
+    // WAN环境下(QuickTunnel)，25Hz比50Hz更稳定：减少50%带宽，匹配100ms+ RTT下的有效更新率
+    private static float SERVER_DELTA = 0.040f;  // 40ms ≈ 25Hz，WAN优化
     // 将质量相关的常量改为 float 类型
     private static float PRIMARY_PLAYER_MASS = 5.0f;
     private static int TARGET_FOOD_COUNT = 200;
@@ -311,7 +312,7 @@ public static partial class Module
         });
         context.Db.move_all_player.Insert(new MoveAllPlayerTimer
         {
-            schedule_at = new ScheduleAt.Interval(TimeSpan.FromMilliseconds(20)) // 50Hz 极限频率
+            schedule_at = new ScheduleAt.Interval(TimeSpan.FromMilliseconds(40)) // 25Hz，WAN优化匹配
         });
         // 自动合并开关：注释下面一行 = 关闭全局自动合并
         context.Db.merge_player_timer.Insert(new MergePlayerTimer

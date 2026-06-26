@@ -34,6 +34,16 @@ public class SpacetimeDBNetworkManager : MonoBehaviour
     private float _connectStartTime;
     private bool _fallbackTriggered;
 
+    // ===== 重连机制 =====
+    [Header("重连配置")]
+    public bool enableAutoReconnect = true;
+    public float reconnectInterval = 3f;        // 重连间隔（秒）
+    public int maxReconnectAttempts = 10;       // 最大重连次数
+    private int _reconnectAttempts = 0;
+    private float _reconnectTimer = 0f;
+    private bool _isReconnecting = false;
+    private bool _wasConnected = false;         // 追踪是否曾经连接成功过，判断是断线还是从未连上
+
     private void Awake()
     {
         if (Instance != null && Instance != this) { Destroy(gameObject); return; }
@@ -60,7 +70,8 @@ public class SpacetimeDBNetworkManager : MonoBehaviour
                 ActiveModuleName = localModuleName;
                 break;
             case ConnectionMode.LAN:
-                ActiveUri = $"https://{remoteHost}:{remotePort}";
+                // LAN 服务器无 TLS 证书，用 http://（非 https://），否则 TLS 握手直接失败
+                ActiveUri = $"http://{remoteHost}:{remotePort}";
                 ActiveModuleName = localModuleName;
                 break;
             case ConnectionMode.Cloud:
@@ -80,6 +91,10 @@ public class SpacetimeDBNetworkManager : MonoBehaviour
         Db = builder.Build();
         _connectStartTime = Time.time;
         _fallbackTriggered = false;
+        // 重置重连状态（每次新连接都是全新生命周期）
+        _wasConnected = false;
+        _isReconnecting = false;
+        _reconnectAttempts = 0;
     }
 
     public void ConnectToLAN(string host, int port, string moduleName = "ballbattle4")
@@ -124,6 +139,9 @@ public class SpacetimeDBNetworkManager : MonoBehaviour
     private void HandleConnect(DbConnection conn, Identity identity, string token)
     {
         IsConnected = true;
+        _wasConnected = true;
+        _isReconnecting = false;  // 重连成功，重置状态
+        _reconnectAttempts = 0;
         Debug.Log($"<color=green>已连接到 {ActiveUri}</color>");
         AuthToken.SaveToken(token);
 
@@ -148,6 +166,72 @@ public class SpacetimeDBNetworkManager : MonoBehaviour
             Debug.Log("[SpacetimeDB] 兜底：3秒超时，强制设置 IsConnected=true（订阅由 GameManager 完成）");
             IsConnected = true;
         }
+
+        // ===== 断线检测 + 自动重连 =====
+        // SpacetimeDB SDK 断线时会通过 OnDisconnect 回调或 FrameTick 异常表现出来
+        // 这里不主动轮询连接状态，由 SDK 回调驱动 _wasConnected 和 IsConnected
+
+        // 自动重连逻辑
+        if (enableAutoReconnect && _wasConnected && !IsConnected && !_isReconnecting)
+        {
+            _isReconnecting = true;
+            _reconnectAttempts = 0;
+            _reconnectTimer = reconnectInterval;
+            Debug.Log($"[SpacetimeDB] 检测到断线，将在 {reconnectInterval}s 后开始重连...");
+        }
+
+        if (_isReconnecting)
+        {
+            _reconnectTimer -= Time.deltaTime;
+            if (_reconnectTimer <= 0f)
+            {
+                if (_reconnectAttempts >= maxReconnectAttempts)
+                {
+                    Debug.LogError($"[SpacetimeDB] 重连失败：已达最大尝试次数 ({maxReconnectAttempts})");
+                    _isReconnecting = false;
+                    OnConnectFailed?.Invoke("重连失败，已达最大尝试次数");
+                    return;
+                }
+
+                _reconnectAttempts++;
+                Debug.Log($"[SpacetimeDB] 重连尝试 {_reconnectAttempts}/{maxReconnectAttempts}...");
+                TryReconnect();
+                _reconnectTimer = reconnectInterval;
+            }
+        }
+    }
+
+    /// <summary>
+    /// 尝试重新连接：断开旧连接，创建新连接
+    /// </summary>
+    private void TryReconnect()
+    {
+        try
+        {
+            Db?.Disconnect();
+        }
+        catch { }
+
+        IsConnected = false;
+        _fallbackTriggered = false;
+        _connectStartTime = Time.time;
+
+        // 重新构建连接（复用上次的模式和地址）
+        DbConnectionBuilder<DbConnection> builder = DbConnection.Builder();
+        builder.WithUri(ActiveUri);
+        builder.WithDatabaseName(ActiveModuleName);
+        builder.OnConnect(HandleConnect);
+        builder.OnConnectError(HandleConnectError);
+
+        Db = builder.Build();
+    }
+
+    /// <summary>手动停止重连（用户点击取消等场景）</summary>
+    public void StopReconnect()
+    {
+        _isReconnecting = false;
+        _reconnectAttempts = 0;
+        Debug.Log("[SpacetimeDB] 重连已取消");
     }
 
     private void OnDestroy()

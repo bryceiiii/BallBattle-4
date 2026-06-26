@@ -54,7 +54,7 @@ if (-not $ok) {
 Write-Host ""
 Write-Host "[2/3] Creating Quick Tunnel (auto)..." -ForegroundColor Yellow
 
-$json = & $PY $HLP quick --url "http://localhost:$PORT" 2>&1
+$json = & $PY $HLP quick --url "http://localhost:$PORT" --protocol quic 2>&1
 $data = $json | ConvertFrom-Json
 
 if (-not $data.ok) {

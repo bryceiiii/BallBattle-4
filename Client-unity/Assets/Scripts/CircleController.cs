@@ -59,9 +59,9 @@ public class CircleController : MonoBehaviour
     // ===== 位置平滑 =====
     private Vector2 posVelocity = Vector2.zero;
 
-    public float remotePosSmoothTime = 0.10f;   // 远程玩家插值
-    public float localPosSmoothTime = 0.03f;     // 本地预测下的修正用极小值
-    public float scaleSmoothTime = 0.06f;        // 缩放过渡
+    public float remotePosSmoothTime = 0.15f;   // 远程玩家插值 — WAN调优：0.15s适配100-200ms RTT
+    public float localPosSmoothTime = 0.02f;     // 本地预测下的修正用极小值（仅fallback用，正常走死推算）
+    public float scaleSmoothTime = 0.08f;        // 缩放过渡 — WAN调优
 
     // ===== 世界边界 =====
     private const float WORLD_MIN = 0f;
@@ -210,10 +210,23 @@ public class CircleController : MonoBehaviour
     {
         targetPos = newPos;
         hasReceivedFirstUpdate = true;
+
+        // 本地玩家：用方向发送 → 位置回包的时间差估算 RTT
+        if (isLocalPlayer && PlayerInputController.LastDirSendTime > 0)
+        {
+            float rttMs = (Time.time - PlayerInputController.LastDirSendTime) * 1000f;
+            // 合理性检查：RTT 应在 5ms ~ 2000ms 之间
+            if (rttMs > 5f && rttMs < 2000f)
+            {
+                var debug = FindObjectOfType<NetworkDebugDisplay>();
+                if (debug != null) debug.RecordRttSample(rttMs);
+            }
+        }
     }
 
     public void SetTargetScale(float newMass)
     {
+        currentMass = newMass; // 客户端预测用：同步最新质量
         targetScale = PrefabsManager.Instance.MassToDiameter(newMass);
     }
 
@@ -342,20 +355,53 @@ public class CircleController : MonoBehaviour
         }
     }
 
+    // ===== 客户端预测（与服务器 Lib.cs 速度公式严格一致，但步长用客户端 FixedUpdate） =====
+    private const int START_PLAYER_SPEED_PREDICT = 13;    // 匹配服务器 START_PLAYER_SPEED
+    private float currentMass = 5f;                        // 从 SetTargetScale 同步
+    private Vector2 _predictVelocity;                      // 预测专用的 SmoothDamp 速度记忆
+
     /// <summary>
-    /// 物理步驱动位置：
-    /// - 本地玩家球：velocity 弹簧拉向 targetPos，高 drag 快速收敛不振荡。
-    ///   物理引擎处理同玩家球互推，velocity 方式让分离力自然衰减。
-    /// - 远程玩家球：SmoothDamp + MovePosition 平滑插值。
+    /// 物理步驱动位置（FixedUpdate 50Hz，与物理引擎同步）：
+    /// - 本地玩家球：[客户端预测 + SmoothDamp修正]
+    ///   1. 基于输入方向即时计算预测位置（与服务器完全相同的速度公式）
+    ///   2. SmoothDamp 从预测位置温和收敛到服务器目标位置
+    ///   关键：用 Time.fixedDeltaTime(≈0.02s) 而非服务器 SERVER_DELTA(0.04s)，
+    ///   确保预测步长与客户端 FixedUpdate 频率一致，避免速度翻倍导致的抖动。
+    /// - 远程玩家球：SmoothDamp 插值，WAN 调优 smoothTime。
     /// </summary>
     void FixedUpdate()
     {
         if (isMergeAnim || isSplitAnim) return;
         if (!hasReceivedFirstUpdate) return;
 
-        float smoothTime = isLocalPlayer ? localPosSmoothTime : remotePosSmoothTime;
-        Vector2 desiredPos = Vector2.SmoothDamp(rb.position, (Vector2)targetPos, ref posVelocity, smoothTime);
-        rb.MovePosition(desiredPos);
+        if (isLocalPlayer)
+        {
+            // === 步骤1：客户端预测（即时响应输入） ===
+            Vector2 inputDir = Vector2.zero;
+            if (PlayerInputController.Instance != null)
+                inputDir = PlayerInputController.Instance.CurrentDirection;
+
+            // speedScale = 1 / (mass * 0.06 + 1) — 与服务器完全一致
+            float speedScale = 1f / (currentMass * 0.06f + 1f);
+            // 关键：用 Time.fixedDeltaTime（客户端步长 ~0.02s），不是服务器的 0.04s
+            float moveStep = Time.fixedDeltaTime * START_PLAYER_SPEED_PREDICT * speedScale;
+            Vector2 predicted = rb.position + inputDir * moveStep;
+
+            // === 步骤2：SmoothDamp 温和修正（保留速度记忆，无抖动） ===
+            // SmoothDamp 有惯性记忆，修正过程平滑连续；
+            // Lerp 每帧"硬切"目标会导致可见抖动
+            Vector2 corrected = Vector2.SmoothDamp(
+                predicted, (Vector2)targetPos,
+                ref _predictVelocity, localPosSmoothTime);
+            rb.MovePosition(corrected);
+        }
+        else
+        {
+            // 远程玩家：SmoothDamp 插值，WAN 调优 smoothTime
+            Vector2 desiredPos = Vector2.SmoothDamp(rb.position, (Vector2)targetPos,
+                ref posVelocity, remotePosSmoothTime);
+            rb.MovePosition(desiredPos);
+        }
         ClampToWorldBounds();
     }
 

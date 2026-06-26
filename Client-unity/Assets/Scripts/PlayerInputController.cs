@@ -9,6 +9,10 @@ public class PlayerInputController : MonoBehaviour
     public Vector2 CurrentDirection { get; private set; }
     public int SelectedAmmoType { get; private set; } = 0; // 0=普通, 1=分裂弹
 
+    // ===== RTT 测量 =====
+    /// <summary>最近一次方向发送的时间戳（用于 RTT 估算）</summary>
+    public static float LastDirSendTime { get; private set; } = 0f;
+
     private void Awake()
     {
         if (Instance == null) { Instance = this; DontDestroyOnLoad(gameObject); }
@@ -39,6 +43,7 @@ public class PlayerInputController : MonoBehaviour
 
         SpacetimeDBNetworkManager.Instance.Db.Reducers.UpdatePlayerDir(curDir);
         lastSendDir = curDir;
+        LastDirSendTime = Time.time;  // 记录发送时间，用于 RTT 估算
     }
 
     private void HandleSplitInput()
