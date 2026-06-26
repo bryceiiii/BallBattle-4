@@ -101,3 +101,5 @@ server-csharp/Temp/
 *.msi
 *.iso
 *.sln
+#服务器配置
+.cloudflare-tunnel/

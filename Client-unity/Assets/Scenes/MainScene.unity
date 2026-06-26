@@ -2049,6 +2049,25 @@ MonoBehaviour:
   enterGameButton: {fileID: 1090142697}
   connectButtonLabel: {fileID: 0}
   hostAddressHint: {fileID: 304956164}
+--- !u!114 &1123676530
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1123676519}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 1901fd15be8a30c45bbeb4eab33bd671, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  gistUrl: https://gist.githubusercontent.com/raw/f4e5a31c5d3d9622ddb92bc44101177d/tunnel-url
+  ipInput: {fileID: 0}
+  portInput: {fileID: 0}
+  statusText: {fileID: 0}
+  autoSwitchToLAN: 1
+  autoConnect: 0
+  fetchOnStart: 1
 --- !u!1 &1153791108
 GameObject:
   m_ObjectHideFlags: 0
@@ -3103,6 +3122,9 @@ PrefabInstance:
     - targetCorrespondingSourceObject: {fileID: 142184882277637836, guid: 9507752a624dac34187f275ab36d057c, type: 3}
       insertIndex: -1
       addedObject: {fileID: 1123676525}
+    - targetCorrespondingSourceObject: {fileID: 142184882277637836, guid: 9507752a624dac34187f275ab36d057c, type: 3}
+      insertIndex: -1
+      addedObject: {fileID: 1123676530}
   m_SourcePrefab: {fileID: 100100000, guid: 9507752a624dac34187f275ab36d057c, type: 3}
 --- !u!1 &1345793220
 GameObject:

@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>BallBattle-4 · 游戏服务器入口</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    background: #0a0a1a;
+    color: #fff;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    min-height: 100vh;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .card {
+    text-align: center;
+    padding: 48px 32px;
+    max-width: 420px;
+  }
+  .logo { font-size: 64px; margin-bottom: 16px; }
+  h1 { font-size: 28px; color: #50e3c2; margin-bottom: 8px; }
+  .status { font-size: 14px; color: #888; margin-bottom: 32px; }
+  .spinner {
+    display: inline-block;
+    width: 40px; height: 40px;
+    border: 3px solid rgba(80,227,194,0.2);
+    border-top-color: #50e3c2;
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+    margin-bottom: 24px;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .server-url {
+    background: rgba(80,227,194,0.1);
+    border: 1px solid rgba(80,227,194,0.3);
+    border-radius: 8px;
+    padding: 12px 16px;
+    font-family: "Fira Code", monospace;
+    font-size: 13px;
+    color: #50e3c2;
+    word-break: break-all;
+    margin: 16px 0;
+    display: none;
+  }
+  .server-url.show { display: block; }
+  .copy-btn {
+    background: #50e3c2;
+    color: #0a0a1a;
+    border: none;
+    padding: 10px 24px;
+    border-radius: 6px;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    margin-top: 8px;
+    display: none;
+  }
+  .copy-btn.show { display: inline-block; }
+  .copy-btn:hover { background: #3dc9a8; }
+  .copy-btn:active { transform: scale(0.97); }
+  .copied { color: #50e3c2; font-size: 12px; margin-top: 8px; display: none; }
+  .copied.show { display: block; }
+  .error { color: #ff6b6b; font-size: 14px; margin-top: 16px; display: none; }
+  .error.show { display: block; }
+  .footer { color: #555; font-size: 12px; margin-top: 40px; }
+</style>
+</head>
+<body>
+<div class="card">
+  <div class="logo">⚔️</div>
+  <h1>BallBattle-4</h1>
+  <p class="status">正在获取服务器地址…</p>
+  <div class="spinner" id="spinner"></div>
+  <div class="server-url" id="serverUrl"></div>
+  <button class="copy-btn" id="copyBtn" onclick="copyUrl()">📋 复制地址</button>
+  <p class="copied" id="copiedMsg">✅ 已复制！粘贴到游戏里连接</p>
+  <p class="error" id="errorMsg">❌ 服务器当前未开启，请稍后再试</p>
+  <p class="footer">Made with ❤️ for BallBattle-4</p>
+</div>
+
+<script>
+  // ======================================
+  //  把这个 URL 改成你自己的 Gist Raw 地址
+  //  格式：https://gist.githubusercontent.com/raw/GIST_ID/tunnel-url
+  // ======================================
+  const GIST_RAW_URL = "YOUR_GIST_RAW_URL_HERE";
+
+  async function fetchServerUrl() {
+    try {
+      const resp = await fetch(GIST_RAW_URL, { cache: "no-store" });
+      if (!resp.ok) throw new Error("Gist not found");
+      const url = (await resp.text()).trim();
+      if (!url || !url.includes("trycloudflare.com")) throw new Error("Invalid URL");
+      
+      document.getElementById("spinner").style.display = "none";
+      document.getElementById("serverUrl").textContent = url;
+      document.getElementById("serverUrl").classList.add("show");
+      document.getElementById("copyBtn").classList.add("show");
+      document.querySelector(".status").textContent = "服务器在线 ✅ 复制地址到游戏里连接";
+    } catch (e) {
+      document.getElementById("spinner").style.display = "none";
+      document.getElementById("errorMsg").classList.add("show");
+      document.querySelector(".status").textContent = "离线等待中…";
+    }
+  }
+
+  function copyUrl() {
+    const url = document.getElementById("serverUrl").textContent;
+    navigator.clipboard.writeText(url).then(() => {
+      document.getElementById("copiedMsg").classList.add("show");
+      setTimeout(() => document.getElementById("copiedMsg").classList.remove("show"), 3000);
+    });
+  }
+
+  fetchServerUrl();
+</script>
+</body>
+</html>
