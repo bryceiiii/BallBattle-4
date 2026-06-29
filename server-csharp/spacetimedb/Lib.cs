@@ -474,63 +474,63 @@ public static partial class Module
         foreach (var food in context.Db.food.Iter())
             entitySnapshot[food.entity_id] = (circlePlayerId: null, foodType: food.food_type);
 
-        // 重新遍历所有的 玩家球(circle) 去检测覆盖
-        foreach(var circleA in context.Db.circle.Iter())
+        // 【P0 #3】吞噬检测 —— 用 playerBalls 字典替代第三次 circle.Iter()
+        // playerBalls 已按玩家分组 + 过滤 isMerging，外层 foreach 无需再查 circle 表
+        foreach (var kv in playerBalls)
         {
-            if (circleA.isMerging) continue; // 合并动画中不参与吞噬
-
-            var entityANullable = context.Db.entity.id.Find(circleA.entity_id);
-            if (entityANullable == null || entitiesToDelete.Contains(circleA.entity_id)) continue;
-            
-            var entityA = entityANullable.Value;
-
-            foreach(var entityB in context.Db.entity.Iter())
+            int playerId = kv.Key;
+            foreach (var (entityA, eid) in kv.Value)
             {
-                if (entityA.id == entityB.id) continue;
-                if (entitiesToDelete.Contains(entityB.id)) continue; 
+                if (entitiesToDelete.Contains(eid)) continue;
 
-                // 【P0】用预建快照替代 circle/food 表的 Find()，O(1) vs O(log n)
-                entitySnapshot.TryGetValue(entityB.id, out var snapB);
-
-                // 防止同一个人自己的球之间互相吃
-                if (snapB.circlePlayerId != null && snapB.circlePlayerId == circleA.player_id) continue;
-
-                // A是玩家球，判断是否重叠覆盖B
-                if (IsOverLapping(entityA, entityB))
+                foreach(var entityB in context.Db.entity.Iter())
                 {
-                    bool isFood = snapB.foodType != null;
-                    bool isOtherPlayer = snapB.circlePlayerId != null;
+                    if (entityA.id == entityB.id) continue;
+                    if (entitiesToDelete.Contains(entityB.id)) continue; 
 
-                    if (isFood || (isOtherPlayer && entityA.mass > entityB.mass))
+                    // 【P0】用预建快照替代 circle/food 表的 Find()，O(1) vs O(log n)
+                    entitySnapshot.TryGetValue(entityB.id, out var snapB);
+
+                    // 防止同一个人自己的球之间互相吃
+                    if (snapB.circlePlayerId != null && snapB.circlePlayerId == playerId) continue;
+
+                    // A是玩家球，判断是否重叠覆盖B
+                    if (IsOverLapping(entityA, entityB))
                     {
-                        // 标记 B 被吃掉
-                        entitiesToDelete.Add(entityB.id);
+                        bool isFood = snapB.foodType != null;
+                        bool isOtherPlayer = snapB.circlePlayerId != null;
 
-                        // 记录A应该增加的质量
-                        if (!massGains.ContainsKey(entityA.id))
-                            massGains[entityA.id] = 0;
-                        massGains[entityA.id] += entityB.mass;
+                        if (isFood || (isOtherPlayer && entityA.mass > entityB.mass))
+                        {
+                            // 标记 B 被吃掉
+                            entitiesToDelete.Add(entityB.id);
 
-                        // 回血球：记录回血量
-                        if (isFood && snapB.foodType == 1)
-                        {
-                            if (!healGains.ContainsKey(entityA.id))
-                                healGains[entityA.id] = 0;
-                            healGains[entityA.id] += HEALTH_ORB_HEAL;
-                        }
-                        // 分裂弹：给玩家增加分裂弹药
-                        if (isFood && snapB.foodType == 2)
-                        {
-                            if (!splitAmmoGains.ContainsKey(circleA.player_id))
-                                splitAmmoGains[circleA.player_id] = 0;
-                            splitAmmoGains[circleA.player_id] += 1;
-                        }
-                        // 护盾球：给该球增加护盾
-                        if (isFood && snapB.foodType == 3)
-                        {
-                            if (!shieldGains.ContainsKey(entityA.id))
-                                shieldGains[entityA.id] = 0;
-                            shieldGains[entityA.id] += SHIELD_ABSORB;
+                            // 记录A应该增加的质量
+                            if (!massGains.ContainsKey(entityA.id))
+                                massGains[entityA.id] = 0;
+                            massGains[entityA.id] += entityB.mass;
+
+                            // 回血球：记录回血量
+                            if (isFood && snapB.foodType == 1)
+                            {
+                                if (!healGains.ContainsKey(entityA.id))
+                                    healGains[entityA.id] = 0;
+                                healGains[entityA.id] += HEALTH_ORB_HEAL;
+                            }
+                            // 分裂弹：给玩家增加分裂弹药
+                            if (isFood && snapB.foodType == 2)
+                            {
+                                if (!splitAmmoGains.ContainsKey(playerId))
+                                    splitAmmoGains[playerId] = 0;
+                                splitAmmoGains[playerId] += 1;
+                            }
+                            // 护盾球：给该球增加护盾
+                            if (isFood && snapB.foodType == 3)
+                            {
+                                if (!shieldGains.ContainsKey(entityA.id))
+                                    shieldGains[entityA.id] = 0;
+                                shieldGains[entityA.id] += SHIELD_ABSORB;
+                            }
                         }
                     }
                 }

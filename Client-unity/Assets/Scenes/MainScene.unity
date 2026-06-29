@@ -2525,6 +2525,10 @@ PrefabInstance:
       propertyPath: m_IsActive
       value: 0
       objectReference: {fileID: 0}
+    - target: {fileID: 389875919962251480, guid: 9507752a624dac34187f275ab36d057c, type: 3}
+      propertyPath: m_Text
+      value: 100.86.230.25
+      objectReference: {fileID: 0}
     - target: {fileID: 591972834566332628, guid: 9507752a624dac34187f275ab36d057c, type: 3}
       propertyPath: m_SizeDelta.x
       value: 193.2802
@@ -4191,7 +4195,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 6a7a40d6362dd1346b01c59ccaafc25b, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  testHost: 192.168.79.184
+  testHost: 100.86.230.25
   testPort: 3000
   sampleInterval: 0.5
   requestTimeout: 3
