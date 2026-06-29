@@ -28,8 +28,6 @@ public class NetworkDebugDisplay : MonoBehaviour
 
     // RTT 估算（基于 UpdatePlayerDir reducer 往返时间）
     private float _estimatedRtt = 0f;
-    private float _lastDirSendTime = 0f;
-    private float _rttUpdateTimer = 0f;
 
     void Start()
     {

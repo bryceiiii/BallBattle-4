@@ -239,14 +239,30 @@ public class SpacetimeDBNetworkManager : MonoBehaviour
         Db?.Disconnect();
     }
 
-    // ponytail: 一行判断，覆盖 RFC 1918 全部私有网段
+    // ponytail: 位运算匹配所有非公网 IPv4 段（RFC 1918 + RFC 6598 CGNAT + 特殊用途）
     private static bool IsPrivateIP(string host)
     {
-        return System.Net.IPAddress.TryParse(host, out var ip)
-            && ip.GetAddressBytes() is byte[] b && b.Length == 4
-            && (b[0] == 10
-                || (b[0] == 172 && b[1] >= 16 && b[1] <= 31)
-                || (b[0] == 192 && b[1] == 168)
-                || b[0] == 127);
+        if (!System.Net.IPAddress.TryParse(host, out var ip)) return false; // 域名 → 公网
+        byte[] b = ip.GetAddressBytes();
+        if (b.Length != 4) return false; // IPv6 → 暂当公网
+
+        // 查表：已知非公网段。新增一行即可扩展。
+        return (b[0], b[1]) switch
+        {
+            (0, _)     => true,                    // 0.0.0.0/8
+            (10, _)    => true,                    // 10.0.0.0/8
+            (100, _) when b[1] >= 64 && b[1] <= 127 => true, // 100.64.0.0/10 CGNAT
+            (127, _)   => true,                    // 127.0.0.0/8
+            (169, 254) => true,                    // 169.254.0.0/16
+            (172, _) when b[1] >= 16 && b[1] <= 31 => true, // 172.16.0.0/12
+            (192, 0) when b[2] == 0 && b[3] <= 255  => true, // 192.0.0.0/24
+            (192, 0) when b[2] == 2                => true, // 192.0.2.0/24 TEST-NET
+            (192, 168) => true,                    // 192.168.0.0/16
+            (198, _) when b[1] == 18 || b[1] == 19 => true, // 198.18.0.0/15
+            (198, 51) when b[2] == 100             => true, // 198.51.100.0/24 TEST-NET
+            (203, 0) when b[2] == 113              => true, // 203.0.113.0/24 TEST-NET
+            (>=224, _) => true,                    // 224.0.0.0/4 Multicast + 240.0.0.0/4 Reserved
+            _ => false
+        };
     }
 }

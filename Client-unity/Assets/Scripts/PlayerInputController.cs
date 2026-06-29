@@ -48,8 +48,13 @@ public class PlayerInputController : MonoBehaviour
 
     private void HandleSplitInput()
     {
-        if (Input.GetKeyDown(KeyCode.Space))
-            SpacetimeDBNetworkManager.Instance.Db.Reducers.SplitPlayer();
+        if (!Input.GetKeyDown(KeyCode.Space)) return;
+
+        // 客户端先行检查：已达上限则阻止分裂，不发送网络请求，不播动画
+        if (GameManager.GetLocalPlayerBallCount() >= 16)
+            return;
+
+        SpacetimeDBNetworkManager.Instance.Db.Reducers.SplitPlayer();
     }
 
     /// <summary>数字键 1-2 切换弹种</summary>

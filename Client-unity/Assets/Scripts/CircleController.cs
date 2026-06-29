@@ -67,6 +67,9 @@ public class CircleController : MonoBehaviour
     private const float WORLD_MIN = 0f;
     private const float WORLD_MAX = 50f;
 
+    // ===== HP 条降频（远程球每 5 帧更新一次） =====
+    private int _hpFrameCounter;
+
     // ===== 动画状态 =====
     private bool isMergeAnim = false;
     private Transform mergeTarget;
@@ -318,8 +321,10 @@ public class CircleController : MonoBehaviour
             transform.localScale = new Vector3(newS, newS, 1f);
         }
 
-        // ===== HP 条位置跟随（直接控制 Canvas 的 localPosition） =====
-        if (hpCanvasRect != null)
+        // ===== HP 条位置跟随 —— 本地每帧，远程每 5 帧（P2 优化） =====
+        _hpFrameCounter++;
+        bool shouldUpdateHp = isLocalPlayer || (_hpFrameCounter % 5 == 0);
+        if (hpCanvasRect != null && shouldUpdateHp)
         {
             float diameter = transform.localScale.x;
             if (diameter < 0.001f) diameter = 0.001f;

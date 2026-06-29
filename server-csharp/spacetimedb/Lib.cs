@@ -456,9 +456,10 @@ public static partial class Module
         var shieldGains = new System.Collections.Generic.Dictionary<int, float>();  // entity_id → 护盾值
         var entitiesToDelete = new System.Collections.Generic.HashSet<int>();
 
-        // 【性能优化】将 playerBalls 字典构建提前到循环外，只构建一次
-        // 原代码在 circleA 循环内重复构建，导致O(n?)无效开销
-        Dictionary<int, List<(Entity entity, int eid)>> playerBalls = new Dictionary<int, List<(Entity, int)>>();
+        // 【性能优化 P0】在 playerBalls 遍历中同时预建 entity 类型快照，
+        // 避免吞噬双循环内每条都查 circle/food 表（原先 O(n*m) 次 Find 降为 O(1) 字典查）
+        Dictionary<int, List<(Entity entity, int eid)>> playerBalls = new();
+        Dictionary<int, (int? circlePlayerId, int? foodType)> entitySnapshot = new();
         foreach (var cir in context.Db.circle.Iter())
         {
             if (cir.isMerging) continue; // 合并动画中不参与聚拢
@@ -467,7 +468,11 @@ public static partial class Module
             if (!playerBalls.ContainsKey(cir.player_id))
                 playerBalls[cir.player_id] = new List<(Entity, int)>();
             playerBalls[cir.player_id].Add((ent.Value, cir.entity_id));
+            entitySnapshot[cir.entity_id] = (circlePlayerId: cir.player_id, foodType: null);
         }
+        // 补充 food entity 的快照
+        foreach (var food in context.Db.food.Iter())
+            entitySnapshot[food.entity_id] = (circlePlayerId: null, foodType: food.food_type);
 
         // 重新遍历所有的 玩家球(circle) 去检测覆盖
         foreach(var circleA in context.Db.circle.Iter())
@@ -484,16 +489,17 @@ public static partial class Module
                 if (entityA.id == entityB.id) continue;
                 if (entitiesToDelete.Contains(entityB.id)) continue; 
 
-                // 防止同一个人自己的球之间互相吃（如果有分裂功能的话）
-                var circleBNullable = context.Db.circle.entity_id.Find(entityB.id);
-                if (circleBNullable != null && circleBNullable.Value.player_id == circleA.player_id) continue; 
+                // 【P0】用预建快照替代 circle/food 表的 Find()，O(1) vs O(log n)
+                entitySnapshot.TryGetValue(entityB.id, out var snapB);
+
+                // 防止同一个人自己的球之间互相吃
+                if (snapB.circlePlayerId != null && snapB.circlePlayerId == circleA.player_id) continue;
 
                 // A是玩家球，判断是否重叠覆盖B
                 if (IsOverLapping(entityA, entityB))
                 {
-                    var foodNullable = context.Db.food.entity_id.Find(entityB.id);
-                    bool isFood = foodNullable != null;
-                    bool isOtherPlayer = circleBNullable != null;
+                    bool isFood = snapB.foodType != null;
+                    bool isOtherPlayer = snapB.circlePlayerId != null;
 
                     if (isFood || (isOtherPlayer && entityA.mass > entityB.mass))
                     {
@@ -506,21 +512,21 @@ public static partial class Module
                         massGains[entityA.id] += entityB.mass;
 
                         // 回血球：记录回血量
-                        if (isFood && foodNullable.Value.food_type == 1)
+                        if (isFood && snapB.foodType == 1)
                         {
                             if (!healGains.ContainsKey(entityA.id))
                                 healGains[entityA.id] = 0;
                             healGains[entityA.id] += HEALTH_ORB_HEAL;
                         }
                         // 分裂弹：给玩家增加分裂弹药
-                        if (isFood && foodNullable.Value.food_type == 2)
+                        if (isFood && snapB.foodType == 2)
                         {
                             if (!splitAmmoGains.ContainsKey(circleA.player_id))
                                 splitAmmoGains[circleA.player_id] = 0;
                             splitAmmoGains[circleA.player_id] += 1;
                         }
                         // 护盾球：给该球增加护盾
-                        if (isFood && foodNullable.Value.food_type == 3)
+                        if (isFood && snapB.foodType == 3)
                         {
                             if (!shieldGains.ContainsKey(entityA.id))
                                 shieldGains[entityA.id] = 0;
@@ -819,7 +825,7 @@ public static partial class Module
             }
         }
 
-        // 分裂弹效果：对命中的球强制分裂
+        // 分裂弹效果：对命中的球强制分裂（受上限约束）
         foreach (var targetEid in splitHits)
         {
             var tgtCircleNullable = context.Db.circle.entity_id.Find(targetEid);
@@ -828,6 +834,12 @@ public static partial class Module
             if (tgtEntNullable == null) continue;
             var tgtEnt = tgtEntNullable.Value;
             if (tgtEnt.mass < MIN_SPLIT_MASS) continue;
+
+            // 检查受害玩家是否已达分裂上限
+            int victimPlayerId = tgtCircleNullable.Value.player_id;
+            int victimBallCount = 0;
+            foreach (var _ in context.Db.circle.player_id.Filter(victimPlayerId)) victimBallCount++;
+            if (victimBallCount >= MAX_CIRCLES_PER_PLAYER) continue;
 
             // 执行分裂（与 SplitPlayer 同样的逻辑）
             float halfMass = tgtEnt.mass / 2f;
@@ -947,25 +959,30 @@ public static partial class Module
     {
         var player = context.Db.logged_in_player.Identity.Find(context.Sender) ?? throw new Exception("未找到对应玩家");
 
-        // 将能够查询到的当前玩家所有的 Circle 放进列表
-        var playerCircles = new System.Collections.Generic.List<Circle>();
+        // 收集所有球并按质量降序排列 —— 最大的球优先分裂
+        var playerCircles = new System.Collections.Generic.List<(Circle circle, Entity entity)>();
         foreach (var circle in context.Db.circle.player_id.Filter(player.player_id))
         {
-            playerCircles.Add(circle);
+            var entNullable = context.Db.entity.id.Find(circle.entity_id);
+            if (entNullable != null)
+                playerCircles.Add((circle, entNullable.Value));
         }
+        playerCircles.Sort((a, b) => b.entity.mass.CompareTo(a.entity.mass));
 
-        // 分裂总数上限：防止O(n?)碰撞检测在50Hz下导致服务器卡顿
-        if (playerCircles.Count >= MAX_CIRCLES_PER_PLAYER)
+        // 计算还可创建多少个球
+        int remainingSlots = MAX_CIRCLES_PER_PLAYER - playerCircles.Count;
+        if (remainingSlots <= 0)
         {
             Log.Info($"Split rejected: player {player.player_id} already has {playerCircles.Count} circles (max {MAX_CIRCLES_PER_PLAYER})");
             return;
         }
 
-        foreach (var circle in playerCircles)
+        int splitCount = 0;
+        // ponytail: for 替代 foreach，Entity 是 struct，foreach 迭代变量不可修改成员 (CS1654)
+        for (int pi = 0; pi < playerCircles.Count; pi++)
         {
-            var entityNullable = context.Db.entity.id.Find(circle.entity_id);
-            if (entityNullable == null) continue;
-            var entity = entityNullable.Value;
+            var (circle, entity) = playerCircles[pi];
+            if (splitCount >= remainingSlots) break; // 已达上限，停止分裂更多球
 
             // 只有质量大于指定阈值的球才能分裂
             if (entity.mass >= MIN_SPLIT_MASS)
@@ -1015,6 +1032,7 @@ public static partial class Module
                     isSplitting = true, // 标记为正在分裂动画
                     splitFromEntityId = entity.id // 记录来源球的entity_id
                 });
+                splitCount++; // 成功分裂一个，计数
             }
         }
     }

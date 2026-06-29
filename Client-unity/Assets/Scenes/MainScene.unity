@@ -2072,7 +2072,7 @@ MonoBehaviour:
   statusText: {fileID: 0}
   autoSwitchToLAN: 1
   autoConnect: 0
-  fetchOnStart: 1
+  fetchOnStart: 0
 --- !u!1 &1153791108
 GameObject:
   m_ObjectHideFlags: 0
@@ -2449,13 +2449,12 @@ MonoBehaviour:
   m_GameObject: {fileID: 1282647345}
   m_Enabled: 1
   m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 8da15ec69acf0ce44938f31d95d988a5, type: 3}
+  m_Script: {fileID: 11500000, guid: dc9c5cf945f21834aaea58d875c1070b, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
   fpsText: {fileID: 1682040466}
   lagText: {fileID: 1705745413}
-  refreshRate: 0.3
-  smoothSamples: 15
+  refreshInterval: 0.5
   fpsGoodColor: {r: 0, g: 1, b: 0, a: 1}
   fpsGoodThreshold: 30
   fpsWarnColor: {r: 1, g: 0.92156863, b: 0.015686275, a: 1}
@@ -4147,6 +4146,78 @@ Transform:
   - {fileID: 212756028}
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!1 &1973850998
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 1973850999}
+  - component: {fileID: 1973851001}
+  - component: {fileID: 1973851000}
+  m_Layer: 0
+  m_Name: InternetTestCanvas
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!4 &1973850999
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1973850998}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 3025.5, y: 1278.5, z: 0}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 0}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!114 &1973851000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1973850998}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 6a7a40d6362dd1346b01c59ccaafc25b, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  testHost: 192.168.79.184
+  testPort: 3000
+  sampleInterval: 0.5
+  requestTimeout: 3
+  listenConnection: 1
+  lagThresholdMs: 200
+  consecutiveTimeoutForSevere: 3
+  lagRecoveryTime: 1
+--- !u!114 &1973851001
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1973850998}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 7bc7f1a8235319442bd4c314e1e946c8, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  anchor: 0
+  fontSize: 14
+  bgAlpha: 0.5
+  showDetails: 1
+  detailLines: 5
+  autoStart: 1
+  targetMonitor: {fileID: 1973851000}
 --- !u!1 &2032944117 stripped
 GameObject:
   m_CorrespondingSourceObject: {fileID: 4480354555201142204, guid: 9507752a624dac34187f275ab36d057c, type: 3}
@@ -4298,3 +4369,4 @@ SceneRoots:
   - {fileID: 1682000771}
   - {fileID: 1329973039}
   - {fileID: 1893851718}
+  - {fileID: 1973850999}

@@ -657,6 +657,18 @@ public class GameManager : MonoBehaviour
         HudController.Instance?.ShowDeathScreen();
     }
 
+    /// <summary>获取本地玩家当前球数（含合并动画中的球）</summary>
+    public static int GetLocalPlayerBallCount()
+    {
+        int count = 0;
+        foreach (var kv in Circles)
+        {
+            if (kv.Value != null && kv.Value.GetComponent<CircleController>()?.isLocalPlayer == true)
+                count++;
+        }
+        return count;
+    }
+
     /// <summary>重新开始游戏（死亡画面按钮回调）</summary>
     public void RespawnPlayer()
     {
