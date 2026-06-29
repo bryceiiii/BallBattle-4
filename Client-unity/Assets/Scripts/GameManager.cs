@@ -89,6 +89,8 @@ public class GameManager : MonoBehaviour
         Conn.Db.Shield.OnInsert += OnShieldInserted;
         Conn.Db.Shield.OnUpdate += OnShieldUpdated;
         Conn.Db.Shield.OnDelete += OnShieldDeleted;
+        Conn.Db.SpeedBuff.OnInsert += OnSpeedBuffInserted;
+        Conn.Db.SpeedBuff.OnDelete += OnSpeedBuffDeleted;
 
         isSubscribed = true;
         _mainThreadSubscribed = true;
@@ -246,6 +248,7 @@ public class GameManager : MonoBehaviour
         controller.entityId = row.EntityId;
         controller.playerId = row.PlayerId;
         if (entity != null) controller.SetHp(entity.Hp, entity.MaxHp); // 初始化 HP
+        controller.SetTargetScale(entity.Mass); // 关键：设定 scale 目标值，否则平滑驱动会缩回默认 1
 
         RegisterPlayerBall(row.PlayerId, row.EntityId);
 
@@ -353,6 +356,8 @@ public class GameManager : MonoBehaviour
             foodGo = PrefabsManager.Instance.SpawnSplitOrb(newFood.EntityId, entity.Position.X, entity.Position.Y, entity.Mass);
         else if (newFood.FoodType == 3)
             foodGo = PrefabsManager.Instance.SpawnShieldOrb(newFood.EntityId, entity.Position.X, entity.Position.Y, entity.Mass);
+        else if (newFood.FoodType == 4)
+            foodGo = PrefabsManager.Instance.SpawnSpeedOrb(newFood.EntityId, entity.Position.X, entity.Position.Y, entity.Mass);
         else
             foodGo = PrefabsManager.Instance.SpawnFood(newFood.EntityId, entity.Position.X, entity.Position.Y, entity.Mass);
 
@@ -485,6 +490,42 @@ public class GameManager : MonoBehaviour
         }
     }
 
+    // ===== 速度Buff =====
+    private void OnSpeedBuffInserted(EventContext ctx, SpeedBuff sb)
+    {
+        UpdateHudSpeedBuff(sb);
+    }
+
+    private void OnSpeedBuffDeleted(EventContext ctx, SpeedBuff sb)
+    {
+        ClearHudSpeedBuff(sb);
+    }
+
+    private void UpdateHudSpeedBuff(SpeedBuff sb)
+    {
+        // 检查加速是否属于本地玩家
+        if (localIdentity != null)
+        {
+            var player = Conn.Db.LoggedInPlayer.Identity.Find(localIdentity);
+            if (player != null && player.PlayerId == sb.PlayerId)
+            {
+                HudController.Instance?.SetSpeed(sb.ExpireAtMs);
+            }
+        }
+    }
+
+    private void ClearHudSpeedBuff(SpeedBuff sb)
+    {
+        if (localIdentity != null)
+        {
+            var player = Conn.Db.LoggedInPlayer.Identity.Find(localIdentity);
+            if (player != null && player.PlayerId == sb.PlayerId)
+            {
+                HudController.Instance?.ClearSpeed();
+            }
+        }
+    }
+
     private void UpdateHudShield(Shield shield)
     {
         // 检查护盾是否属于本地玩家的球
@@ -585,6 +626,8 @@ public class GameManager : MonoBehaviour
             Conn.Db.Shield.OnInsert -= OnShieldInserted;
             Conn.Db.Shield.OnUpdate -= OnShieldUpdated;
             Conn.Db.Shield.OnDelete -= OnShieldDeleted;
+            Conn.Db.SpeedBuff.OnInsert -= OnSpeedBuffInserted;
+            Conn.Db.SpeedBuff.OnDelete -= OnSpeedBuffDeleted;
         }
     }
 

@@ -11,25 +11,24 @@ namespace SpacetimeDB.Types
 {
     [SpacetimeDB.Type]
     [DataContract]
-    public sealed partial class TestTable
+    public sealed partial class SpeedBuff
     {
-        [DataMember(Name = "id")]
-        public int Id;
-        [DataMember(Name = "name")]
-        public string Name;
+        [DataMember(Name = "player_id")]
+        public int PlayerId;
+        [DataMember(Name = "expire_at_ms")]
+        public double ExpireAtMs;
 
-        public TestTable(
-            int Id,
-            string Name
+        public SpeedBuff(
+            int PlayerId,
+            double ExpireAtMs
         )
         {
-            this.Id = Id;
-            this.Name = Name;
+            this.PlayerId = PlayerId;
+            this.ExpireAtMs = ExpireAtMs;
         }
 
-        public TestTable()
+        public SpeedBuff()
         {
-            this.Name = "";
         }
     }
 }

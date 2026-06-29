@@ -13,7 +13,7 @@ public static partial class Module
     private static float PRIMARY_PLAYER_MASS = 5.0f;
     private static int TARGET_FOOD_COUNT = 200;
     private static float FOOD_MASS = 2.0f;
-    private static int START_PLAYER_SPEED = 13;
+    private static int START_PLAYER_SPEED = 26;
     private static float MIN_SPLIT_MASS = 10.0f; // 允许分裂的最小质量
     private static int MAX_CIRCLES_PER_PLAYER = 16; // 每人最多球数，防止分裂过多导致O(n?)碰撞检测卡顿
     //合并配置
@@ -50,7 +50,10 @@ public static partial class Module
     private static float SHIELD_ORB_CHANCE = 0.07f;     // 护盾球生成概率（7%）
     private static float SHIELD_ABSORB = 20f;           // 护盾吸收量
     private static double SHIELD_DURATION_MS = 10000d;  // 护盾持续 10 秒
-    // food_type: 0=普通, 1=回血, 2=分裂弹, 3=护盾球
+    private static float SPEED_ORB_CHANCE = 0.07f;      // 速度球生成概率（7%）
+    private static float SPEED_MULTIPLIER = 1.8f;       // 速度倍率
+    private static double SPEED_DURATION_MS = 8000d;    // 加速持续 8 秒
+    // food_type: 0=普通, 1=回血, 2=分裂弹, 3=护盾球, 4=速度球
 
     [Table(Name = "entity", Public = true)]
     public partial struct Entity
@@ -105,6 +108,13 @@ public static partial class Module
         public int entity_id;          // 护盾所属球实体
         public float shield_hp;        // 剩余护盾值
         public float shield_max;       // 最大护盾值（=SHIELD_ABSORB）
+        public double expire_at_ms;    // 过期时间（毫秒时间戳）
+    }
+    [Table(Name = "speed_buff", Public = true)]
+    public partial struct SpeedBuff
+    {
+        [PrimaryKey]
+        public int player_id;          // 加速所属玩家（全部球共享）
         public double expire_at_ms;    // 过期时间（毫秒时间戳）
     }
     [Table(Name = "circle", Public = true)]
@@ -401,6 +411,10 @@ public static partial class Module
             {
                 foodType = 3; foodCurrentMass = 1.6f; // 护盾球
             }
+            else if (roll < HEALTH_ORB_CHANCE + SPLIT_ORB_CHANCE + SHIELD_ORB_CHANCE + SPEED_ORB_CHANCE)
+            {
+                foodType = 4; foodCurrentMass = 1.4f; // 速度球
+            }
             else
             {
                 foodType = 0;
@@ -440,6 +454,11 @@ public static partial class Module
             // 质量减速系数
             float speedScale = 1f / (entity.mass * 0.06f + 1f);
             float moveStep = SERVER_DELTA * START_PLAYER_SPEED * speedScale;
+
+            // 速度buff：玩家全局加速
+            if (context.Db.speed_buff.player_id.Find(circle.player_id) != null)
+                moveStep *= SPEED_MULTIPLIER;
+
             entity.position.x += player.dir.x * moveStep;
             entity.position.y += player.dir.y * moveStep;
 
@@ -454,6 +473,7 @@ public static partial class Module
         var healGains = new System.Collections.Generic.Dictionary<int, float>(); // 回血
         var splitAmmoGains = new System.Collections.Generic.Dictionary<int, int>(); // 玩家 → 分裂弹数量
         var shieldGains = new System.Collections.Generic.Dictionary<int, float>();  // entity_id → 护盾值
+        var speedBuffGains = new System.Collections.Generic.Dictionary<int, bool>(); // player_id → 速度buff
         var entitiesToDelete = new System.Collections.Generic.HashSet<int>();
 
         // 【性能优化 P0】在 playerBalls 遍历中同时预建 entity 类型快照，
@@ -530,6 +550,11 @@ public static partial class Module
                                 if (!shieldGains.ContainsKey(entityA.id))
                                     shieldGains[entityA.id] = 0;
                                 shieldGains[entityA.id] += SHIELD_ABSORB;
+                            }
+                            // 速度球：给该球添加加速buff
+                            if (isFood && snapB.foodType == 4)
+                            {
+                                speedBuffGains[playerId] = true;
                             }
                         }
                     }
@@ -671,6 +696,21 @@ public static partial class Module
                 context.Db.shield.entity_id.Update(s);
             }
         }
+        // 速度球：添加/刷新速度buff
+        foreach(var kvp in speedBuffGains)
+        {
+            var existing = context.Db.speed_buff.player_id.Find(kvp.Key);
+            if (existing == null)
+            {
+                context.Db.speed_buff.Insert(new SpeedBuff { player_id = kvp.Key, expire_at_ms = nowMs + SPEED_DURATION_MS });
+            }
+            else
+            {
+                var sb = existing.Value;
+                sb.expire_at_ms = nowMs + SPEED_DURATION_MS; // 刷新过期时间
+                context.Db.speed_buff.player_id.Update(sb);
+            }
+        }
 
         // 删除被吃掉的实体
         foreach(var deadId in entitiesToDelete)
@@ -701,6 +741,14 @@ public static partial class Module
             if (now >= shield.expire_at_ms)
             {
                 context.Db.shield.entity_id.Delete(shield.entity_id);
+            }
+        }
+        // 速度buff过期检测
+        foreach (var sb in context.Db.speed_buff.Iter())
+        {
+            if (now >= sb.expire_at_ms)
+            {
+                context.Db.speed_buff.player_id.Delete(sb.player_id);
             }
         }
 

@@ -34,6 +34,7 @@ public class HudController : MonoBehaviour
 
     private int _selectedAmmo = 0;
     private double _shieldExpireMs;  // 护盾过期时间戳
+    private double _speedExpireMs;   // 加速过期时间戳
 
     void Awake()
     {
@@ -81,6 +82,20 @@ public class HudController : MonoBehaviour
                 buffTimers[0].text = $"{remaining:F1}s";
             }
         }
+        // 加速倒计时
+        if (_speedExpireMs > 0 && buffTimers != null && buffTimers.Length > 1 && buffTimers[1] != null)
+        {
+            double remaining = (_speedExpireMs - NowMs()) / 1000.0;
+            if (remaining <= 0)
+            {
+                _speedExpireMs = 0;
+                ClearBuff(1);
+            }
+            else
+            {
+                buffTimers[1].text = $"{remaining:F1}s";
+            }
+        }
     }
 
     private static double NowMs()
@@ -114,6 +129,21 @@ public class HudController : MonoBehaviour
         _shieldExpireMs = 0;
         SetShieldBar(0, 1);
         ClearBuff(0);
+    }
+
+    /// <summary>设置加速（激活图标和记录过期时间）</summary>
+    public void SetSpeed(double expireAtMs)
+    {
+        _speedExpireMs = expireAtMs;
+        if (buffIcons != null && buffIcons.Length > 1 && buffIcons[1] != null)
+            buffIcons[1].gameObject.SetActive(true);
+    }
+
+    /// <summary>清除加速</summary>
+    public void ClearSpeed()
+    {
+        _speedExpireMs = 0;
+        ClearBuff(1);
     }
 
     private void BuildDeathPanel()
