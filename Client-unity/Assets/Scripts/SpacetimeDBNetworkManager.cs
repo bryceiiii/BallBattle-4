@@ -70,8 +70,8 @@ public class SpacetimeDBNetworkManager : MonoBehaviour
                 ActiveModuleName = localModuleName;
                 break;
             case ConnectionMode.LAN:
-                // LAN 服务器无 TLS 证书，用 http://（非 https://），否则 TLS 握手直接失败
-                ActiveUri = $"http://{remoteHost}:{remotePort}";
+                // 局域网 IP 无 TLS 证书 → http；公网/Tunnel → https
+                ActiveUri = $"{(IsPrivateIP(remoteHost) ? "http" : "https")}://{remoteHost}:{remotePort}";
                 ActiveModuleName = localModuleName;
                 break;
             case ConnectionMode.Cloud:
@@ -237,5 +237,16 @@ public class SpacetimeDBNetworkManager : MonoBehaviour
     private void OnDestroy()
     {
         Db?.Disconnect();
+    }
+
+    // ponytail: 一行判断，覆盖 RFC 1918 全部私有网段
+    private static bool IsPrivateIP(string host)
+    {
+        return System.Net.IPAddress.TryParse(host, out var ip)
+            && ip.GetAddressBytes() is byte[] b && b.Length == 4
+            && (b[0] == 10
+                || (b[0] == 172 && b[1] >= 16 && b[1] <= 31)
+                || (b[0] == 192 && b[1] == 168)
+                || b[0] == 127);
     }
 }
