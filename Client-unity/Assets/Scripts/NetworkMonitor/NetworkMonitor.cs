@@ -17,9 +17,9 @@ public class NetworkMonitor : MonoBehaviour
 
     [Header("目标服务器")]
     [Tooltip("测试用的服务器地址（域名或IP，不含协议）")]
-    public string testHost = "100.86.230.25";
+    public string testHost = "dghcsj.com";
     [Tooltip("服务器端口")]
-    public int testPort = 3000;
+    public int testPort = 32038;
 
     [Header("采样参数")]
     [Tooltip("采样间隔（秒）")]

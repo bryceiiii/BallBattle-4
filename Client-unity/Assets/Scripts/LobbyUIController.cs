@@ -200,8 +200,8 @@ public class LobbyUIController : MonoBehaviour
 
     private void ApplyDefaults()
     {
-        if (ipInput != null) ipInput.text = "100.86.230.25";
-        if (portInput != null) portInput.text = "3000";
+        if (ipInput != null) ipInput.text = "119.91.223.73";
+        if (portInput != null) portInput.text = "32038";
         if (enterGameButton != null) enterGameButton.interactable = false;
         UpdateHostAddressHint();
     }

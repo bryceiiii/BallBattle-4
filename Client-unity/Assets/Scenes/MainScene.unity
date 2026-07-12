@@ -2054,25 +2054,6 @@ MonoBehaviour:
   enterGameButton: {fileID: 1090142697}
   connectButtonLabel: {fileID: 0}
   hostAddressHint: {fileID: 304956164}
---- !u!114 &1123676530
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 1123676519}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 1901fd15be8a30c45bbeb4eab33bd671, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: 
-  gistUrl: https://gist.githubusercontent.com/raw/f4e5a31c5d3d9622ddb92bc44101177d/tunnel-url
-  ipInput: {fileID: 0}
-  portInput: {fileID: 0}
-  statusText: {fileID: 0}
-  autoSwitchToLAN: 1
-  autoConnect: 0
-  fetchOnStart: 0
 --- !u!1 &1153791108
 GameObject:
   m_ObjectHideFlags: 0
@@ -2819,7 +2800,7 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: 3947259458137574062, guid: 9507752a624dac34187f275ab36d057c, type: 3}
       propertyPath: m_Text
-      value: 192.168.1.100
+      value: 100.86.230.25
       objectReference: {fileID: 0}
     - target: {fileID: 3947259458137574062, guid: 9507752a624dac34187f275ab36d057c, type: 3}
       propertyPath: m_FontData.m_MinSize
@@ -3190,9 +3171,6 @@ PrefabInstance:
     - targetCorrespondingSourceObject: {fileID: 142184882277637836, guid: 9507752a624dac34187f275ab36d057c, type: 3}
       insertIndex: -1
       addedObject: {fileID: 1123676525}
-    - targetCorrespondingSourceObject: {fileID: 142184882277637836, guid: 9507752a624dac34187f275ab36d057c, type: 3}
-      insertIndex: -1
-      addedObject: {fileID: 1123676530}
   m_SourcePrefab: {fileID: 100100000, guid: 9507752a624dac34187f275ab36d057c, type: 3}
 --- !u!1 &1345793220
 GameObject:
@@ -3815,6 +3793,7 @@ GameObject:
   - component: {fileID: 1848629071}
   - component: {fileID: 1848629073}
   - component: {fileID: 1848629072}
+  - component: {fileID: 1848629074}
   m_Layer: 0
   m_Name: GameManager
   m_TagString: Untagged
@@ -3864,9 +3843,10 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: cba74967233dd9d40abcf2ae1dc11a26, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  connectionMode: 0
-  remoteHost: 192.168.1.100
-  remotePort: 3000
+  connectionMode: 1
+  remoteHost: 119.91.223.73
+  remotePort: 32038
+  lanProtocol: 2
   localModuleName: ballbattle4
   cloudModuleName: ballbattle4v2
   enableAutoReconnect: 1
@@ -3889,9 +3869,29 @@ MonoBehaviour:
   healthOrbPrefab: {fileID: 7178747877447876419, guid: fa5a771487ffbd641aec41fc1070d3e3, type: 3}
   splitOrbPrefab: {fileID: 8993546225460653294, guid: 05683e810e69a624e917dd3e34973da6, type: 3}
   shieldOrbPrefab: {fileID: 9200952811818853029, guid: 7d5b11233a2fcf048a9b3711044f02f5, type: 3}
+  speedOrbPrefab: {fileID: 889799970613160979, guid: 715e7feeba5d0664fa54fe152e884fa7, type: 3}
   splitBulletPrefab: {fileID: 8993546225460653294, guid: 05683e810e69a624e917dd3e34973da6, type: 3}
   maxSplitAmmo: 5
   shieldEffectPrefab: {fileID: 1156984127363018566, guid: fc29aaa7eec02394081a7857388ad9b1, type: 3}
+--- !u!114 &1848629074
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1848629068}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 1901fd15be8a30c45bbeb4eab33bd671, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  gistUrl: https://gist.githubusercontent.com/raw/f4e5a31c5d3d9622ddb92bc44101177d/tunnel-url
+  ipInput: {fileID: 624498756}
+  portInput: {fileID: 1218850497}
+  statusText: {fileID: 1224802892}
+  autoSwitchToLAN: 1
+  autoConnect: 0
+  fetchOnStart: 0
 --- !u!1001 &1893851718
 PrefabInstance:
   m_ObjectHideFlags: 0
@@ -4195,8 +4195,8 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 6a7a40d6362dd1346b01c59ccaafc25b, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  testHost: 100.86.230.25
-  testPort: 3000
+  testHost: dghcsj.com
+  testPort: 32038
   sampleInterval: 0.5
   requestTimeout: 3
   listenConnection: 1

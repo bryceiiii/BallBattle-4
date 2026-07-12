@@ -10,6 +10,7 @@ public class SpacetimeDBNetworkManager : MonoBehaviour
     public static SpacetimeDBNetworkManager Instance { get; private set; }
 
     public enum ConnectionMode { Local, LAN, Cloud }
+    public enum LanProtocol { Http, Https, Auto }  // 协议选择：强制HTTP / 强制HTTPS / 自动判断
 
     [Header("连接模式")]
     public ConnectionMode connectionMode = ConnectionMode.Local;
@@ -17,6 +18,8 @@ public class SpacetimeDBNetworkManager : MonoBehaviour
     [Header("LAN / 远程服务器设置")]
     public string remoteHost = "192.168.1.100";
     public int remotePort = 3000;
+    [Tooltip("协议选择: Http(FRP/内网穿透) | Https(QuickTunnel) | Auto(自动判断)")]
+    public LanProtocol lanProtocol = LanProtocol.Http;  // FRP 默认无证书
 
     [Header("模块名称")]
     public string localModuleName = "ballbattle4";
@@ -70,8 +73,13 @@ public class SpacetimeDBNetworkManager : MonoBehaviour
                 ActiveModuleName = localModuleName;
                 break;
             case ConnectionMode.LAN:
-                // 局域网 IP 无 TLS 证书 → http；公网/Tunnel → https
-                ActiveUri = $"{(IsPrivateIP(remoteHost) ? "http" : "https")}://{remoteHost}:{remotePort}";
+                string scheme = lanProtocol switch
+                {
+                    LanProtocol.Http  => "http",
+                    LanProtocol.Https => "https",
+                    _                 => IsPrivateIP(remoteHost) ? "http" : "https"
+                };
+                ActiveUri = $"{scheme}://{remoteHost}:{remotePort}";
                 ActiveModuleName = localModuleName;
                 break;
             case ConnectionMode.Cloud:
@@ -97,11 +105,13 @@ public class SpacetimeDBNetworkManager : MonoBehaviour
         _reconnectAttempts = 0;
     }
 
-    public void ConnectToLAN(string host, int port, string moduleName = "ballbattle4")
+    public void ConnectToLAN(string host, int port, string moduleName = "ballbattle4",
+        LanProtocol protocol = LanProtocol.Http)
     {
         connectionMode = ConnectionMode.LAN;
         remoteHost = host;
         remotePort = port;
+        lanProtocol = protocol;
         localModuleName = moduleName;
         Connect();
     }
