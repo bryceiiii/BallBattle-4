@@ -453,7 +453,7 @@ RectTransform:
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
   m_AnchorMin: {x: 0.5, y: 0.5}
   m_AnchorMax: {x: 0.5, y: 0.5}
-  m_AnchoredPosition: {x: 29.936, y: 235}
+  m_AnchoredPosition: {x: 0, y: 423}
   m_SizeDelta: {x: 345.5, y: 65.8341}
   m_Pivot: {x: 0.5, y: 0.5}
 --- !u!114 &84331965
@@ -483,7 +483,7 @@ MonoBehaviour:
     m_BestFit: 0
     m_MinSize: 3
     m_MaxSize: 40
-    m_Alignment: 0
+    m_Alignment: 1
     m_AlignByGeometry: 0
     m_RichText: 1
     m_HorizontalOverflow: 0
@@ -1718,7 +1718,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   m_Material: {fileID: 0}
-  m_Color: {r: 1, g: 1, b: 1, a: 0.392}
+  m_Color: {r: 1, g: 1, b: 1, a: 0.49019608}
   m_RaycastTarget: 1
   m_RaycastPadding: {x: 0, y: 0, z: 0, w: 0}
   m_Maskable: 1
@@ -1810,7 +1810,7 @@ GameObject:
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
-  m_IsActive: 1
+  m_IsActive: 0
 --- !u!224 &958606104
 RectTransform:
   m_ObjectHideFlags: 0
@@ -1827,7 +1827,7 @@ RectTransform:
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
   m_AnchorMin: {x: 0.5, y: 0.5}
   m_AnchorMax: {x: 0.5, y: 0.5}
-  m_AnchoredPosition: {x: 29.936195, y: -208}
+  m_AnchoredPosition: {x: 29.936195, y: 486}
   m_SizeDelta: {x: 345.5059, y: 61}
   m_Pivot: {x: 0.5, y: 0.5}
 --- !u!114 &958606105
@@ -2263,7 +2263,7 @@ RectTransform:
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
   m_AnchorMin: {x: 0.5, y: 0.5}
   m_AnchorMax: {x: 0.5, y: 0.5}
-  m_AnchoredPosition: {x: -5.907, y: -303}
+  m_AnchoredPosition: {x: -5.907, y: -482}
   m_SizeDelta: {x: 388.906, y: 72.9192}
   m_Pivot: {x: 0.5, y: 0.5}
 --- !u!114 &1098029876
@@ -4321,8 +4321,53 @@ MonoBehaviour:
   - skinName: "\u8004\u800B\u60CA\u8BB6"
     sprite: {fileID: 21300000, guid: 2d783e7e544713c469b9a3a1d6e23c65, type: 3}
     tintColor: {r: 1, g: 1, b: 1, a: 1}
-  - skinName: "\u5C0F\u8004"
+  - skinName: "\u666E\u901A\u8004\u800B"
     sprite: {fileID: 21300000, guid: 8c2d0ea422091c1499ec223a164cca0d, type: 3}
+    tintColor: {r: 1, g: 1, b: 1, a: 1}
+  - skinName: cheems
+    sprite: {fileID: 21300000, guid: a4463536fcd9b674fac7e96db108f771, type: 3}
+    tintColor: {r: 1, g: 1, b: 1, a: 1}
+  - skinName: "\u5976\u9F99\u618B\u7B11"
+    sprite: {fileID: 21300000, guid: 59560ba6a80ad194581eebfbade91bda, type: 3}
+    tintColor: {r: 1, g: 1, b: 1, a: 1}
+  - skinName: "\u59B9\u59B9\u9119\u89C6"
+    sprite: {fileID: 21300000, guid: f25d6155fb9017e47b94357e7c158494, type: 3}
+    tintColor: {r: 1, g: 1, b: 1, a: 1}
+  - skinName: "\u5F97\u5403\u732B"
+    sprite: {fileID: 21300000, guid: d4f546497bd14f24e8747541290f99f4, type: 3}
+    tintColor: {r: 1, g: 1, b: 1, a: 1}
+  - skinName: "\u60CA\u8BB6\u732B"
+    sprite: {fileID: 21300000, guid: fe3dfd949f76bc94fb78203d8b9062d2, type: 3}
+    tintColor: {r: 1, g: 1, b: 1, a: 1}
+  - skinName: "\u5F97\u5403\u9F20\u9F20"
+    sprite: {fileID: 21300000, guid: 782d50515f260a24f8a73ebd30dc474e, type: 3}
+    tintColor: {r: 1, g: 1, b: 1, a: 1}
+  - skinName: "\u6C89\u601D\u5976\u9F99"
+    sprite: {fileID: 21300000, guid: c1e6b996455739a45858d17b41292d1a, type: 3}
+    tintColor: {r: 1, g: 1, b: 1, a: 1}
+  - skinName: "\u75DE\u8001\u677F1\u53F7"
+    sprite: {fileID: 21300000, guid: 47b9ad5f6fd580f4aac70234b7fb0b0d, type: 3}
+    tintColor: {r: 1, g: 1, b: 1, a: 1}
+  - skinName: "\u75DE\u8001\u677F2\u53F7"
+    sprite: {fileID: 21300000, guid: f4f8c77c124d97d4cba3631c36d466d1, type: 3}
+    tintColor: {r: 1, g: 1, b: 1, a: 1}
+  - skinName: "\u8004\u800B1\u53F7"
+    sprite: {fileID: 21300000, guid: 1d4faac58baa78749bd2773045a76263, type: 3}
+    tintColor: {r: 1, g: 1, b: 1, a: 1}
+  - skinName: "\u9F20\u9F20"
+    sprite: {fileID: 21300000, guid: 3ce209e91d8dbc44da9ad6ab054a222e, type: 3}
+    tintColor: {r: 1, g: 1, b: 1, a: 1}
+  - skinName: "\u9F20\u9F20\u732B"
+    sprite: {fileID: 21300000, guid: 04ece904e711b93489a685e7f0476929, type: 3}
+    tintColor: {r: 1, g: 1, b: 1, a: 1}
+  - skinName: "\u59B9\u59B9\u6342\u8138"
+    sprite: {fileID: 21300000, guid: 026136f6c32b15e429523c07e467c116, type: 3}
+    tintColor: {r: 1, g: 1, b: 1, a: 1}
+  - skinName: "\u59B9\u59B9\u538C\u6076"
+    sprite: {fileID: 21300000, guid: d7bf78022c701b644b9bb16702a31f6a, type: 3}
+    tintColor: {r: 1, g: 1, b: 1, a: 1}
+  - skinName: "\u59B9\u59B9\u9119\u89C62"
+    sprite: {fileID: 21300000, guid: 9674ee2e9edbe064891e0a9a65472046, type: 3}
     tintColor: {r: 1, g: 1, b: 1, a: 1}
 --- !u!4 &1753277340
 Transform:
@@ -4757,7 +4802,7 @@ GameObject:
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
-  m_IsActive: 1
+  m_IsActive: 0
 --- !u!4 &1973850999
 Transform:
   m_ObjectHideFlags: 0
