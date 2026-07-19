@@ -119,15 +119,31 @@ public class CircleController : MonoBehaviour
     }
 
     /// <summary>
-    /// 应用本地玩家视觉（名字绿色）。
+    /// 应用本地玩家视觉（名字绿色 + 皮肤）。
     /// 由 GameManager 在设置 isLocalPlayer 后调用，
     /// 因为 Instantiate 时 Start() 先于 isLocalPlayer 赋值执行。
     /// </summary>
     public void ApplyLocalPlayerVisual()
     {
-        if (isLocalPlayer && nameText != null)
+        if (!isLocalPlayer) return;
+
+        if (nameText != null)
         {
             nameText.color = Color.green;
+        }
+
+        // 应用皮肤（从 SkinManager 读取选中皮肤并设置 SpriteRenderer）
+        var skinMgr = SkinManager.Instance;
+        if (skinMgr != null && skinMgr.HasValidSelection)
+        {
+            var sr = GetComponent<SpriteRenderer>();
+            if (sr != null && skinMgr.SelectedSkin.sprite != null)
+            {
+                sr.sprite = skinMgr.SelectedSkin.sprite;
+                //sr.size = Vector2.one;//强制刷新 SpriteRenderer 尺寸，避免皮肤切换后尺寸异常
+                sr.color = skinMgr.SelectedSkin.tintColor;
+                Debug.Log($"[CircleController] 已应用皮肤: {skinMgr.SelectedSkin.skinName}");
+            }
         }
     }
 

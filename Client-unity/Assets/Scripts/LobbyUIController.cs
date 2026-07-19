@@ -41,6 +41,9 @@ public class LobbyUIController : MonoBehaviour
     [Header("本机IP提示")]
     public Text hostAddressHint;
 
+    [Header("皮肤选择")]
+    public SkinSelectionUIController skinSelectionUI;
+
     private bool _isConnected = false;
     private int _currentMode = 0; // 0=本机, 1=LAN, 2=云端
 
@@ -240,6 +243,20 @@ public class LobbyUIController : MonoBehaviour
     private void OnEnterGameClicked()
     {
         if (!_isConnected) return;
+        EnterGameInternal();
+    }
+
+    /// <summary>
+    /// 皮肤选择面板确认后的回调 —— 进入游戏。
+    /// </summary>
+    public void OnSkinConfirmed()
+    {
+        if (!_isConnected) return;
+        EnterGameInternal();
+    }
+
+    private void EnterGameInternal()
+    {
         var conn = SpacetimeDBNetworkManager.Instance?.Db;
         string playerName = playerNameInput != null ? playerNameInput.text.Trim() : "Player";
         if (string.IsNullOrEmpty(playerName)) playerName = "Player" + Random.Range(100, 999);
@@ -260,9 +277,20 @@ public class LobbyUIController : MonoBehaviour
     {
         _isConnected = true;
         if (statusText != null) { statusText.text = "已连接到服务器！"; statusText.color = Green; }
-        if (enterGameButton != null) enterGameButton.interactable = true;
         if (connectButton != null) connectButton.interactable = false;
         UpdateHostAddressHint();
+
+        // 连接成功后 → 显示皮肤选择面板，而非直接允许进入游戏
+        if (skinSelectionUI != null)
+        {
+            if (lobbyPanel != null) lobbyPanel.SetActive(false);
+            skinSelectionUI.Show();
+        }
+        else
+        {
+            // 兜底：未挂载皮肤选择UI则保持旧行为
+            if (enterGameButton != null) enterGameButton.interactable = true;
+        }
     }
 
     private void OnNetworkConnectFailed(string error)
