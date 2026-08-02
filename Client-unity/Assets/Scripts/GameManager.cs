@@ -183,6 +183,11 @@ public class GameManager : MonoBehaviour
         if (Circles.TryGetValue(newC.EntityId, out var go))
         {
             var ctrl = go.GetComponent<CircleController>();
+
+            // 皮肤变更：UpdatePlayerSkin 更新现存球时触发
+            if (oldC.SkinIndex != newC.SkinIndex)
+                ctrl.ApplySkinByIndex(newC.SkinIndex);
+
             if (newC.IsMerging)
             {
                 // 服务端在 splitFromEntityId 里存了合并目标球的大球 entity_id
@@ -273,6 +278,9 @@ public class GameManager : MonoBehaviour
 
         // 碰撞：同玩家球物理互推，不同玩家球穿透（服务端判吞噬）
         SetupCrossPlayerCollisionIgnore(controller);
+
+        // 皮肤：根据服务端同步的 skin_index 应用到所有球（本地和远程）
+        controller.ApplySkinByIndex(row.SkinIndex);
 
         if (player.Identity == localIdentity)
         {
@@ -715,12 +723,26 @@ public class GameManager : MonoBehaviour
     /// <summary>重新开始游戏（死亡画面按钮回调）</summary>
     public void RespawnPlayer()
     {
-        // 调用 EnterGame 重新进入
         if (Conn != null)
         {
-            string playerName = InputField != null ? InputField.text.Trim() : "Player";
-            if (string.IsNullOrEmpty(playerName)) playerName = "Player" + UnityEngine.Random.Range(100, 999);
+            string playerName = GetSavedPlayerName();
+            if (string.IsNullOrEmpty(playerName))
+                playerName = "Player" + UnityEngine.Random.Range(100, 999);
             Conn.Reducers.EnterGame(playerName);
         }
+    }
+
+    /// <summary>获取已保存的玩家名称（优先 InputField → 服务端已有名）</summary>
+    private string GetSavedPlayerName()
+    {
+        if (InputField != null && !string.IsNullOrEmpty(InputField.text.Trim()))
+            return InputField.text.Trim();
+        if (Conn != null && Conn.Identity.HasValue)
+        {
+            var p = Conn.Db.LoggedInPlayer.Identity.Find(Conn.Identity.Value);
+            if (p != null && !string.IsNullOrEmpty(p.Name))
+                return p.Name;
+        }
+        return null;
     }
 }

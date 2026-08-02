@@ -22,7 +22,7 @@ public class SpacetimeDBNetworkManager : MonoBehaviour
     public LanProtocol lanProtocol = LanProtocol.Http;  // FRP 默认无证书
 
     [Header("模块名称")]
-    public string localModuleName = "ballbattle4";
+    public string localModuleName = "ballbattle5";
     public string cloudModuleName = "ballbattle4v2";
 
     const string CloudUri = "wss://maincloud.spacetimedb.com";

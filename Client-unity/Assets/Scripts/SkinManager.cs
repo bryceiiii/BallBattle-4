@@ -65,6 +65,13 @@ public class SkinManager : MonoBehaviour
             SelectedSkinIndex = index;
             Debug.Log($"[SkinManager] 选中皮肤 [{index}]: {skins[index].skinName}");
             OnSkinChanged?.Invoke(index, skins[index]);
+
+            // 通知服务器皮肤变更
+            var conn = SpacetimeDBNetworkManager.Instance?.Db;
+            if (conn != null)
+            {
+                conn.Reducers.UpdatePlayerSkin(index);
+            }
         }
         return true;
     }
@@ -89,4 +96,11 @@ public class SkinManager : MonoBehaviour
     /// 是否有有效的皮肤被选中。
     /// </summary>
     public bool HasValidSelection => SelectedSkinIndex >= 0 && SelectedSkinIndex < skins.Count;
+
+    /// <summary>根据索引获取皮肤定义（供远程玩家球查询）</summary>
+    public SkinDef GetSkinByIndex(int index)
+    {
+        if (index < 0 || index >= skins.Count) return null;
+        return skins[index];
+    }
 }

@@ -608,10 +608,12 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: fd6c88589c42df649a888bf58f601b60, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  smoothSpeed: 3.5
+  smoothSpeed: 7
   sizeSmoothSpeed: 2
   minSize: 5
   padding: 2
+  diameterMargin: 0.4
+  maxSize: 0
 --- !u!114 &183541908 stripped
 MonoBehaviour:
   m_CorrespondingSourceObject: {fileID: 4720037635312339593, guid: ff1202a3dac600a4ab91108e1d3b48d6, type: 3}

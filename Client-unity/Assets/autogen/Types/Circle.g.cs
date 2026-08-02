@@ -25,6 +25,8 @@ namespace SpacetimeDB.Types
         public bool IsSplitting;
         [DataMember(Name = "splitFromEntityId")]
         public int SplitFromEntityId;
+        [DataMember(Name = "skin_index")]
+        public int SkinIndex;
 
         public Circle(
             int EntityId,
@@ -32,7 +34,8 @@ namespace SpacetimeDB.Types
             double TouchStartMs,
             bool IsMerging,
             bool IsSplitting,
-            int SplitFromEntityId
+            int SplitFromEntityId,
+            int SkinIndex
         )
         {
             this.EntityId = EntityId;
@@ -41,6 +44,7 @@ namespace SpacetimeDB.Types
             this.IsMerging = IsMerging;
             this.IsSplitting = IsSplitting;
             this.SplitFromEntityId = SplitFromEntityId;
+            this.SkinIndex = SkinIndex;
         }
 
         public Circle()

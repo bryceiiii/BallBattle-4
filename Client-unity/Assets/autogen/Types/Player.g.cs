@@ -21,18 +21,30 @@ namespace SpacetimeDB.Types
         public string Name;
         [DataMember(Name = "dir")]
         public DbVector2 Dir;
+        [DataMember(Name = "respawn_mass")]
+        public double RespawnMass;
+        [DataMember(Name = "invincible_until_ms")]
+        public double InvincibleUntilMs;
+        [DataMember(Name = "skin_index")]
+        public int SkinIndex;
 
         public Player(
             SpacetimeDB.Identity Identity,
             int PlayerId,
             string Name,
-            DbVector2 Dir
+            DbVector2 Dir,
+            double RespawnMass,
+            double InvincibleUntilMs,
+            int SkinIndex
         )
         {
             this.Identity = Identity;
             this.PlayerId = PlayerId;
             this.Name = Name;
             this.Dir = Dir;
+            this.RespawnMass = RespawnMass;
+            this.InvincibleUntilMs = InvincibleUntilMs;
+            this.SkinIndex = SkinIndex;
         }
 
         public Player()

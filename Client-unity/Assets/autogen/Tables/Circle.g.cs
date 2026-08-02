@@ -55,6 +55,7 @@ namespace SpacetimeDB.Types
         public global::SpacetimeDB.Col<Circle, bool> IsMerging { get; }
         public global::SpacetimeDB.Col<Circle, bool> IsSplitting { get; }
         public global::SpacetimeDB.Col<Circle, int> SplitFromEntityId { get; }
+        public global::SpacetimeDB.Col<Circle, int> SkinIndex { get; }
 
         public CircleCols(string tableName)
         {
@@ -64,6 +65,7 @@ namespace SpacetimeDB.Types
             IsMerging = new global::SpacetimeDB.Col<Circle, bool>(tableName, "isMerging");
             IsSplitting = new global::SpacetimeDB.Col<Circle, bool>(tableName, "isSplitting");
             SplitFromEntityId = new global::SpacetimeDB.Col<Circle, int>(tableName, "splitFromEntityId");
+            SkinIndex = new global::SpacetimeDB.Col<Circle, int>(tableName, "skin_index");
         }
     }
 

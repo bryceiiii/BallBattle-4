@@ -119,31 +119,36 @@ public class CircleController : MonoBehaviour
     }
 
     /// <summary>
-    /// 应用本地玩家视觉（名字绿色 + 皮肤）。
-    /// 由 GameManager 在设置 isLocalPlayer 后调用，
-    /// 因为 Instantiate 时 Start() 先于 isLocalPlayer 赋值执行。
+    /// 根据此球的 skin_index 应用皮肤（对本地和远程玩家都生效）。
+    /// </summary>
+    public void ApplySkinByIndex(int skinIndex)
+    {
+        if (skinIndex <= 0) return; // 0 = 默认皮肤，不替换
+
+        var skinMgr = SkinManager.Instance;
+        if (skinMgr == null) return;
+
+        var skinDef = skinMgr.GetSkinByIndex(skinIndex);
+        if (skinDef == null || skinDef.sprite == null) return;
+
+        var sr = GetComponent<SpriteRenderer>();
+        if (sr != null)
+        {
+            sr.sprite = skinDef.sprite;
+            sr.color = skinDef.tintColor;
+        }
+    }
+
+    /// <summary>
+    /// 应用本地玩家视觉（名字绿色）。
+    /// 由 GameManager 在设置 isLocalPlayer 后调用。
     /// </summary>
     public void ApplyLocalPlayerVisual()
     {
-        if (!isLocalPlayer) return;
-
         if (nameText != null)
         {
-            nameText.color = Color.green;
-        }
-
-        // 应用皮肤（从 SkinManager 读取选中皮肤并设置 SpriteRenderer）
-        var skinMgr = SkinManager.Instance;
-        if (skinMgr != null && skinMgr.HasValidSelection)
-        {
-            var sr = GetComponent<SpriteRenderer>();
-            if (sr != null && skinMgr.SelectedSkin.sprite != null)
-            {
-                sr.sprite = skinMgr.SelectedSkin.sprite;
-                //sr.size = Vector2.one;//强制刷新 SpriteRenderer 尺寸，避免皮肤切换后尺寸异常
-                sr.color = skinMgr.SelectedSkin.tintColor;
-                Debug.Log($"[CircleController] 已应用皮肤: {skinMgr.SelectedSkin.skinName}");
-            }
+            // 本地玩家名字绿色，其他玩家名字白色
+            nameText.color = isLocalPlayer ? Color.green : Color.white;
         }
     }
 
@@ -253,6 +258,8 @@ public class CircleController : MonoBehaviour
         if (nameText != null)
         {
             nameText.text = name;
+            // 本地玩家名字绿色，其他玩家名字白色
+            nameText.color = isLocalPlayer ? Color.green : Color.white;
         }
     }
 

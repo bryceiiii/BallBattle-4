@@ -648,6 +648,7 @@ namespace SpacetimeDB.Types
                 Reducer.ShootBullet args => Reducers.InvokeShootBullet(eventContext, args),
                 Reducer.SplitPlayer args => Reducers.InvokeSplitPlayer(eventContext, args),
                 Reducer.UpdatePlayerDir args => Reducers.InvokeUpdatePlayerDir(eventContext, args),
+                Reducer.UpdatePlayerSkin args => Reducers.InvokeUpdatePlayerSkin(eventContext, args),
                 _ => throw new ArgumentOutOfRangeException("Reducer", $"Unknown reducer {reducer}")
             };
         }

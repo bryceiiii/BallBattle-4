@@ -53,6 +53,9 @@ namespace SpacetimeDB.Types
         public global::SpacetimeDB.Col<Player, int> PlayerId { get; }
         public global::SpacetimeDB.Col<Player, string> Name { get; }
         public global::SpacetimeDB.Col<Player, DbVector2> Dir { get; }
+        public global::SpacetimeDB.Col<Player, double> RespawnMass { get; }
+        public global::SpacetimeDB.Col<Player, double> InvincibleUntilMs { get; }
+        public global::SpacetimeDB.Col<Player, int> SkinIndex { get; }
 
         public LoggedInPlayerCols(string tableName)
         {
@@ -60,6 +63,9 @@ namespace SpacetimeDB.Types
             PlayerId = new global::SpacetimeDB.Col<Player, int>(tableName, "player_id");
             Name = new global::SpacetimeDB.Col<Player, string>(tableName, "name");
             Dir = new global::SpacetimeDB.Col<Player, DbVector2>(tableName, "dir");
+            RespawnMass = new global::SpacetimeDB.Col<Player, double>(tableName, "respawn_mass");
+            InvincibleUntilMs = new global::SpacetimeDB.Col<Player, double>(tableName, "invincible_until_ms");
+            SkinIndex = new global::SpacetimeDB.Col<Player, int>(tableName, "skin_index");
         }
     }
 

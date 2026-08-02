@@ -12,8 +12,7 @@ public static partial class Module
     // 将质量相关的常量改为 float 类型
     private static float PRIMARY_PLAYER_MASS = 5.0f;
     private static int TARGET_FOOD_COUNT = 200;
-    private static float FOOD_MASS = 2.0f;
-    private static int START_PLAYER_SPEED = 26;
+    private static int START_PLAYER_SPEED = 14;
     private static float MIN_SPLIT_MASS = 10.0f; // 允许分裂的最小质量
     private static int MAX_CIRCLES_PER_PLAYER = 16; // 每人最多球数，防止分裂过多导致O(n?)碰撞检测卡顿
     //合并配置
@@ -130,6 +129,7 @@ public static partial class Module
         public bool isMerging;
         public bool isSplitting; //新增：正在分裂动画标记
         public int splitFromEntityId; //新增：如果正在分裂，记录来源球的entity_id
+        public int skin_index; // 新增：皮肤索引，0=默认皮肤
     }
     [Table(Name = "logged_in_player", Public = true)]
     [Table(Name = "logged_out_player", Public = true)]
@@ -141,6 +141,10 @@ public static partial class Module
         public int player_id;//控制多少个球
         public string name;
         public DbVector2 dir;
+        // 重生继承
+        public double respawn_mass;        // 上次死亡时总质量的10%，重生时使用
+        public double invincible_until_ms;  // 无敌截止时间戳(ms)，0=无无敌
+        public int skin_index;             // 当前使用的皮肤索引，0=默认
     }
     [Reducer]
     public static void UpdatePlayerDir(ReducerContext context, DbVector2 dir)
@@ -148,6 +152,23 @@ public static partial class Module
         var player = context.Db.logged_in_player.Identity.Find(context.Sender)??throw new Exception("未找到对应的玩家");
         player.dir = dir;
         context.Db.logged_in_player.Identity.Update(player);
+    }
+
+    [Reducer]
+    public static void UpdatePlayerSkin(ReducerContext context, int skinIndex)
+    {
+        var player = context.Db.logged_in_player.Identity.Find(context.Sender)
+                     ?? throw new Exception("未找到对应的玩家");
+        player.skin_index = skinIndex;
+        context.Db.logged_in_player.Identity.Update(player);
+
+        // 同时更新该玩家所有现存球的 skin_index
+        foreach (var circle in context.Db.circle.player_id.Filter(player.player_id))
+        {
+            var c = circle;
+            c.skin_index = skinIndex;
+            context.Db.circle.entity_id.Update(c);
+        }
     }
 
     [Reducer]
@@ -200,6 +221,10 @@ public static partial class Module
             if (b.owner_player_id == player.player_id) bulletCount++;
 
         // 遍历玩家所有非合并中的球，每球发射一发
+        // 方向统一：用第一个有效球算一次方向，所有子弹共享同一方向
+        float sharedDirX = 0, sharedDirY = 0;
+        bool dirCalculated = false;
+
         foreach (var c in context.Db.circle.player_id.Filter(player.player_id))
         {
             if (c.isMerging) continue;
@@ -228,14 +253,18 @@ public static partial class Module
             UpdateHpAfterMassChange(ref ent);
             context.Db.entity.id.Update(ent);
 
-            // 每球独立计算朝向目标的方向
-            float bDirX = targetX - ent.position.x;
-            float bDirY = targetY - ent.position.y;
-            float bLen = MathF.Sqrt(bDirX * bDirX + bDirY * bDirY);
-            if (bLen < 0.001f) { bDirX = 1f; bDirY = 0f; }
-            else { bDirX /= bLen; bDirY /= bLen; }
+            // 方向统一：只用第一个有效球计算一次，所有子弹飞同一方向
+            if (!dirCalculated)
+            {
+                sharedDirX = targetX - ent.position.x;
+                sharedDirY = targetY - ent.position.y;
+                float bLen = MathF.Sqrt(sharedDirX * sharedDirX + sharedDirY * sharedDirY);
+                if (bLen < 0.001f) { sharedDirX = 1f; sharedDirY = 0f; }
+                else { sharedDirX /= bLen; sharedDirY /= bLen; }
+                dirCalculated = true;
+            }
 
-            // 生成子弹
+            // 生成子弹（使用统一方向）
             var bulletEntity = context.Db.entity.Insert(new Entity
             {
                 mass = 0.3f,
@@ -247,8 +276,8 @@ public static partial class Module
             {
                 entity_id = bulletEntity.id,
                 owner_player_id = player.player_id,
-                dir_x = bDirX,
-                dir_y = bDirY,
+                dir_x = sharedDirX,
+                dir_y = sharedDirY,
                 spawned_at_ms = now,
                 bullet_type = bulletType
             });
@@ -288,19 +317,33 @@ public static partial class Module
     public static void EnterGame(ReducerContext context,string name) 
     { 
         var player = context.Db.logged_in_player.Identity.Find(context.Sender)??throw new Exception("未找到对应的玩家");
-        player.name = name;
+        // 名字继承：如果已有名字则保留，否则使用新名字
+        if (!string.IsNullOrEmpty(name))
+            player.name = name;
         context.Db.logged_in_player.Identity.Update(player);
 
         var x = context.Rng.Next(1, WORLD_SIZE - 1);
         var y = context.Rng.Next(1, WORLD_SIZE - 1);
 
+        // 重生继承：使用上次死亡时记录的10%质量
+        float startMass = PRIMARY_PLAYER_MASS;
+        double now = context.Timestamp.ToTimeSpanSinceUnixEpoch().TotalMilliseconds;
+        if (player.respawn_mass > 0)
+        {
+            startMass = (float)player.respawn_mass;
+            player.respawn_mass = 0; // 已使用，清零
+        }
+        // 5秒无敌
+        player.invincible_until_ms = now + 5000;
+        context.Db.logged_in_player.Identity.Update(player);
+
         //生成玩家球体
         var entity = context.Db.entity.Insert(new Entity
         {
-            mass = PRIMARY_PLAYER_MASS,
+            mass = startMass,
             position = new DbVector2(x,y),//调用构造函数创建DbVector2实例
-            hp = ComputeMaxHp(PRIMARY_PLAYER_MASS),
-            max_hp = ComputeMaxHp(PRIMARY_PLAYER_MASS)
+            hp = ComputeMaxHp(startMass),
+            max_hp = ComputeMaxHp(startMass)
         });
         context.Db.circle.Insert(new Circle
         {
@@ -309,7 +352,8 @@ public static partial class Module
             touchStartMs = 0,
             isMerging = false,
             isSplitting = false,
-            splitFromEntityId = 0
+            splitFromEntityId = 0,
+            skin_index = player.skin_index
         });
 
     }
@@ -476,6 +520,15 @@ public static partial class Module
         var speedBuffGains = new System.Collections.Generic.Dictionary<int, bool>(); // player_id → 速度buff
         var entitiesToDelete = new System.Collections.Generic.HashSet<int>();
 
+        // 预建无敌玩家集合（相同 tick 内判断一次，避免每条 entity 都查 player 表）
+        double nowMs = context.Timestamp.ToTimeSpanSinceUnixEpoch().TotalMilliseconds;
+        var invinciblePlayers = new System.Collections.Generic.Dictionary<int, bool>();
+        foreach (var p in context.Db.logged_in_player.Iter())
+        {
+            if (p.invincible_until_ms > 0 && p.invincible_until_ms > nowMs)
+                invinciblePlayers[p.player_id] = true;
+        }
+
         // 【性能优化 P0】在 playerBalls 遍历中同时预建 entity 类型快照，
         // 避免吞噬双循环内每条都查 circle/food 表（原先 O(n*m) 次 Find 降为 O(1) 字典查）
         Dictionary<int, List<(Entity entity, int eid)>> playerBalls = new();
@@ -522,6 +575,11 @@ public static partial class Module
 
                         if (isFood || (isOtherPlayer && entityA.mass > entityB.mass))
                         {
+                            // 无敌保护：无敌玩家不能被吃
+                            if (isOtherPlayer && snapB.circlePlayerId.HasValue &&
+                                invinciblePlayers.ContainsKey(snapB.circlePlayerId.Value))
+                                continue;
+
                             // 标记 B 被吃掉
                             entitiesToDelete.Add(entityB.id);
 
@@ -673,7 +731,7 @@ public static partial class Module
             }
         }
         // 护盾球：给球体增加护盾
-        double nowMs = context.Timestamp.ToTimeSpanSinceUnixEpoch().TotalMilliseconds;
+        nowMs = context.Timestamp.ToTimeSpanSinceUnixEpoch().TotalMilliseconds;
         foreach(var kvp in shieldGains)
         {
             var existingShield = context.Db.shield.entity_id.Find(kvp.Key);
@@ -827,6 +885,18 @@ public static partial class Module
             var target = targetNullable.Value;
 
             float damage = kv.Value;
+
+            // 无敌保护：无敌玩家不受伤害
+            {
+                var hitCircle = context.Db.circle.entity_id.Find(kv.Key);
+                if (hitCircle != null)
+                {
+                    var hitPlayer = context.Db.logged_in_player.player_id.Find(hitCircle.Value.player_id);
+                    if (hitPlayer != null && hitPlayer.Value.invincible_until_ms > now)
+                        continue; // 无敌，跳过伤害
+                }
+            }
+
             // 护盾吸收伤害
             var shieldNullable = context.Db.shield.entity_id.Find(kv.Key);
             if (shieldNullable != null)
@@ -846,10 +916,36 @@ public static partial class Module
             if (target.hp > target.max_hp) target.hp = target.max_hp;
             context.Db.entity.id.Update(target);
 
-            // HP=0 则死亡：散落食物、删除实体
+            // HP=0 则死亡：记录继承质量、散落食物、删除实体
             if (target.hp <= 0)
             {
                 Log.Info($"[击杀] 实体 {target.id} 被子弹打死！");
+
+                // 查找死亡球所属玩家
+                var deadCircle = context.Db.circle.entity_id.Find(target.id);
+                int deadPlayerId = deadCircle?.player_id ?? 0;
+
+                if (deadPlayerId > 0)
+                {
+                    // 计算该玩家当前所有球的总质量
+                    float totalMass = 0f;
+                    foreach (var c in context.Db.circle.player_id.Filter(deadPlayerId))
+                    {
+                        var e = context.Db.entity.id.Find(c.entity_id);
+                        if (e != null) totalMass += e.Value.mass;
+                    }
+                    // 存储 10% 给下次重生
+                    var deadPlayer = context.Db.logged_in_player.player_id.Find(deadPlayerId);
+                    if (deadPlayer != null)
+                    {
+                        var dp = deadPlayer.Value;
+                        dp.respawn_mass = (double)(totalMass * 0.1f);
+                        if (dp.respawn_mass < PRIMARY_PLAYER_MASS)
+                            dp.respawn_mass = PRIMARY_PLAYER_MASS; // 保底不低于初始质量
+                        context.Db.logged_in_player.player_id.Update(dp);
+                    }
+                }
+
                 // 散落食物
                 int dropCount = 3 + (int)(target.mass * 0.05f);
                 if (dropCount > 8) dropCount = 8;
@@ -917,7 +1013,8 @@ public static partial class Module
                 touchStartMs = 0,
                 isMerging = false,
                 isSplitting = true,
-                splitFromEntityId = targetEid
+                splitFromEntityId = targetEid,
+                skin_index = tgtCircleNullable.Value.skin_index
             });
         }
 
@@ -1070,7 +1167,7 @@ public static partial class Module
                     max_hp = ComputeMaxHp(halfMass)
                 });
 
-                // 3. 将新实体与玩家绑定
+                // 3. 将新实体与玩家绑定（继承源球的皮肤）
                 context.Db.circle.Insert(new Circle
                 {
                     entity_id = newEntity.id,
@@ -1078,7 +1175,8 @@ public static partial class Module
                     touchStartMs = 0,
                     isMerging = false,
                     isSplitting = true, // 标记为正在分裂动画
-                    splitFromEntityId = entity.id // 记录来源球的entity_id
+                    splitFromEntityId = entity.id, // 记录来源球的entity_id
+                    skin_index = circle.skin_index
                 });
                 splitCount++; // 成功分裂一个，计数
             }
