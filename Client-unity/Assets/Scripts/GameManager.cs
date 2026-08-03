@@ -13,7 +13,7 @@ public class GameManager : MonoBehaviour
     public GameObject bulletPrefab;      // ×Óµ¯Ô¤ÖÆÌå£¨ÍÏ×§£©
 
     private static Dictionary<int, GameObject> Entities = new Dictionary<int, GameObject>();
-    private static Dictionary<int, GameObject> Circles = new Dictionary<int, GameObject>();
+    public static Dictionary<int, GameObject> Circles = new Dictionary<int, GameObject>();
     private static Dictionary<int, GameObject> Bullets = new Dictionary<int, GameObject>();
 
     private static Dictionary<int, List<int>> PlayerBallMap = new Dictionary<int, List<int>>();

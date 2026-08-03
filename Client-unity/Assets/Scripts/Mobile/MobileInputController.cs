@@ -4,47 +4,42 @@ using UnityEngine.EventSystems;
 using SpacetimeDB.Types;
 
 /// <summary>
-/// 手机端输入控制器。使用虚拟摇杆 + 触屏射击替代 PC 的 WASD + 鼠标控制。
+/// 手机端输入控制器。左摇杆控制移动，右摇杆控制瞄准+射击。
 /// 同时保留 PC 输入兼容性（自动检测平台）。
 /// </summary>
 public class MobileInputController : MonoBehaviour
 {
     public static MobileInputController Instance { get; private set; }
 
-    // ===== 虚拟摇杆引用 =====
+    // ===== 虚拟摇杆 =====
     [Header("摇杆")]
-    public VirtualJoystick moveJoystick;
+    public VirtualJoystick moveJoystick;   // 左侧：移动
+    public VirtualJoystick aimJoystick;    // 右侧：瞄准 + 射击
 
-    // ===== 射击相关 =====
+    // ===== 射击参数 =====
     [Header("射击")]
-    public Button shootButton;
-    public float shootRepeatInterval = 0.35f; // 按住时连射间隔（略大于服务器冷却，避免无效请求）
+    public float shootRepeatInterval = 0.35f;
+    [Range(0.05f, 0.9f)] public float aimShootThreshold = 0.3f; // 右摇杆力度超过此值才开始射击
 
     // ===== 功能按钮 =====
     [Header("功能按钮")]
-    public Button splitButton;           // 分裂按钮
+    public Button splitButton;
 
     // ===== 弹药切换 =====
     [Header("弹药切换")]
-    public Button[] ammoButtons;         // [0]=普通弹 [1]=分裂弹
-    public Image[] ammoButtonHighlights; // 弹药选中高亮
+    public Button[] ammoButtons;
+    public Image[] ammoButtonHighlights;
 
     // ===== PC 兼容 =====
     [Header("PC兼容")]
-    public bool forceMobileMode = true;  // 在 Editor 中也强制使用触屏输入（测试用）
+    public bool forceMobileMode = true;
 
-    /// <summary>当前移动方向（归一化）</summary>
     public Vector2 CurrentDirection { get; private set; }
-
-    /// <summary>当前选中弹药类型 0=普通, 1=分裂弹</summary>
     public int SelectedAmmoType { get; private set; } = 0;
-
-    /// <summary>当前瞄准方向（用于射击，默认为移动方向）</summary>
     public Vector2 AimDirection { get; private set; }
 
     private float _lastShootTime;
-    private bool _isShootHeld;
-    private bool _isMobile; // 运行时检测
+    private bool _isMobile;
 
     void Awake()
     {
@@ -54,14 +49,12 @@ public class MobileInputController : MonoBehaviour
 
     void Start()
     {
-        // 平台检测
 #if UNITY_ANDROID || UNITY_IOS
         _isMobile = true;
 #else
         _isMobile = forceMobileMode;
 #endif
 
-        // 仅在移动端激活触屏UI
         if (_isMobile)
             ShowMobileUI(true);
         else
@@ -86,21 +79,30 @@ public class MobileInputController : MonoBehaviour
     // ============================================================
     private void HandleMobileInput()
     {
-        // 移动
+        // 移动：左摇杆
         if (moveJoystick != null)
         {
             CurrentDirection = moveJoystick.Direction;
-            AimDirection = CurrentDirection; // 瞄准方向 = 移动方向
+            SendDirection(CurrentDirection);
         }
 
-        // 向服务端发送移动方向
-        SendDirection(CurrentDirection);
-
-        // 按住射击按钮时连射
-        if (_isShootHeld && Time.time - _lastShootTime >= shootRepeatInterval)
+        // 瞄准 + 射击：右摇杆
+        if (aimJoystick != null && aimJoystick.IsActive)
         {
-            ShootInAimDirection();
-            _lastShootTime = Time.time;
+            AimDirection = aimJoystick.Direction.normalized;
+
+            // 摇杆推过阈值 → 自动连射
+            if (aimJoystick.Magnitude >= aimShootThreshold
+                && Time.time - _lastShootTime >= shootRepeatInterval)
+            {
+                Shoot();
+                _lastShootTime = Time.time;
+            }
+        }
+        else
+        {
+            // 右摇杆松手时：瞄准方向回退到移动方向
+            AimDirection = CurrentDirection;
         }
     }
 
@@ -109,17 +111,13 @@ public class MobileInputController : MonoBehaviour
     // ============================================================
     private void HandlePCInput()
     {
-        // 移动
         float moveX = Input.GetAxisRaw("Horizontal");
         float moveY = Input.GetAxisRaw("Vertical");
         if (Mathf.Abs(moveX) < 0.01f) moveX = 0;
         if (Mathf.Abs(moveY) < 0.01f) moveY = 0;
         CurrentDirection = new Vector2(moveX, moveY);
-
-        // 发送移动方向
         SendDirection(CurrentDirection);
 
-        // 瞄准 = 鼠标位置
         Vector3 ballPos = GameManager.GetLocalMainBallPosition();
         var cam = Camera.main;
         if (cam != null)
@@ -131,15 +129,12 @@ public class MobileInputController : MonoBehaviour
             AimDirection = new Vector2(mouseWorld.x - ballPos.x, mouseWorld.y - ballPos.y).normalized;
         }
 
-        // 射击
         if (Input.GetMouseButtonDown(0))
             Shoot();
 
-        // 分裂
         if (Input.GetKeyDown(KeyCode.Space))
             SplitPlayer();
 
-        // 弹药切换
         for (int i = 0; i <= 1; i++)
         {
             if (Input.GetKeyDown(KeyCode.Alpha1 + i))
@@ -163,22 +158,8 @@ public class MobileInputController : MonoBehaviour
     }
 
     // ============================================================
-    //  射击逻辑
+    //  射击
     // ============================================================
-    /// <summary>触屏单发射击（按钮回调）</summary>
-    public void OnShootButtonDown()
-    {
-        if (!_isMobile) return;
-        _isShootHeld = true;
-        Shoot(); // 立即发射第一发
-        _lastShootTime = Time.time;
-    }
-
-    public void OnShootButtonUp()
-    {
-        _isShootHeld = false;
-    }
-
     public void Shoot()
     {
         var conn = SpacetimeDBNetworkManager.Instance?.Db;
@@ -187,20 +168,14 @@ public class MobileInputController : MonoBehaviour
         Vector3 ballPos = GameManager.GetLocalMainBallPosition();
         if (ballPos == Vector3.zero) return;
 
-        // 计算世界坐标瞄准点
         float targetX = ballPos.x + AimDirection.x * 10f;
         float targetY = ballPos.y + AimDirection.y * 10f;
 
         conn.Reducers.ShootBullet(targetX, targetY, SelectedAmmoType);
     }
 
-    private void ShootInAimDirection()
-    {
-        Shoot();
-    }
-
     // ============================================================
-    //  裂分
+    //  分裂
     // ============================================================
     public void SplitPlayer()
     {
@@ -214,7 +189,6 @@ public class MobileInputController : MonoBehaviour
     {
         SelectedAmmoType = index;
 
-        // 高亮选中的弹药按钮
         if (ammoButtonHighlights != null)
         {
             for (int i = 0; i < ammoButtonHighlights.Length; i++)
@@ -226,7 +200,6 @@ public class MobileInputController : MonoBehaviour
             }
         }
 
-        // 同步到 HudController
         HudController.Instance?.SelectAmmo(index);
     }
 
@@ -235,21 +208,6 @@ public class MobileInputController : MonoBehaviour
     // ============================================================
     private void BindButtons()
     {
-        if (shootButton != null)
-        {
-            var downEvt = new EventTrigger.Entry();
-            downEvt.eventID = EventTriggerType.PointerDown;
-            downEvt.callback.AddListener(delegate(BaseEventData evt) { OnShootButtonDown(); });
-
-            var upEvt = new EventTrigger.Entry();
-            upEvt.eventID = EventTriggerType.PointerUp;
-            upEvt.callback.AddListener(delegate(BaseEventData evt) { OnShootButtonUp(); });
-
-            var trigger = shootButton.gameObject.AddComponent<EventTrigger>();
-            trigger.triggers.Add(downEvt);
-            trigger.triggers.Add(upEvt);
-        }
-
         if (splitButton != null)
             splitButton.onClick.AddListener(SplitPlayer);
 
@@ -270,8 +228,8 @@ public class MobileInputController : MonoBehaviour
     {
         if (moveJoystick != null)
             moveJoystick.gameObject.SetActive(show);
-        if (shootButton != null)
-            shootButton.gameObject.SetActive(show);
+        if (aimJoystick != null)
+            aimJoystick.gameObject.SetActive(show);
         if (splitButton != null)
             splitButton.gameObject.SetActive(show);
 
