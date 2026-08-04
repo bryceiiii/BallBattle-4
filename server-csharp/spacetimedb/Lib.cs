@@ -5,13 +5,14 @@ using System.Diagnostics.Contracts;
 
 public static partial class Module
 {
-    private static int WORLD_SIZE = 50;
+    private static int WORLD_SIZE = 100;  // 扩大地图，给予更多空间
     // 服务器tick步长(秒)，与 MoveAllPlayerTimer 的 interval 保持一致
     // WAN环境下(QuickTunnel)，25Hz比50Hz更稳定：减少50%带宽，匹配100ms+ RTT下的有效更新率
     private static float SERVER_DELTA = 0.040f;  // 40ms ≈ 25Hz，WAN优化
     // 将质量相关的常量改为 float 类型
     private static float PRIMARY_PLAYER_MASS = 5.0f;
-    private static int TARGET_FOOD_COUNT = 200;
+    private static int BASE_FOOD_COUNT = 600;     // 基础食物数（适配 100×100 地图）
+    private static float FOOD_MASS_RATIO = 0.3f;  // 食物动态系数：每总质量单位增加 0.3 个食物
     private static int START_PLAYER_SPEED = 14;
     private static float MIN_SPLIT_MASS = 10.0f; // 允许分裂的最小质量
     private static int MAX_CIRCLES_PER_PLAYER = 16; // 每人最多球数，防止分裂过多导致O(n?)碰撞检测卡顿
@@ -432,7 +433,14 @@ public static partial class Module
     public static void SpawnFood(ReducerContext context,SpawnFoodTimer timer)
     {
         int foodCount = (int)context.Db.food.Count;
-        if (foodCount < TARGET_FOOD_COUNT)
+
+        // 动态食物目标：基础值 + 玩家总质量 * 系数
+        float totalMass = 0f;
+        foreach (var ent in context.Db.entity.Iter())
+            totalMass += ent.mass;
+        int dynamicTarget = BASE_FOOD_COUNT + (int)(totalMass * FOOD_MASS_RATIO);
+
+        if (foodCount < dynamicTarget)
         {
             var x = context.Rng.Next(1, WORLD_SIZE - 1);
             var y = context.Rng.Next(1, WORLD_SIZE - 1);

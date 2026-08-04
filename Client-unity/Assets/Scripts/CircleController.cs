@@ -65,7 +65,7 @@ public class CircleController : MonoBehaviour
 
     // ===== 世界边界 =====
     private const float WORLD_MIN = 0f;
-    private const float WORLD_MAX = 50f;
+    private const float WORLD_MAX = 100f;  // 与服务端 WORLD_SIZE 保持一致
 
     // ===== HP 条降频（远程球每 5 帧更新一次） =====
     private int _hpFrameCounter;
