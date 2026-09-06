@@ -650,6 +650,14 @@ public class GameManager : MonoBehaviour
         return t != null ? t.position : Vector3.zero;
     }
 
+    /// <summary>获取本地玩家主球的 CircleController（供 GameFeel 后座/闪色等表现层调用）。</summary>
+    public static CircleController GetLocalMainBallController()
+    {
+        if (Instance == null) return null;
+        var t = Instance.FindLocalMainBall();
+        return t != null ? t.GetComponent<CircleController>() : null;
+    }
+
     private Transform FindLocalMainBall()
     {
         Transform mainBall = null;

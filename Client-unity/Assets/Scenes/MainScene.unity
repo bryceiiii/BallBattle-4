@@ -4894,6 +4894,12 @@ MonoBehaviour:
   speedMultiplier: 4
   hitEffectPrefab: {fileID: 0}
   hitEffectDuration: 0.3
+  enableVelocityStretch: 0
+  stretchFactor: 2
+  enableTrail: 0
+  trailTime: 0.15
+  trailWidth: 0.18
+  trailColor: {r: 1, g: 0.9, b: 0.5, a: 0.5}
 --- !u!4 &1721672410
 Transform:
   m_ObjectHideFlags: 0
@@ -5151,6 +5157,82 @@ MonoBehaviour:
   autoSwitchToLAN: 1
   autoConnect: 0
   fetchOnStart: 0
+--- !u!1 &1849018072
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 1849018074}
+  - component: {fileID: 1849018073}
+  m_Layer: 0
+  m_Name: GameFeel
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!114 &1849018073
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1849018072}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 25d96456c74e8294ca16314965853014, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  enableHitStop: 1
+  enableScreenShake: 1
+  enableRecoil: 1
+  enableMuzzleFlash: 1
+  enableFloatingDamage: 1
+  enableSfx: 1
+  hitStopTimeScale: 0.05
+  hitStopDuration: 0.06
+  fireShakeIntensity: 0.08
+  fireShakeDuration: 0.08
+  hitShakeIntensity: 0.25
+  hitShakeDuration: 0.15
+  recoilDistance: 0.18
+  hitKnockbackDistance: 0.22
+  muzzleFlashDuration: 0.08
+  muzzleFlashSize: 0.6
+  muzzleFlashColor: {r: 1, g: 0.85, b: 0.4, a: 1}
+  hitBurstCount: 6
+  hitBurstSize: 0.35
+  hitBurstLife: 0.25
+  hitBurstColor: {r: 1, g: 0.55, b: 0.15, a: 1}
+  hitFlashDuration: 0.15
+  hitFlashColor: {r: 1, g: 0.35, b: 0.3, a: 1}
+  damageTextColor: {r: 1, g: 1, b: 1, a: 1}
+  blockedTextColor: {r: 0.6, g: 0.8, b: 1, a: 1}
+  fireClip: {fileID: 0}
+  hitClip: {fileID: 0}
+  emptyClip: {fileID: 0}
+  splitClip: {fileID: 0}
+  sfxVolume: 0.8
+  sfxPitchMin: 0.9
+  sfxPitchMax: 1.1
+--- !u!4 &1849018074
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1849018072}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 1592.124, y: 77.33331, z: 0}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 0}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!1 &1871052362
 GameObject:
   m_ObjectHideFlags: 0
@@ -5975,3 +6057,4 @@ SceneRoots:
   - {fileID: 1893851718}
   - {fileID: 1973850999}
   - {fileID: 1753277340}
+  - {fileID: 1849018074}

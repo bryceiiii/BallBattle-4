@@ -180,6 +180,9 @@ public class MobileInputController : MonoBehaviour
         if (dir.sqrMagnitude < 0.001f) return;
         dir.Normalize();
 
+        // 开火手感反馈（纯客户端表现）
+        GameFeel.Instance?.OnFire(dir);
+
         // 发送归一化方向向量（基于本地主球），服务端所有球统一朝此方向平行射击
         conn.Reducers.ShootBullet(dir.x, dir.y, SelectedAmmoType);
     }
@@ -190,6 +193,7 @@ public class MobileInputController : MonoBehaviour
     public void SplitPlayer()
     {
         SpacetimeDBNetworkManager.Instance?.Db?.Reducers.SplitPlayer();
+        GameFeel.Instance?.OnSplit();
     }
 
     // ============================================================

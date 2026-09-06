@@ -55,6 +55,9 @@ public class PlayerInputController : MonoBehaviour
             return;
 
         SpacetimeDBNetworkManager.Instance.Db.Reducers.SplitPlayer();
+
+        // 分裂手感反馈（纯客户端表现）
+        GameFeel.Instance?.OnSplit();
     }
 
     /// <summary>数字键 1-2 切换弹种</summary>
@@ -94,6 +97,9 @@ public class PlayerInputController : MonoBehaviour
         if (len < 0.001f) return;
         dirX /= len;
         dirY /= len;
+
+        // 开火手感反馈（纯客户端表现：闪光/后座/震动/音效，当帧立即生效）
+        GameFeel.Instance?.OnFire(new Vector2(dirX, dirY));
 
         // 发送归一化方向向量（基于本地主球），服务端所有球统一朝此方向平行射击
         conn.Reducers.ShootBullet(dirX, dirY, SelectedAmmoType);

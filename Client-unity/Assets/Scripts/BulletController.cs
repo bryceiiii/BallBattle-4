@@ -19,6 +19,16 @@ public class BulletController : MonoBehaviour
     public GameObject hitEffectPrefab;    // 命中特效预制体（可拖拽）
     public float hitEffectDuration = 0.3f; // 特效存活时间
 
+    [Header("速度感（可选增强）")]
+    public bool enableVelocityStretch = false;   // 沿飞行方向拉伸子弹
+    [Range(1f, 4f)] public float stretchFactor = 2f;
+    public bool enableTrail = false;             // 拖尾
+    public float trailTime = 0.15f;
+    public float trailWidth = 0.18f;
+    public Color trailColor = new Color(1f, 0.9f, 0.5f, 0.5f);
+
+    private Vector3 _baseScale = Vector3.one;
+
     private float age = 0f;
     private bool hasHit = false;
 
@@ -26,6 +36,24 @@ public class BulletController : MonoBehaviour
     private Vector2 _posVelocity;
     private bool _hasTarget = false;
     private Vector3 _lastReceivedPos;  // 上一次服务端位置，用于推算方向
+
+    void Awake()
+    {
+        _baseScale = transform.localScale;
+        if (enableTrail)
+        {
+            var tr = GetComponent<TrailRenderer>();
+            if (tr == null) tr = gameObject.AddComponent<TrailRenderer>();
+            tr.time = trailTime;
+            tr.startWidth = trailWidth;
+            tr.endWidth = 0f;
+            tr.material = new Material(Shader.Find("Sprites/Default"));
+            tr.startColor = trailColor;
+            tr.endColor = new Color(trailColor.r, trailColor.g, trailColor.b, 0f);
+            tr.minVertexDistance = 0.03f;
+            tr.sortingOrder = 50;
+        }
+    }
 
     public void SetTargetPos(Vector3 serverPos)
     {
@@ -55,6 +83,12 @@ public class BulletController : MonoBehaviour
 
         // 标记命中
         hasHit = true;
+
+        // 命中手感反馈（顿帧/爆炸/被击闪色+推动/震动/音效，纯客户端当帧生效）
+        Vector2 bulletDir = _posVelocity;
+        if (bulletDir.sqrMagnitude < 0.0001f)
+            bulletDir = (Vector2)(_targetPos - transform.position);
+        GameFeel.Instance?.OnHit(transform.position, targetCtrl, bulletDir);
 
         // 播放命中特效
         if (hitEffectPrefab != null)
@@ -89,6 +123,19 @@ public class BulletController : MonoBehaviour
             Vector2 desired = Vector2.SmoothDamp(transform.position, _targetPos,
                 ref _posVelocity, smoothTime);
             transform.position = new Vector3(desired.x, desired.y, 0);
+        }
+
+        // 速度感：沿飞行方向拉伸子弹
+        if (enableVelocityStretch && _posVelocity.sqrMagnitude > 0.01f)
+        {
+            float angle = Mathf.Atan2(_posVelocity.y, _posVelocity.x) * Mathf.Rad2Deg;
+            transform.rotation = Quaternion.Euler(0f, 0f, angle);
+            transform.localScale = new Vector3(_baseScale.x * stretchFactor, _baseScale.y, _baseScale.z);
+        }
+        else if (enableVelocityStretch)
+        {
+            transform.rotation = Quaternion.identity;
+            transform.localScale = _baseScale;
         }
 
         // 淡出

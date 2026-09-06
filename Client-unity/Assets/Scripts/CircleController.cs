@@ -89,6 +89,15 @@ public class CircleController : MonoBehaviour
     private Vector3 splitStartPos;
     private Vector3 splitAnimEndPos; // 分裂动画的固定终点，不受服务端位置更新干扰
 
+    // ===== 游戏手感（纯视觉，不动服务端位置） =====
+    private Vector2 _recoilOffset;         // 后座/被击推动的瞬时视觉偏移，指数衰减回零
+    private SpriteRenderer _sr;            // 缓存的 SpriteRenderer
+    private Color _baseColor = Color.white; // 皮肤基础色，闪色结束后恢复
+    private Color _flashColor = Color.white;
+    private float _flashTimer = 0f;
+    [Header("手感（视觉）")]
+    [Range(1f, 40f)] public float recoilRecoverySpeed = 18f; // 后座回弹速度（越大回弹越快）
+
     // ===== 物理组件 =====
     private CircleCollider2D col;
     private Rigidbody2D rb;
@@ -115,6 +124,10 @@ public class CircleController : MonoBehaviour
         rb.isKinematic = false;
 
         col = GetComponent<CircleCollider2D>();
+
+        // 缓存 SpriteRenderer 及基础色（供闪色反馈使用）
+        _sr = GetComponent<SpriteRenderer>();
+        if (_sr != null) _baseColor = _sr.color;
     }
 
     void Start()
@@ -142,6 +155,7 @@ public class CircleController : MonoBehaviour
         {
             sr.sprite = skinDef.sprite;
             sr.color = skinDef.tintColor;
+            _baseColor = skinDef.tintColor; // 记录基础色，闪色结束后恢复
         }
     }
 
@@ -156,6 +170,26 @@ public class CircleController : MonoBehaviour
             // 本地玩家名字绿色，其他玩家名字白色
             nameText.color = isLocalPlayer ? Color.green : Color.white;
         }
+    }
+
+    // ===== 游戏手感（纯视觉，不动服务端 targetPos） =====
+
+    /// <summary>后座/被击推动：沿 dir 方向做一次瞬时视觉位移，随后指数回弹。只动表现不动服务端位置。</summary>
+    public void ApplyRecoil(Vector2 dir, float distance)
+    {
+        if (distance <= 0f) return;
+        _recoilOffset += dir.normalized * distance;
+        // 限制最大偏移，避免极端情况穿帮
+        const float MAX_OFFSET = 2f;
+        if (_recoilOffset.sqrMagnitude > MAX_OFFSET * MAX_OFFSET)
+            _recoilOffset = _recoilOffset.normalized * MAX_OFFSET;
+    }
+
+    /// <summary>闪色：临时把球体染成 color，持续 duration 秒后恢复基础色。</summary>
+    public void FlashColor(Color color, float duration)
+    {
+        _flashColor = color;
+        _flashTimer = Mathf.Max(0f, duration);
     }
 
     // ===== HP 条 =====
@@ -296,6 +330,25 @@ public class CircleController : MonoBehaviour
 
     void Update()
     {
+        // ===== 手感：后座偏移指数回弹 + 闪色 =====
+        if (_recoilOffset.sqrMagnitude > 0.0001f)
+            _recoilOffset = Vector2.Lerp(_recoilOffset, Vector2.zero, 1f - Mathf.Exp(-recoilRecoverySpeed * Time.deltaTime));
+        else
+            _recoilOffset = Vector2.zero;
+
+        if (_sr != null)
+        {
+            if (_flashTimer > 0f)
+            {
+                _flashTimer -= Time.deltaTime;
+                _sr.color = _flashColor;
+            }
+            else
+            {
+                _sr.color = _baseColor;
+            }
+        }
+
         // ===== 合并动画 =====
         if (isMergeAnim)
         {
@@ -404,7 +457,7 @@ public class CircleController : MonoBehaviour
         // 限制最大追赶速度：目标位置因 RTT 抖动一帧跳远时，以真实球速滑行追平而非瞬移
         float maxSpeed = isLocalPlayer ? localPosMaxSpeed : remotePosMaxSpeed;
         Vector2 desiredPos = Vector2.SmoothDamp(rb.position, (Vector2)targetPos, ref posVelocity, smoothTime, maxSpeed);
-        rb.MovePosition(desiredPos);
+        rb.MovePosition(desiredPos + _recoilOffset); // 叠加纯视觉后座偏移，不动 targetPos
         ClampToWorldBounds();
     }
 

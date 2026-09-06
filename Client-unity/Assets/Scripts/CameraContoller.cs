@@ -25,6 +25,40 @@ public class CameraContoller : MonoBehaviour
 
     private Camera cam;
 
+    // ===== 屏幕震动（游戏手感） =====
+    private Vector3 _logicalPos;         // 相机平滑后的逻辑位置（不含震动，避免震动被平滑"吃掉"）
+    private bool _logicalInit;
+    private float _shakeTimer;
+    private float _shakeDuration;
+    private float _shakeIntensity;
+    private Vector2 _shakeOffset;
+
+    /// <summary>屏幕震动。intensity=振幅(世界单位)，duration=时长(秒)。开火用 0.05~0.1，命中用 0.2~0.3。</summary>
+    public void Shake(float intensity, float duration)
+    {
+        if (intensity <= 0f) return;
+        // 已有更强震动时不覆盖，避免弱震动把强震动打断
+        if (_shakeTimer > 0f && intensity < _shakeIntensity) return;
+        _shakeIntensity = intensity;
+        _shakeDuration = Mathf.Max(0.01f, duration);
+        _shakeTimer = _shakeDuration;
+    }
+
+    private Vector2 UpdateShake()
+    {
+        if (_shakeTimer > 0f)
+        {
+            _shakeTimer -= Time.deltaTime;
+            float t = Mathf.Clamp01(_shakeTimer / _shakeDuration);
+            _shakeOffset = Random.insideUnitCircle * (_shakeIntensity * t);
+        }
+        else
+        {
+            _shakeOffset = Vector2.zero;
+        }
+        return _shakeOffset;
+    }
+
     private void Awake()
     {
         if (Instance == null)
@@ -65,7 +99,9 @@ public class CameraContoller : MonoBehaviour
         center /= followTargets.Count;
 
         Vector3 targetPosition = new Vector3(center.x, center.y, transform.position.z);
-        transform.position = Vector3.Lerp(transform.position, targetPosition, Time.deltaTime * smoothSpeed);
+        if (!_logicalInit) { _logicalPos = transform.position; _logicalInit = true; }
+        _logicalPos = Vector3.Lerp(_logicalPos, targetPosition, Time.deltaTime * smoothSpeed);
+        transform.position = _logicalPos + (Vector3)UpdateShake();
 
         // --- 2. 相机平滑缩放以包含所有球 ---
         if (cam != null && cam.orthographic)
