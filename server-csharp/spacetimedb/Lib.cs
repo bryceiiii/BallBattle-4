@@ -36,10 +36,9 @@ public static partial class Module
     // 子弹相关常量
     private static float BULLET_MASS_COST = 0.8f;    // 单发消耗质量
     private static float BULLET_SPEED = 25f;          // 子弹飞行速度
-    private static double BULLET_LIFETIME_MS = 3000d; // 子弹存活时间
+    private static double BULLET_LIFETIME_MS = 1500d;  // 子弹存活 1.5 秒（快消快出，爽感）
     private static float BULLET_DAMAGE = 8f;          // 普通子弹伤害
-    private static float BULLET_COOLDOWN_SEC = 0.3f;  // 射击冷却
-    private static int BULLET_MAX_PER_PLAYER = 5;     // 每玩家同时存在子弹上限
+    private static float BULLET_COOLDOWN_SEC = 0.25f; // 射击冷却（微提速）
     private static float MIN_SHOOT_MASS = 3.0f;       // 最小射击质量
 
     // 特殊食物常量
@@ -207,6 +206,13 @@ public static partial class Module
         }
         _shootCooldowns[player.player_id] = now;
 
+        // 归一化射击方向：客户端发送的是归一化方向向量（基于主球+瞄准点计算），
+        // 这里再保险 normalize 一次，保证所有球子弹飞向一致方向。
+        float dirLen = MathF.Sqrt(targetX * targetX + targetY * targetY);
+        if (dirLen < 0.001f) return;
+        targetX /= dirLen;
+        targetY /= dirLen;
+
         // 特殊子弹：读取弹药库存（分裂弹按球数消耗）
         int splitAmmoLeft = 0;
         if (bulletType == 1)
@@ -221,11 +227,14 @@ public static partial class Module
         foreach (var b in context.Db.bullet.Iter())
             if (b.owner_player_id == player.player_id) bulletCount++;
 
-        // 遍历玩家所有非合并中的球，每球发射一发
-        // 方向统一：用第一个有效球算一次方向，所有子弹共享同一方向
-        float sharedDirX = 0, sharedDirY = 0;
-        bool dirCalculated = false;
+        // 动态子弹上限：球数 × 3，下限 5，上限 24
+        int ballCount = 0;
+        foreach (var c in context.Db.circle.player_id.Filter(player.player_id))
+            if (!c.isMerging) ballCount++;
+        int dynamicMaxBullets = Math.Max(5, Math.Min(ballCount * 3, 24));
 
+        // 遍历玩家所有非合并中的球，每球发射一发
+        // 所有球使用同一归一化方向（客户端基于主球+瞄准点计算，平行弹道）
         foreach (var c in context.Db.circle.player_id.Filter(player.player_id))
         {
             if (c.isMerging) continue;
@@ -237,8 +246,8 @@ public static partial class Module
             // 质量足够才能发射
             if (ent.mass < MIN_SHOOT_MASS) continue;
 
-            // 子弹上限检查
-            if (bulletCount >= BULLET_MAX_PER_PLAYER) break;
+            // 子弹上限检查（动态：球数×3，下限5上限24）
+            if (bulletCount >= dynamicMaxBullets) break;
             bulletCount++;
 
             // 特殊子弹：每个发射的球消耗 1 弹药
@@ -254,18 +263,7 @@ public static partial class Module
             UpdateHpAfterMassChange(ref ent);
             context.Db.entity.id.Update(ent);
 
-            // 方向统一：只用第一个有效球计算一次，所有子弹飞同一方向
-            if (!dirCalculated)
-            {
-                sharedDirX = targetX - ent.position.x;
-                sharedDirY = targetY - ent.position.y;
-                float bLen = MathF.Sqrt(sharedDirX * sharedDirX + sharedDirY * sharedDirY);
-                if (bLen < 0.001f) { sharedDirX = 1f; sharedDirY = 0f; }
-                else { sharedDirX /= bLen; sharedDirY /= bLen; }
-                dirCalculated = true;
-            }
-
-            // 生成子弹（使用统一方向）
+            // 生成子弹（使用统一归一化方向）
             var bulletEntity = context.Db.entity.Insert(new Entity
             {
                 mass = 0.3f,
@@ -277,8 +275,8 @@ public static partial class Module
             {
                 entity_id = bulletEntity.id,
                 owner_player_id = player.player_id,
-                dir_x = sharedDirX,
-                dir_y = sharedDirY,
+                dir_x = targetX,
+                dir_y = targetY,
                 spawned_at_ms = now,
                 bullet_type = bulletType
             });

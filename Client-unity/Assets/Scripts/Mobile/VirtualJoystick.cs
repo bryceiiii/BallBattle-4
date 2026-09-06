@@ -39,6 +39,10 @@ public class VirtualJoystick : MonoBehaviour, IDragHandler, IPointerDownHandler,
     [Range(2f, 20f)]
     public float resetSpeed = 10f;
 
+    [Header("瞄准摇杆专用")]
+    [Tooltip("开启=Direction 直接输出原始方向(不平滑)。用于瞄准摇杆：开火方向要跟手，仅视觉手柄用平滑")]
+    public bool useRawDirection = false;
+
     /// <summary>当前输入方向（归一化，带力度）</summary>
     public Vector2 Direction { get; private set; }
 
@@ -97,7 +101,8 @@ public class VirtualJoystick : MonoBehaviour, IDragHandler, IPointerDownHandler,
                 directionSmoothTime,
                 Mathf.Infinity,
                 Time.deltaTime);
-            Direction = _smoothDirection;
+            // 瞄准摇杆直接输出原始方向（跟手），移动摇杆用平滑方向
+            Direction = useRawDirection ? RawDirection : _smoothDirection;
         }
     }
 

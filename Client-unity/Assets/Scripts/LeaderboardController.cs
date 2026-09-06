@@ -207,7 +207,9 @@ public class LeaderboardController : MonoBehaviour
         var nLe = nGo.AddComponent<LayoutElement>();
         nLe.flexibleWidth = 1;
         nLe.minWidth = 50;
+        nLe.preferredWidth = 80;
         ctx.nameText = nGo.GetComponent<Text>();
+        ctx.nameText.horizontalOverflow = HorizontalWrapMode.Overflow;
 
         // Mass (52px, right aligned)
         var mGo = NewText(go.transform, "Mass", 9, TextAnchor.MiddleRight,
@@ -311,7 +313,7 @@ public class LeaderboardController : MonoBehaviour
     void UpdateRow(RowCtx row, int rank, PlayerInfo info, bool isLocal)
     {
         row.rankText.text = rank.ToString();
-        row.nameText.text = Truncate(info.name, 5);
+        row.nameText.text = Truncate(info.name, 8);
         row.massText.text = ((int)info.totalMass).ToString();
 
         float ratio = info.totalMaxHp > 0f ? Mathf.Clamp01(info.totalHp / info.totalMaxHp) : 1f;

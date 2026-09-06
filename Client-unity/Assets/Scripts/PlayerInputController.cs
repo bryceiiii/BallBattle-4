@@ -90,9 +90,12 @@ public class PlayerInputController : MonoBehaviour
 
         float dirX = mouseWorld.x - ballPos.x;
         float dirY = mouseWorld.y - ballPos.y;
-        if (Mathf.Abs(dirX) < 0.001f && Mathf.Abs(dirY) < 0.001f) return;
+        float len = Mathf.Sqrt(dirX * dirX + dirY * dirY);
+        if (len < 0.001f) return;
+        dirX /= len;
+        dirY /= len;
 
-        // 传鼠标世界坐标，服务端为每球独立计算方向
-        conn.Reducers.ShootBullet(mouseWorld.x, mouseWorld.y, SelectedAmmoType);
+        // 发送归一化方向向量（基于本地主球），服务端所有球统一朝此方向平行射击
+        conn.Reducers.ShootBullet(dirX, dirY, SelectedAmmoType);
     }
 }

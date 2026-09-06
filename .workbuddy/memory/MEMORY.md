@@ -30,6 +30,16 @@
 移动(质量减速)、吞噬(大吃小)、分裂(空格)、自动合并(贴合等待)、食物生成、断线保留
 HP系统、子弹射击、特殊食物球(5种)、弹药栏、排行榜、重生机制、护盾/Buff
 
+## 射击协议（重要约定）
+- `ShootBullet(float,float,int)` 客户端一律发**归一化方向向量**（基于主球+瞄准点），不再发世界坐标目标点。
+- 服务器对所有球用同一方向**平行发射**（不再按 DB 第一个球算方向）。
+- 参数名保留 targetX/targetY，reducer 签名类型不变 → schema 不变，改逻辑只需 `spacetime publish`，无需重新 generate。
+
+## 平台输入
+- `PlatformInputManager` 是唯一权威，IsMobileMode 在 Awake 确定；PC 禁用场景烘焙的 MobileInputController+MobileTouchCanvas，移动禁用 PlayerInputController。
+- `AimIndicator` 用 `PlatformInputManager.IsMobileMode` 判断分支（移动=右摇杆，PC=鼠标）。
+- 瞄准摇杆用 `RawDirection`（跟手），`useRawDirection` 开关开启；移动摇杆仍用 SmoothDamp 平滑。
+
 ## 设计文档
 - `GDD.md` — 游戏设计文档 v0.1
 

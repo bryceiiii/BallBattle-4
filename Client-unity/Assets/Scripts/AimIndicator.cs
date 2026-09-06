@@ -59,11 +59,12 @@ public class AimIndicator : MonoBehaviour
 
         Vector3 dir;
 
-        // 手机模式：虚拟摇杆朝向（直接读 MobileInputController）
-        var mobileInput = MobileInputController.Instance;
-        if (mobileInput != null && mobileInput.forceMobileMode)
+        // 移动模式：右摇杆朝向；PC 模式：鼠标世界坐标
+        bool isMobile = PlatformInputManager.Instance != null && PlatformInputManager.Instance.IsMobileMode;
+        if (isMobile)
         {
-            Vector2 aimDir = mobileInput.AimDirection;
+            var mobileInput = MobileInputController.Instance;
+            Vector2 aimDir = mobileInput != null ? mobileInput.AimDirection : Vector2.zero;
             if (aimDir.sqrMagnitude < 0.001f)
             {
                 _arrow.gameObject.SetActive(false);

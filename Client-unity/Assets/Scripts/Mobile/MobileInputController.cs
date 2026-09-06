@@ -19,7 +19,7 @@ public class MobileInputController : MonoBehaviour
     // ===== 射击参数 =====
     [Header("射击")]
     public float shootRepeatInterval = 0.35f;
-    [Range(0.05f, 0.9f)] public float aimShootThreshold = 0.3f; // 右摇杆力度超过此值才开始射击
+    [Range(0.05f, 0.9f)] public float aimShootThreshold = 0.18f; // 右摇杆力度超过此值才开始射击（调低让轻推也能开火）
 
     // ===== 功能按钮 =====
     [Header("功能按钮")]
@@ -49,16 +49,22 @@ public class MobileInputController : MonoBehaviour
 
     void Start()
     {
-#if UNITY_ANDROID || UNITY_IOS
-        _isMobile = true;
-#else
-        _isMobile = forceMobileMode;
-#endif
-
-        if (_isMobile)
-            ShowMobileUI(true);
+        // 若场景中存在 PlatformInputManager，则由它统一决定 PC/移动模式，避免双输入抢占
+        if (PlatformInputManager.Instance != null)
+        {
+            _isMobile = PlatformInputManager.Instance.IsMobileMode;
+            enabled = _isMobile; // PC 模式下禁用自身
+            ShowMobileUI(_isMobile);
+        }
         else
-            ShowMobileUI(false);
+        {
+#if UNITY_ANDROID || UNITY_IOS
+            _isMobile = true;
+#else
+            _isMobile = forceMobileMode;
+#endif
+            ShowMobileUI(_isMobile);
+        }
 
         BindButtons();
         SelectAmmo(0);
@@ -89,7 +95,12 @@ public class MobileInputController : MonoBehaviour
         // 瞄准 + 射击：右摇杆
         if (aimJoystick != null && aimJoystick.IsActive)
         {
-            AimDirection = aimJoystick.Direction.normalized;
+            // 用 RawDirection（未平滑）计算瞄准方向，避免移动摇杆那套 SmoothDamp 造成瞄准延迟
+            Vector2 raw = aimJoystick.RawDirection;
+            if (raw.sqrMagnitude > 0.0001f)
+                AimDirection = raw.normalized;
+            else
+                AimDirection = CurrentDirection;
 
             // 摇杆推过阈值 → 自动连射
             if (aimJoystick.Magnitude >= aimShootThreshold
@@ -165,13 +176,12 @@ public class MobileInputController : MonoBehaviour
         var conn = SpacetimeDBNetworkManager.Instance?.Db;
         if (conn == null) return;
 
-        Vector3 ballPos = GameManager.GetLocalMainBallPosition();
-        if (ballPos == Vector3.zero) return;
+        Vector2 dir = AimDirection;
+        if (dir.sqrMagnitude < 0.001f) return;
+        dir.Normalize();
 
-        float targetX = ballPos.x + AimDirection.x * 10f;
-        float targetY = ballPos.y + AimDirection.y * 10f;
-
-        conn.Reducers.ShootBullet(targetX, targetY, SelectedAmmoType);
+        // 发送归一化方向向量（基于本地主球），服务端所有球统一朝此方向平行射击
+        conn.Reducers.ShootBullet(dir.x, dir.y, SelectedAmmoType);
     }
 
     // ============================================================

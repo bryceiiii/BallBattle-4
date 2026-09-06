@@ -28,12 +28,23 @@ public class PlatformInputManager : MonoBehaviour
     public bool IsMobileMode { get; private set; }
 
     private MobileInputController _mobileInput;
+    private MobileInputController _bakedMobileInput; // 场景烘焙的 MobileInputController
     private MobileCanvasSetup _canvasSetup;
 
     void Awake()
     {
         if (Instance == null) { Instance = this; DontDestroyOnLoad(gameObject); }
         else { Destroy(gameObject); return; }
+
+        // 平台判断提前到 Awake，确保 MobileInputController.Start 能读到正确结果
+#if UNITY_ANDROID || UNITY_IOS
+        IsMobileMode = true;
+#else
+        IsMobileMode = forceMobileInEditor;
+#endif
+
+        // 缓存场景烘焙的 MobileInputController（可能与本组件在同一 GameObject）
+        _bakedMobileInput = GetComponent<MobileInputController>();
     }
 
     void Start()
@@ -41,13 +52,6 @@ public class PlatformInputManager : MonoBehaviour
         // 自动查找 PC 输入控制器（如果未手动拖拽）
         if (pcInputController == null)
             pcInputController = FindObjectOfType<PlayerInputController>();
-
-        // 平台判断
-#if UNITY_ANDROID || UNITY_IOS
-        IsMobileMode = true;
-#else
-        IsMobileMode = forceMobileInEditor;
-#endif
 
         ApplyPlatformMode();
     }
@@ -73,9 +77,14 @@ public class PlatformInputManager : MonoBehaviour
 
     private void SetupMobileInput()
     {
-        // 优先使用预制体
-        if (mobileCanvasPrefab != null)
+        // 优先使用场景烘焙的 MobileInputController
+        if (_bakedMobileInput != null)
         {
+            _mobileInput = _bakedMobileInput;
+        }
+        else if (mobileCanvasPrefab != null)
+        {
+            // 使用预制体
             var canvasGo = Instantiate(mobileCanvasPrefab, transform);
             _mobileInput = canvasGo.GetComponentInChildren<MobileInputController>();
             if (_mobileInput == null)
@@ -89,25 +98,42 @@ public class PlatformInputManager : MonoBehaviour
             _mobileInput = _canvasSetup.BuildMobileUI();
         }
 
-        // 强制触屏模式
+        // 强制触屏模式并启用/显示
         if (_mobileInput != null)
+        {
             _mobileInput.forceMobileMode = true;
+            _mobileInput.enabled = true;
+            _mobileInput.ShowMobileUI(true);
+        }
 
+        // 恢复 MobileTouchCanvas
+        var canvas = GameObject.Find("MobileTouchCanvas");
+        if (canvas != null) canvas.SetActive(true);
     }
 
     private void DisablePCInput()
     {
         if (pcInputController != null)
             pcInputController.enabled = false;
-
-        // 也禁用 AimIndicator 对鼠标的依赖（AimIndicator.Update 会检查自身）
-        // AimIndicator 在 mobile 模式下应隐藏 —— 由 MobileInputController 控制
     }
 
     private void DisableMobileInput()
     {
-        if (_mobileInput != null)
+        // 禁用场景烘焙的 MobileInputController 并隐藏触屏 UI
+        if (_bakedMobileInput != null)
+        {
+            _bakedMobileInput.enabled = false;
+            _bakedMobileInput.ShowMobileUI(false);
+        }
+        else if (_mobileInput != null)
+        {
             _mobileInput.enabled = false;
+        }
+
+        // 隐藏 MobileTouchCanvas（场景烘焙的触屏画布）
+        var canvas = GameObject.Find("MobileTouchCanvas");
+        if (canvas != null)
+            canvas.SetActive(false);
     }
 
     // ===== 公开接口 =====
