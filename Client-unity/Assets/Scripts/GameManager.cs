@@ -321,7 +321,9 @@ public class GameManager : MonoBehaviour
     }
 
     /// <summary>
-    /// 同玩家球 → 物理碰撞互推；不同玩家球 → 穿透（服务端判吞噬）
+    /// 所有圆-圆之间一律禁用物理碰撞（无论同玩家还是不同玩家）。
+    /// 吃球/合并判定完全在服务端（MergePlayerCheck 用 dist<=ra+rb 判定），
+    /// 客户端圆-圆物理反而会把深重叠的球一次性推开 → 瞬移/抖动。
     /// </summary>
     private void SetupCrossPlayerCollisionIgnore(CircleController newController)
     {
@@ -334,12 +336,10 @@ public class GameManager : MonoBehaviour
             var otherCtrl = kv.Value.GetComponent<CircleController>();
             if (otherCtrl == null) continue;
 
-            if (otherCtrl.playerId != newController.playerId)
-            {
-                var otherCol = kv.Value.GetComponent<CircleCollider2D>();
-                if (otherCol != null)
-                    Physics2D.IgnoreCollision(thisCol, otherCol, true);
-            }
+            // 圆与圆之间一律 IgnoreCollision(true)：同玩家/不同玩家都不做物理互撞
+            var otherCol = kv.Value.GetComponent<CircleCollider2D>();
+            if (otherCol != null)
+                Physics2D.IgnoreCollision(thisCol, otherCol, true);
         }
     }
 

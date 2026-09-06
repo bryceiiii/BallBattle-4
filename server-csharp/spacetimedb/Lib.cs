@@ -20,6 +20,7 @@ public static partial class Module
     private static int MERGE_CHECK_INTERVAL = 1500;
     private static float BASE_MERGE_SEC = 2.0f;    //基础贴合等待2秒
     private static float SQRT_DELAY_COEFF = 0.8f;// 平方根系数
+    private static float SEPARATION_FACTOR = 0.5f; // 同队球重叠分离：每 tick 消除的重叠比例（温和推开，避免瞬移）
     [Table(Name ="test_table",Public = true)]
     public partial struct TestTable
     {
@@ -552,6 +553,66 @@ public static partial class Module
         // 补充 food entity 的快照
         foreach (var food in context.Db.food.Iter())
             entitySnapshot[food.entity_id] = (circlePlayerId: null, foodType: food.food_type);
+
+        // ===== 同队球防重叠分离（移动中/静止时都不允许同队球深重叠）=====
+        // 设计：同队球需要贴合(相切)才能触发合并，但深重叠会导致视觉上叠成一个球。
+        // 之前用物理碰撞推开会造成瞬移/抖动，这里改为服务端权威、温和地把重叠的
+        // 同队球沿连线推开到相切（每 tick 只消除部分重叠，客户端 SmoothDamp+maxSpeed 平滑跟随）。
+        foreach (var kv in playerBalls)
+        {
+            var ballList = kv.Value;
+            if (ballList.Count <= 1) continue;
+
+            for (int i = 0; i < ballList.Count; i++)
+            {
+                var itemA = ballList[i];
+                Entity ea = itemA.entity;
+                float ra = MassToDiameter(ea.mass) / 2f;
+
+                for (int j = i + 1; j < ballList.Count; j++)
+                {
+                    var itemB = ballList[j];
+                    Entity eb = itemB.entity;
+                    float rb = MassToDiameter(eb.mass) / 2f;
+
+                    float dx = ea.position.x - eb.position.x;
+                    float dy = ea.position.y - eb.position.y;
+                    float dist = MathF.Sqrt(dx * dx + dy * dy);
+                    float minDist = ra + rb;
+
+                    // 只处理真正重叠（dist < 相切距离）
+                    if (dist >= minDist || dist < 0.001f) continue;
+
+                    float overlap = minDist - dist;
+                    // 从 b 指向 a 的单位方向
+                    float nx = dx / dist;
+                    float ny = dy / dist;
+
+                    // 按质量反比分配推挤量：小球被推开更多，大球几乎不动
+                    float totalMass = ea.mass + eb.mass;
+                    float aShare = eb.mass / totalMass;
+                    float bShare = ea.mass / totalMass;
+
+                    // 每 tick 只消除部分重叠（温和，避免客户端追目标时瞬移）
+                    float push = overlap * SEPARATION_FACTOR;
+
+                    ea.position.x += nx * push * aShare;
+                    ea.position.y += ny * push * aShare;
+                    eb.position.x -= nx * push * bShare;
+                    eb.position.y -= ny * push * bShare;
+
+                    ClampEntityToBounds(ref ea);
+                    ClampEntityToBounds(ref eb);
+
+                    context.Db.entity.id.Update(ea);
+                    context.Db.entity.id.Update(eb);
+
+                    // 写回列表快照，供后续吞噬检测使用最新位置
+                    ballList[i] = (ea, itemA.eid);
+                    ballList[j] = (eb, itemB.eid);
+                }
+            }
+        }
 
         // 【P0 #3】吞噬检测 —— 用 playerBalls 字典替代第三次 circle.Iter()
         // playerBalls 已按玩家分组 + 过滤 isMerging，外层 foreach 无需再查 circle 表

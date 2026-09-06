@@ -40,6 +40,12 @@ HP系统、子弹射击、特殊食物球(5种)、弹药栏、排行榜、重生
 - `AimIndicator` 用 `PlatformInputManager.IsMobileMode` 判断分支（移动=右摇杆，PC=鼠标）。
 - 瞄准摇杆用 `RawDirection`（跟手），`useRawDirection` 开关开启；移动摇杆仍用 SmoothDamp 平滑。
 
+## 物理/插值（重要约定）
+- 客户端圆-圆之间**一律 IgnoreCollision(true)**（同玩家/不同玩家都穿透）。吃球/合并判定全在服务端，客户端不做圆-圆物理，避免 depenetration 把深重叠球一次性推开造成瞬移/抖动。
+- `CircleController.FixedUpdate` 的 SmoothDamp 必须传 maxSpeed（local=30, remote=35），防止目标跳远时无限速追平=瞬移。球速基准 14，加速×1.8≈25。
+- 同队球防重叠由**服务端权威分离**负责（`Lib.cs` MoveAllPlayer 里 `SEPARATION_FACTOR=0.5` 温和推开重叠的同队球到相切），移动中/静止都生效；客户端不做圆-圆物理。
+- 不搞客户端预测（SmoothDamp + maxSpeed 足够平滑）。
+
 ## 设计文档
 - `GDD.md` — 游戏设计文档 v0.1
 

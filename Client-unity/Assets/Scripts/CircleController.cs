@@ -63,6 +63,12 @@ public class CircleController : MonoBehaviour
     public float localPosSmoothTime = 0.05f;     // 本地玩家插值 — 适配25Hz服务器tick(40ms)，跨tick平滑无停顿
     public float scaleSmoothTime = 0.08f;        // 缩放过渡 — WAN调优
 
+    // ===== 追赶速度上限（修复瞬移）=====
+    // SmoothDamp 的 maxSpeed：目标位置因 RTT 抖动一帧跳远时，以真实球速滑行追平，
+    // 而不是无限速度瞬间追上。基础球速 14，加速buff×1.8≈25，留余量取 30；远程稍宽裕取 35。
+    public float localPosMaxSpeed = 30f;
+    public float remotePosMaxSpeed = 35f;
+
     // ===== 世界边界 =====
     private const float WORLD_MIN = 0f;
     private const float WORLD_MAX = 100f;  // 与服务端 WORLD_SIZE 保持一致
@@ -395,7 +401,9 @@ public class CircleController : MonoBehaviour
         if (!hasReceivedFirstUpdate) return;
 
         float smoothTime = isLocalPlayer ? localPosSmoothTime : remotePosSmoothTime;
-        Vector2 desiredPos = Vector2.SmoothDamp(rb.position, (Vector2)targetPos, ref posVelocity, smoothTime);
+        // 限制最大追赶速度：目标位置因 RTT 抖动一帧跳远时，以真实球速滑行追平而非瞬移
+        float maxSpeed = isLocalPlayer ? localPosMaxSpeed : remotePosMaxSpeed;
+        Vector2 desiredPos = Vector2.SmoothDamp(rb.position, (Vector2)targetPos, ref posVelocity, smoothTime, maxSpeed);
         rb.MovePosition(desiredPos);
         ClampToWorldBounds();
     }
