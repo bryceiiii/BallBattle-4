@@ -11,6 +11,7 @@ GameObject:
   - component: {fileID: 9109782841081896664}
   - component: {fileID: 4446948928935375758}
   - component: {fileID: 8509384887914495036}
+  - component: {fileID: 1140000000000000001}
   m_Layer: 0
   m_Name: ShieldBuff
   m_TagString: Untagged
@@ -54,6 +55,20 @@ Animator:
   m_AllowConstantClipSamplingOptimization: 1
   m_KeepAnimatorStateOnDisable: 0
   m_WriteDefaultValuesOnDisable: 0
+--- !u!114 &1140000000000000001
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 831804430098732994}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 40a85471f17b4bd984332367c4e13178, type: 3}
+  m_Name:
+  m_EditorClassIdentifier:
+  animator: {fileID: 4446948928935375758}
+  breakDuration: 0.45
 --- !u!212 &8509384887914495036
 SpriteRenderer:
   m_ObjectHideFlags: 0

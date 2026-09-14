@@ -479,10 +479,10 @@ public class GameManager : MonoBehaviour
 
     private void OnShieldDeleted(EventContext ctx, Shield shield)
     {
-        // 清理护盾特效
+        // 护盾破碎：脱离球体播 Break 动画后自毁（不再瞬间 Destroy）
         if (shieldEffects.TryGetValue(shield.EntityId, out var fx))
         {
-            Destroy(fx);
+            fx?.GetComponent<ShieldBuffController>()?.Break();
             shieldEffects.Remove(shield.EntityId);
         }
 
