@@ -195,6 +195,9 @@ MonoBehaviour:
   remotePosSmoothTime: 0.15
   localPosSmoothTime: 0.08
   scaleSmoothTime: 0.1
+  localPosMaxSpeed: 30
+  remotePosMaxSpeed: 35
+  recoilRecoverySpeed: 18
   entityId: 0
   playerId: 0
 --- !u!58 &3741555820835019906
