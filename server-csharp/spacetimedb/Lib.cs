@@ -669,12 +669,15 @@ public static partial class Module
                                     splitAmmoGains[playerId] = 0;
                                 splitAmmoGains[playerId] += 1;
                             }
-                            // 护盾球：给该球增加护盾
+                            // 护盾球：给该玩家全体球增加护盾（不是只给拾取的那颗球）
                             if (isFood && snapB.foodType == 3)
                             {
-                                if (!shieldGains.ContainsKey(entityA.id))
-                                    shieldGains[entityA.id] = 0;
-                                shieldGains[entityA.id] += SHIELD_ABSORB;
+                                foreach (var (pe, peid) in kv.Value)
+                                {
+                                    if (!shieldGains.ContainsKey(pe.id))
+                                        shieldGains[pe.id] = 0;
+                                    shieldGains[pe.id] += SHIELD_ABSORB;
+                                }
                             }
                             // 速度球：给该球添加加速buff
                             if (isFood && snapB.foodType == 4)

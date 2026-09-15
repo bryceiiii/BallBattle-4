@@ -55,10 +55,25 @@ public class GameFeel : MonoBehaviour
     [Range(0f, 1f)] public float hitKnockbackDistance = 0.22f; // 命中时被击球推动距离（占半径比例）
 
     // ===== 枪口闪光 =====
-    [Header("枪口闪光")]
+    [Header("枪口闪光（无 Prefab 时的程序生成纯色光斑）")]
     public float muzzleFlashDuration = 0.08f;
     public float muzzleFlashSize = 0.6f;    // 占球直径比例
     public Color muzzleFlashColor = new Color(1f, 0.85f, 0.4f, 1f);
+
+    // ===== 枪口火花特效 Prefab =====
+    [Header("枪口火花特效 Prefab（可选：拖入自带动画的预制体）")]
+    [Tooltip("拖入带 Animator 的枪口火花预制体。留空 = 回退到上面的程序生成纯色光斑")]
+    public GameObject muzzleFlashPrefab;
+    [Tooltip("整体尺寸 = 球直径 × 此倍率（美术资源原生像素大时调小，例如 0.3）")]
+    public float muzzleFlashPrefabScale = 1f;
+    [Tooltip("是否按射击方向旋转特效（美术资源朝右时保持开启）")]
+    public bool muzzleFlashRotateToDir = true;
+    [Tooltip("旋转补偿角度：美术资源朝向不是右时用，例如朝上用 90")]
+    public float muzzleFlashAngleOffset = 0f;
+    [Tooltip("是否用 muzzleFlashColor 给美术资源重新着色（默认不染，保留原画颜色）")]
+    public bool muzzleFlashTint = false;
+    [Tooltip("特效存活时间；填 0 = 自动读取 Animator 动画长度（读不到则用 muzzleFlashDuration）")]
+    public float muzzleFlashLife = 0f;
 
     // ===== 命中爆炸 =====
     [Header("命中爆炸")]
@@ -68,6 +83,12 @@ public class GameFeel : MonoBehaviour
     public Color hitBurstColor = new Color(1f, 0.55f, 0.15f, 1f);
     public float hitFlashDuration = 0.15f;
     public Color hitFlashColor = new Color(1f, 0.35f, 0.3f, 1f);
+
+    // ===== 护盾受击 =====
+    [Header("护盾受击（命中带盾的球时护盾本体闪色）")]
+    public bool enableShieldHitFlash = true;
+    public float shieldHitFlashDuration = 0.15f;
+    public Color shieldHitFlashColor = new Color(1f, 0.3f, 0.25f, 1f);
 
     // ===== 伤害飘字 =====
     [Header("伤害飘字")]
@@ -94,6 +115,7 @@ public class GameFeel : MonoBehaviour
     private readonly List<GameFeelParticle> _particlePool = new();
     private readonly List<FloatingText> _textPool = new();
     private readonly List<AudioSource> _audioPool = new();
+    private readonly List<MuzzleFlashFx> _flashPool = new();
 
     // 程序生成的占位音
     private AudioClip _fireGen, _hitGen, _emptyGen, _splitGen;
@@ -161,12 +183,22 @@ public class GameFeel : MonoBehaviour
         // 被击球：闪色 + 反方向推动（纯视觉）
         if (target != null)
         {
-            target.FlashColor(hitFlashColor, hitFlashDuration);
-            if (enableRecoil)
+            // 有护盾 = 伤害被盾吸收：球本体不闪色、不被击退，改由护盾闪红表现
+            bool shielded = GameManager.HasShield(target.entityId);
+
+            if (!shielded)
             {
-                float radius = target.transform.localScale.x * 0.5f;
-                target.ApplyRecoil(bulletDir, radius * hitKnockbackDistance);
+                target.FlashColor(hitFlashColor, hitFlashDuration);
+                if (enableRecoil)
+                {
+                    float radius = target.transform.localScale.x * 0.5f;
+                    target.ApplyRecoil(bulletDir, radius * hitKnockbackDistance);
+                }
             }
+
+            // 护盾受损：护盾本体闪红（命中当帧生效，不等服务端 ShieldHp 回包）
+            if (enableShieldHitFlash)
+                GameManager.FlashShieldHit(target.entityId, shieldHitFlashColor, shieldHitFlashDuration);
         }
 
         // 屏幕震动（比开火更强）
@@ -197,24 +229,41 @@ public class GameFeel : MonoBehaviour
     // ============================================================
     void PlayFire(Vector3 ballPos, Vector2 dir)
     {
-        var ball = GameManager.GetLocalMainBallController();
+        var balls = GameManager.GetLocalPlayerBalls();
 
-        // 枪口闪光
-        if (enableMuzzleFlash)
-            SpawnFlash(ballPos, dir, ball != null ? ball.transform.localScale.x : 1f);
-
-        // 后座（沿射击反方向）
-        if (enableRecoil && ball != null)
+        // 兜底：极端情况拿不到本地球时，至少在主球位置做一次反馈
+        if (balls.Count == 0)
         {
-            float radius = ball.transform.localScale.x * 0.5f;
-            ball.ApplyRecoil(-dir, radius * recoilDistance);
+            if (enableMuzzleFlash) SpawnFlash(ballPos, dir, 1f);
+            if (enableScreenShake) CameraContoller.Instance?.Shake(fireShakeIntensity, fireShakeDuration);
+            PlaySfx(fireClip, _fireGen, 1f);
+            return;
         }
 
-        // 屏幕震动（轻微）
+        // 枪口闪光 + 后座：对每个本地球都做（分裂后所有球一起开火、一起后退）
+        for (int i = 0; i < balls.Count; i++)
+        {
+            var ball = balls[i];
+            if (ball == null) continue;
+            Vector3 p = ball.transform.position;
+
+            // 枪口闪光（在每个球的边缘）
+            if (enableMuzzleFlash)
+                SpawnFlash(p, dir, ball.transform.localScale.x);
+
+            // 后座（沿射击反方向）
+            if (enableRecoil)
+            {
+                float radius = ball.transform.localScale.x * 0.5f;
+                ball.ApplyRecoil(-dir, radius * recoilDistance);
+            }
+        }
+
+        // 屏幕震动（轻微，只触发一次）
         if (enableScreenShake)
             CameraContoller.Instance?.Shake(fireShakeIntensity, fireShakeDuration);
 
-        // 音效
+        // 音效（只触发一次）
         PlaySfx(fireClip, _fireGen, 1f);
     }
 
@@ -251,9 +300,24 @@ public class GameFeel : MonoBehaviour
     void SpawnFlash(Vector3 ballPos, Vector2 dir, float diameter, float sizeScale = 1f)
     {
         float radius = diameter * 0.5f;
-        float size = diameter * muzzleFlashSize * sizeScale;
         Vector3 pos = ballPos + (Vector3)(dir * radius);
 
+        // 优先使用美术序列帧预制体（自带动画，播完自动回收）
+        if (muzzleFlashPrefab != null)
+        {
+            float angle = (muzzleFlashRotateToDir ? Mathf.Atan2(dir.y, dir.x) * Mathf.Rad2Deg : 0f)
+                          + muzzleFlashAngleOffset;
+            float scale = Mathf.Max(0.001f, diameter * muzzleFlashPrefabScale * sizeScale);
+            Color tint = muzzleFlashTint ? muzzleFlashColor : Color.white;
+
+            var fx = GetMuzzleFlash();
+            float life = muzzleFlashLife > 0f ? muzzleFlashLife : fx.AutoLife(muzzleFlashDuration);
+            fx.Play(pos, angle, new Vector3(scale, scale, 1f), tint, life, ReturnMuzzleFlash);
+            return;
+        }
+
+        // 兜底：程序生成的纯色光斑
+        float size = diameter * muzzleFlashSize * sizeScale;
         var p = GetParticle();
         p.Init(_circleSprite, pos,
             new Vector2(size, size), new Vector2(size * 1.5f, size * 1.5f),
@@ -305,6 +369,22 @@ public class GameFeel : MonoBehaviour
     }
 
     void ReturnText(FloatingText t) { t.gameObject.SetActive(false); }
+
+    MuzzleFlashFx GetMuzzleFlash()
+    {
+        foreach (var f in _flashPool)
+            if (f != null && !f.gameObject.activeSelf) return f;
+
+        var go = Instantiate(muzzleFlashPrefab, transform, true);
+        go.name = "MuzzleFlashFx";
+        var fx = go.GetComponent<MuzzleFlashFx>();
+        if (fx == null) fx = go.AddComponent<MuzzleFlashFx>();
+        _flashPool.Add(fx);
+        go.SetActive(false);
+        return fx;
+    }
+
+    void ReturnMuzzleFlash(MuzzleFlashFx fx) { if (fx != null) fx.gameObject.SetActive(false); }
 
     // ============================================================
     //  音效

@@ -1,4 +1,3 @@
-using System.Collections;
 using UnityEngine;
 
 /// <summary>
@@ -18,9 +17,40 @@ public class ShieldBuffController : MonoBehaviour
 
     private bool _breaking;
 
+    // 受击闪色
+    private SpriteRenderer _sr;
+    private Color _baseColor = Color.white;
+    private float _flashTimer = -1f;
+
     void Awake()
     {
         if (animator == null) animator = GetComponent<Animator>();
+        _sr = GetComponent<SpriteRenderer>();
+        if (_sr == null) _sr = GetComponentInChildren<SpriteRenderer>(true);
+        if (_sr != null) _baseColor = _sr.color;  // 记录预制体原始色（含透明度）
+    }
+
+    /// <summary>
+    /// 护盾被子弹打中：护盾本体闪一下（只改 SpriteRenderer.color，保留原透明度）。
+    /// 连续命中会重新计时，不会闪烁打架；到点自动恢复原色。
+    /// </summary>
+    public void FlashHit(Color color, float duration)
+    {
+        if (_sr == null || duration <= 0f) return;
+        var c = color;
+        c.a = _baseColor.a;          // 透明度跟随预制体，避免闪成全不透明
+        _sr.color = c;
+        _flashTimer = duration;
+    }
+
+    void Update()
+    {
+        if (_flashTimer < 0f) return;
+        _flashTimer -= Time.deltaTime;
+        if (_flashTimer > 0f) return;
+
+        if (_sr != null) _sr.color = _baseColor;
+        _flashTimer = -1f;
     }
 
     /// <summary>
@@ -31,6 +61,10 @@ public class ShieldBuffController : MonoBehaviour
     {
         if (_breaking) return;
         _breaking = true;
+
+        // 恢复原色，避免带着受击闪色去播破碎动画
+        if (_sr != null) _sr.color = _baseColor;
+        _flashTimer = -1f;
 
         // 脱离球体，留在原地播破碎（球死亡/缩小不影响特效）
         transform.SetParent(null);

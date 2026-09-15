@@ -410,7 +410,7 @@ public class GameManager : MonoBehaviour
         }
         bulletGo.name = "Bullet" + newBullet.EntityId;
         bulletGo.transform.position = new Vector3(entity.Position.X, entity.Position.Y, 0);
-        bulletGo.transform.localScale = new Vector3(0.3f, 0.3f, 1f);
+        
 
         // 子弹碰撞体设为 Trigger + Rigidbody Kinematic，防止推动球体导致抖动
         foreach (var col in bulletGo.GetComponentsInChildren<Collider2D>())
@@ -428,6 +428,9 @@ public class GameManager : MonoBehaviour
         if (bulletCtrl == null) bulletCtrl = bulletGo.AddComponent<BulletController>();
         bulletCtrl.entityId = newBullet.EntityId;
         bulletCtrl.ownerPlayerId = newBullet.OwnerPlayerId; // 防止自伤
+
+        // 新增：立刻根据服务端的 dir 设置初始朝向，避免发射瞬间朝向错位
+        bulletCtrl.InitializeDirection(new Vector2(newBullet.DirX, newBullet.DirY));
 
         Bullets.Add(newBullet.EntityId, bulletGo);
     }
@@ -536,25 +539,47 @@ public class GameManager : MonoBehaviour
 
     private void UpdateHudShield(Shield shield)
     {
-        // 检查护盾是否属于本地玩家的球
+        // 找到护盾所属的球（本地/远端都要挂特效，远端护盾原来看不到）
         foreach (var kv in Circles)
         {
             var ctrl = kv.Value?.GetComponent<CircleController>();
-            if (ctrl != null && ctrl.isLocalPlayer && ctrl.entityId == shield.EntityId)
+            if (ctrl == null || ctrl.entityId != shield.EntityId) continue;
+
+            // 护盾特效：所有玩家的球都创建
+            if (PrefabsManager.Instance.shieldEffectPrefab != null && !shieldEffects.ContainsKey(shield.EntityId))
+            {
+                var fx = Instantiate(PrefabsManager.Instance.shieldEffectPrefab, kv.Value.transform);
+                fx.transform.localPosition = Vector3.zero;
+                shieldEffects[shield.EntityId] = fx;
+            }
+
+            // HUD 倒计时/盾值条只有本地玩家需要
+            if (ctrl.isLocalPlayer)
             {
                 HudController.Instance?.SetShield(shield.ExpireAtMs);
                 HudController.Instance?.SetShieldBar(shield.ShieldHp, shield.ShieldMax);
-
-                // 护盾特效
-                if (PrefabsManager.Instance.shieldEffectPrefab != null && !shieldEffects.ContainsKey(shield.EntityId))
-                {
-                    var fx = Instantiate(PrefabsManager.Instance.shieldEffectPrefab, kv.Value.transform);
-                    fx.transform.localPosition = Vector3.zero;
-                    shieldEffects[shield.EntityId] = fx;
-                }
-                return;
             }
+            return;
         }
+    }
+
+    /// <summary>
+    /// 该球当前是否挂着护盾（以服务端 Shield 表为准，与特效预制体是否赋值无关）。
+    /// </summary>
+    public static bool HasShield(int ballEntityId)
+        => SpacetimeDBNetworkManager.Instance?.Db?.Db?.Shield.EntityId.Find(ballEntityId) != null;
+
+    /// <summary>
+    /// 护盾被子弹打中：让护盾特效闪一下（纯客户端当帧表现，不等服务端回包）。
+    /// 返回是否真的闪了（没有护盾特效则返回 false）。
+    /// </summary>
+    public static bool FlashShieldHit(int ballEntityId, Color color, float duration)
+    {
+        if (!shieldEffects.TryGetValue(ballEntityId, out var fx) || fx == null) return false;
+        var ctrl = fx.GetComponent<ShieldBuffController>();
+        if (ctrl == null) return false;
+        ctrl.FlashHit(color, duration);
+        return true;
     }
 
     private void UpdateHudAmmo(PlayerAmmo ammo)
@@ -656,6 +681,20 @@ public class GameManager : MonoBehaviour
         if (Instance == null) return null;
         var t = Instance.FindLocalMainBall();
         return t != null ? t.GetComponent<CircleController>() : null;
+    }
+
+    /// <summary>获取本地玩家所有球的 CircleController 列表（供 GameFeel 开火后座/枪口闪光等表现层遍历）。</summary>
+    public static List<CircleController> GetLocalPlayerBalls()
+    {
+        var result = new List<CircleController>();
+        foreach (var kv in Circles)
+        {
+            if (kv.Value == null) continue;
+            var ctr = kv.Value.GetComponent<CircleController>();
+            if (ctr != null && ctr.isLocalPlayer)
+                result.Add(ctr);
+        }
+        return result;
     }
 
     private Transform FindLocalMainBall()

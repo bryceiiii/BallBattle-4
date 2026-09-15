@@ -72,6 +72,21 @@ public class BulletController : MonoBehaviour
         _lastReceivedPos = serverPos;
     }
 
+    /// <summary>
+    /// 初始化朝向（在子弹创建时由发射器调用）。
+    /// 作用：立即把 sprite 朝向发射方向，避免出现发射瞬间朝向不对的帧。
+    /// 同时给一个极小的初始速度量，确保 Update() 中用 _posVelocity 能立刻计算朝向。
+    /// </summary>
+    public void InitializeDirection(Vector2 dir)
+    {
+        if (dir.sqrMagnitude < 0.0001f) return;
+        Vector2 n = dir.normalized;
+        float angle = Mathf.Atan2(n.y, n.x) * Mathf.Rad2Deg;
+        transform.rotation = Quaternion.Euler(0f, 0f, angle);
+        // 给一个非常小的初始速度避免零向量导致瞬间不转向
+        _posVelocity = n * 0.001f;
+    }
+
     void OnTriggerEnter2D(Collider2D other)
     {
         if (hasHit) return; // 只处理首次命中
@@ -125,16 +140,30 @@ public class BulletController : MonoBehaviour
             transform.position = new Vector3(desired.x, desired.y, 0);
         }
 
-        // 速度感：沿飞行方向拉伸子弹
-        if (enableVelocityStretch && _posVelocity.sqrMagnitude > 0.01f)
+        // 方向与朝向：优先使用插值速度，其次使用 targetDelta（初始帧）
+        Vector2 movementDir = Vector2.zero;
+        if (_posVelocity.sqrMagnitude > 0.0001f)
         {
-            float angle = Mathf.Atan2(_posVelocity.y, _posVelocity.x) * Mathf.Rad2Deg;
+            movementDir = _posVelocity;
+        }
+        else if (_hasTarget)
+        {
+            movementDir = (Vector2)(_targetPos - transform.position);
+        }
+
+        if (movementDir.sqrMagnitude > 0.0001f)
+        {
+            float angle = Mathf.Atan2(movementDir.y, movementDir.x) * Mathf.Rad2Deg;
             transform.rotation = Quaternion.Euler(0f, 0f, angle);
+        }
+
+        // 速度感：根据方向是否显著决定是否拉伸，否则恢复基础缩放
+        if (enableVelocityStretch && movementDir.sqrMagnitude > 0.01f)
+        {
             transform.localScale = new Vector3(_baseScale.x * stretchFactor, _baseScale.y, _baseScale.z);
         }
-        else if (enableVelocityStretch)
+        else
         {
-            transform.rotation = Quaternion.identity;
             transform.localScale = _baseScale;
         }
 

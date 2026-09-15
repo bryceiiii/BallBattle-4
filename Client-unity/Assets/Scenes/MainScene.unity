@@ -4974,7 +4974,7 @@ MonoBehaviour:
   hitEffectDuration: 0.3
   enableVelocityStretch: 0
   stretchFactor: 2
-  enableTrail: 0
+  enableTrail: 1
   trailTime: 0.15
   trailWidth: 0.18
   trailColor: {r: 1, g: 0.9, b: 0.5, a: 0.5}
@@ -5281,17 +5281,26 @@ MonoBehaviour:
   muzzleFlashDuration: 0.08
   muzzleFlashSize: 0.6
   muzzleFlashColor: {r: 1, g: 0.85, b: 0.4, a: 1}
+  muzzleFlashPrefab: {fileID: 8081477348580262887, guid: e63eb9a7c2bd9184d8bec237a9e97b9a, type: 3}
+  muzzleFlashPrefabScale: 1
+  muzzleFlashRotateToDir: 1
+  muzzleFlashAngleOffset: 0
+  muzzleFlashTint: 0
+  muzzleFlashLife: 0
   hitBurstCount: 6
   hitBurstSize: 0.35
   hitBurstLife: 0.25
   hitBurstColor: {r: 1, g: 0.55, b: 0.15, a: 1}
   hitFlashDuration: 0.15
   hitFlashColor: {r: 1, g: 0.35, b: 0.3, a: 1}
+  enableShieldHitFlash: 1
+  shieldHitFlashDuration: 0.15
+  shieldHitFlashColor: {r: 1, g: 0.3, b: 0.25, a: 1}
   damageTextColor: {r: 1, g: 1, b: 1, a: 1}
   blockedTextColor: {r: 0.6, g: 0.8, b: 1, a: 1}
   fireClip: {fileID: 0}
   hitClip: {fileID: 0}
-  emptyClip: {fileID: 0}
+  emptyClip: {fileID: 8300000, guid: 7f4bb029a84be7a4c9474a435956ccaf, type: 3}
   splitClip: {fileID: 0}
   sfxVolume: 0.8
   sfxPitchMin: 0.9
@@ -6177,6 +6186,63 @@ PrefabInstance:
     m_AddedGameObjects: []
     m_AddedComponents: []
   m_SourcePrefab: {fileID: 100100000, guid: 97b76cc66719f3a488b727453b8ab3ef, type: 3}
+--- !u!1001 &9191623734102289358
+PrefabInstance:
+  m_ObjectHideFlags: 0
+  serializedVersion: 2
+  m_Modification:
+    serializedVersion: 3
+    m_TransformParent: {fileID: 0}
+    m_Modifications:
+    - target: {fileID: 4098195103413289845, guid: e63eb9a7c2bd9184d8bec237a9e97b9a, type: 3}
+      propertyPath: m_LocalPosition.x
+      value: 1534.234
+      objectReference: {fileID: 0}
+    - target: {fileID: 4098195103413289845, guid: e63eb9a7c2bd9184d8bec237a9e97b9a, type: 3}
+      propertyPath: m_LocalPosition.y
+      value: 648.45
+      objectReference: {fileID: 0}
+    - target: {fileID: 4098195103413289845, guid: e63eb9a7c2bd9184d8bec237a9e97b9a, type: 3}
+      propertyPath: m_LocalPosition.z
+      value: -0.008677203
+      objectReference: {fileID: 0}
+    - target: {fileID: 4098195103413289845, guid: e63eb9a7c2bd9184d8bec237a9e97b9a, type: 3}
+      propertyPath: m_LocalRotation.w
+      value: 1
+      objectReference: {fileID: 0}
+    - target: {fileID: 4098195103413289845, guid: e63eb9a7c2bd9184d8bec237a9e97b9a, type: 3}
+      propertyPath: m_LocalRotation.x
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 4098195103413289845, guid: e63eb9a7c2bd9184d8bec237a9e97b9a, type: 3}
+      propertyPath: m_LocalRotation.y
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 4098195103413289845, guid: e63eb9a7c2bd9184d8bec237a9e97b9a, type: 3}
+      propertyPath: m_LocalRotation.z
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 4098195103413289845, guid: e63eb9a7c2bd9184d8bec237a9e97b9a, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.x
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 4098195103413289845, guid: e63eb9a7c2bd9184d8bec237a9e97b9a, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.y
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 4098195103413289845, guid: e63eb9a7c2bd9184d8bec237a9e97b9a, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.z
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 8081477348580262887, guid: e63eb9a7c2bd9184d8bec237a9e97b9a, type: 3}
+      propertyPath: m_Name
+      value: FireEffect
+      objectReference: {fileID: 0}
+    m_RemovedComponents: []
+    m_RemovedGameObjects: []
+    m_AddedGameObjects: []
+    m_AddedComponents: []
+  m_SourcePrefab: {fileID: 100100000, guid: e63eb9a7c2bd9184d8bec237a9e97b9a, type: 3}
 --- !u!1660057539 &9223372036854775807
 SceneRoots:
   m_ObjectHideFlags: 0
@@ -6199,3 +6265,4 @@ SceneRoots:
   - {fileID: 1849018074}
   - {fileID: 907005052}
   - {fileID: 4817944203758910850}
+  - {fileID: 9191623734102289358}
