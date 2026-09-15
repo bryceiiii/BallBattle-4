@@ -46,6 +46,9 @@ HP系统、子弹射击、特殊食物球(5种)、弹药栏、排行榜、重生
 - 同队球防重叠由**服务端权威分离**负责（`Lib.cs` MoveAllPlayer 里 `SEPARATION_FACTOR=0.5` 温和推开重叠的同队球到相切），移动中/静止都生效；客户端不做圆-圆物理。
 - 不搞客户端预测（SmoothDamp + maxSpeed 足够平滑）。
 
+## 子弹命中特效判定（重要约定）
+- 客户端子弹命中特效**不用物理触发器 `OnTriggerEnter2D`**（多子弹聚簇/顿帧/kinematic 直接移 transform 会漏判），改用 `BulletController` 每帧**手动数学距离判定**：遍历 `GameManager.Circles`，`dist <= 球半径 + hitRadius` 即命中，三点采样（cur/mid/prev）防隧穿。服务端仍权威判定伤害。
+
 ## 设计文档
 - `GDD.md` — 游戏设计文档 v0.1
 

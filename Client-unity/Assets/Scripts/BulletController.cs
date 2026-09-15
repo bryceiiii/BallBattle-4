@@ -18,6 +18,7 @@ public class BulletController : MonoBehaviour
     [Header("命中效果")]
     public GameObject hitEffectPrefab;    // 命中特效预制体（可拖拽）
     public float hitEffectDuration = 0.3f; // 特效存活时间
+    public float hitRadius = 0.3f;         // 命中判定半径（子弹边缘+余量），越大越容易判定命中
 
     [Header("速度感（可选增强）")]
     public bool enableVelocityStretch = false;   // 沿飞行方向拉伸子弹
@@ -87,28 +88,61 @@ public class BulletController : MonoBehaviour
         _posVelocity = n * 0.001f;
     }
 
-    void OnTriggerEnter2D(Collider2D other)
+    /// <summary>
+    /// 手动命中检测（替代 OnTriggerEnter2D）。
+    /// 用数学距离判定取代物理触发器边沿检测，多子弹聚簇/顿帧/快速移动下每发都能可靠触发。
+    /// </summary>
+    void DetectHit(Vector2 prevPos, Vector2 curPos)
     {
-        if (hasHit) return; // 只处理首次命中
+        Vector2 mid = (prevPos + curPos) * 0.5f;
+        TryHitAt(curPos);
+        if (hasHit) return;
+        TryHitAt(mid);
+        if (hasHit) return;
+        TryHitAt(prevPos);
+    }
 
-        // 跳过发射者自己的球
-        var targetCtrl = other.GetComponent<CircleController>();
-        if (targetCtrl != null && targetCtrl.playerId == ownerPlayerId)
-            return;
+    /// <summary>检查某采样点是否命中敌人球。命中则触发受击反馈并返回 true。</summary>
+    bool TryHitAt(Vector2 p)
+    {
+        if (hasHit) return false;
+        if (GameManager.Circles == null) return false;
 
-        // 标记命中
+        foreach (var kv in GameManager.Circles)
+        {
+            var go = kv.Value;
+            if (go == null) continue;
+            var targetCtrl = go.GetComponent<CircleController>();
+            if (targetCtrl == null) continue;
+            if (targetCtrl.playerId == ownerPlayerId) continue; // 跳过发射者自己的球
+
+            float targetRadius = go.transform.localScale.x * 0.5f;
+            float r = targetRadius + hitRadius;
+            float dx = p.x - go.transform.position.x;
+            float dy = p.y - go.transform.position.y;
+            if (dx * dx + dy * dy <= r * r)
+            {
+                HandleHit(targetCtrl, p);
+                return true;
+            }
+        }
+        return false;
+    }
+
+    void HandleHit(CircleController targetCtrl, Vector3 hitPos)
+    {
         hasHit = true;
 
         // 命中手感反馈（顿帧/爆炸/被击闪色+推动/震动/音效，纯客户端当帧生效）
         Vector2 bulletDir = _posVelocity;
         if (bulletDir.sqrMagnitude < 0.0001f)
             bulletDir = (Vector2)(_targetPos - transform.position);
-        GameFeel.Instance?.OnHit(transform.position, targetCtrl, bulletDir);
+        GameFeel.Instance?.OnHit(hitPos, targetCtrl, bulletDir);
 
         // 播放命中特效
         if (hitEffectPrefab != null)
         {
-            var fx = Instantiate(hitEffectPrefab, transform.position, Quaternion.identity);
+            var fx = Instantiate(hitEffectPrefab, hitPos, Quaternion.identity);
             Destroy(fx, hitEffectDuration);
         }
         else
@@ -132,6 +166,8 @@ public class BulletController : MonoBehaviour
     {
         age += Time.deltaTime;
 
+        Vector2 prevPos = transform.position;
+
         // SmoothDamp 插值
         if (_hasTarget)
         {
@@ -139,6 +175,10 @@ public class BulletController : MonoBehaviour
                 ref _posVelocity, smoothTime);
             transform.position = new Vector3(desired.x, desired.y, 0);
         }
+
+        // 手动命中检测（替代物理触发器）
+        if (!hasHit)
+            DetectHit(prevPos, transform.position);
 
         // 方向与朝向：优先使用插值速度，其次使用 targetDelta（初始帧）
         Vector2 movementDir = Vector2.zero;
