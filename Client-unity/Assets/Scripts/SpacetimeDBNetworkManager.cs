@@ -58,7 +58,9 @@ public class SpacetimeDBNetworkManager : MonoBehaviour
     {
         AuthToken.Init();
 
-#if UNITY_ANDROID || UNITY_IOS
+        // 真机移动端（非编辑器）无法访问 PC 的 127.0.0.1，提示改用局域网模式；
+        // 编辑器/PC 上模拟移动端调试时放行 Local 模式，方便本机联调。
+#if (UNITY_ANDROID || UNITY_IOS) && !UNITY_EDITOR
         if (connectionMode == ConnectionMode.Local)
         {
             OnConnectFailed?.Invoke("手机端请使用局域网模式");
@@ -142,6 +144,7 @@ public class SpacetimeDBNetworkManager : MonoBehaviour
     private void HandleConnectError(Exception error)
     {
         IsConnected = false;
+        _fallbackTriggered = true; // 明确失败后禁止 3 秒兜底把失败改判为成功
         Debug.LogError($"<color=red>连接失败：{error.Message}</color>");
         OnConnectFailed?.Invoke(error.Message);
     }

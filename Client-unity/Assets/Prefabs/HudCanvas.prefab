@@ -792,9 +792,11 @@ MonoBehaviour:
   - {fileID: 77637824922382607}
   buffTimers:
   - {fileID: 641083808072962149}
+  deathPanelPrefab: {fileID: 6967286201474029147, guid: a8361330169095544a3d486176d586a8, type: 3}
   deathPanel: {fileID: 0}
   deathTitleText: {fileID: 0}
   respawnButton: {fileID: 0}
+  backToSkinButton: {fileID: 0}
 --- !u!1 &1602026405548398885
 GameObject:
   m_ObjectHideFlags: 0

@@ -9,6 +9,14 @@ using System.Collections.Generic;
 /// </summary>
 public class SkinSelectionUIController : MonoBehaviour
 {
+    /// <summary>全局单例（场景中仅一个皮肤选择面板时自动赋值）。</summary>
+    public static SkinSelectionUIController Instance { get; private set; }
+
+    void Awake()
+    {
+        Instance = this;
+    }
+
     [Header("调试开关")]
     [Tooltip("开启=运行时用代码覆盖样式 | 关闭=保留预制体原始样式")]
     public bool useCodeStyles = true;
@@ -63,13 +71,16 @@ public class SkinSelectionUIController : MonoBehaviour
         // 初始隐藏
         if (skinPanel != null) skinPanel.SetActive(false);
 
-        // 注册连接成功回调
+        // 注册连接回调：成功后显示面板，失败后隐藏面板
         SpacetimeDBNetworkManager.OnConnected += OnConnected;
+        SpacetimeDBNetworkManager.OnConnectFailed += OnConnectFailed;
     }
 
     void OnDestroy()
     {
+        if (Instance == this) Instance = null;
         SpacetimeDBNetworkManager.OnConnected -= OnConnected;
+        SpacetimeDBNetworkManager.OnConnectFailed -= OnConnectFailed;
     }
 
     // ============================================================
@@ -155,6 +166,22 @@ public class SkinSelectionUIController : MonoBehaviour
     {
         Debug.Log("[SkinSelectionUI] 已连接，显示皮肤选择面板");
         Show();
+    }
+
+    /// <summary>
+    /// 连接失败/断线：必须隐藏皮肤面板，否则玩家能在未连接状态下继续操作面板"绕过"大厅的连接限制。
+    /// </summary>
+    private void OnConnectFailed(string error)
+    {
+        Debug.LogWarning($"[SkinSelectionUI] 连接失败/断开（{error}），隐藏皮肤选择面板");
+
+        if (skinPanel != null && skinPanel.activeSelf)
+        {
+            skinPanel.SetActive(false);
+            // 回到大厅面板，让玩家重新连接
+            if (LobbyUIController.Instance != null && LobbyUIController.Instance.lobbyPanel != null)
+                LobbyUIController.Instance.lobbyPanel.SetActive(true);
+        }
     }
 
     // ============================================================
@@ -404,6 +431,17 @@ public class SkinSelectionUIController : MonoBehaviour
     {
         if (!_skinManager.HasValidSelection) return;
 
+        // 防御：面板可能因时序残留而仍处于激活状态，未连接时禁止进入游戏
+        var net = SpacetimeDBNetworkManager.Instance;
+        if (net == null || !net.IsConnected)
+        {
+            Debug.LogWarning("[SkinSelectionUI] 未连接，忽略进入游戏请求");
+            Hide();
+            if (LobbyUIController.Instance != null && LobbyUIController.Instance.lobbyPanel != null)
+                LobbyUIController.Instance.lobbyPanel.SetActive(true);
+            return;
+        }
+
         Debug.Log($"[SkinSelectionUI] 确认皮肤：{_skinManager.SelectedSkin.skinName}，进入游戏…");
 
         // 隐藏皮肤面板
@@ -421,6 +459,25 @@ public class SkinSelectionUIController : MonoBehaviour
         // 显示大厅面板
         if (LobbyUIController.Instance != null && LobbyUIController.Instance.lobbyPanel != null)
             LobbyUIController.Instance.lobbyPanel.SetActive(true);
+    }
+
+    /// <summary>
+    /// 连接断开的兜底检测（面板显示期间连接掉线时收敛 UI）。
+    /// LobbyUIController 的轮询只覆盖大厅可见时的状态变化，
+    /// 这里补上皮肤面板显示期间的断线检测，防止面板"挂在无连接状态"。
+    /// </summary>
+    private void Update()
+    {
+        if (skinPanel == null || !skinPanel.activeSelf) return;
+
+        var net = SpacetimeDBNetworkManager.Instance;
+        if (net != null && !net.IsConnected)
+        {
+            Debug.LogWarning("[SkinSelectionUI] 检测到连接已断开，关闭皮肤面板");
+            skinPanel.SetActive(false);
+            if (LobbyUIController.Instance != null && LobbyUIController.Instance.lobbyPanel != null)
+                LobbyUIController.Instance.lobbyPanel.SetActive(true);
+        }
     }
 
     // ============================================================

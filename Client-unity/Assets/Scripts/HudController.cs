@@ -28,9 +28,13 @@ public class HudController : MonoBehaviour
 
     // ===== 死亡面板 =====
     [Header("死亡面板（可选拖拽，空则自动生成）")]
+    [Tooltip("死亡面板 Prefab（如 DeathPanel.prefab）。运行时实例化到本 HUD 下；留空则用代码自动生成")]
+    public GameObject deathPanelPrefab;
     public GameObject deathPanel;
     public Text deathTitleText;
     public Button respawnButton;
+    [Tooltip("点击后返回皮肤选择界面（可选拖拽，空则自动生成）")]
+    public Button backToSkinButton;
 
     private int _selectedAmmo = 0;
     private double _shieldExpireMs;  // 护盾过期时间戳
@@ -59,11 +63,94 @@ public class HudController : MonoBehaviour
             shieldFillImage.fillAmount = 0;
         }
 
-        // 自动创建死亡面板（预制体未提供时）
+        // 死亡面板解析优先级：
+        //   1) Inspector 已拖好 deathPanel 引用
+        //   2) 本 HUD 子节点下已存在名为 "DeathPanel" 的面板（场景里手动摆的 Prefab 实例）
+        //   3) 拖入的 deathPanelPrefab 实例化
+        //   4) 代码自动生成
+        if (deathPanel == null)
+            deathPanel = FindExistingDeathPanel();
+
+        if (deathPanel == null && deathPanelPrefab != null)
+            InstantiateDeathPanelPrefab();
+
         if (deathPanel == null)
             BuildDeathPanel();
 
+        // 无论面板来自预制体还是代码生成，都在这里补绑按钮事件
+        // （预制体拖拽路径不会走 BuildDeathPanel，必须在此兜底，否则点了没反应）
+        ResolveDeathPanelRefs();
+        BindDeathPanelButtons();
+
         SelectAmmo(0);
+    }
+
+    /// <summary>在本 HUD 的子节点里查找已存在的死亡面板（场景手动摆的 Prefab 实例）。</summary>
+    private GameObject FindExistingDeathPanel()
+    {
+        // 按名字精确找
+        var t = transform.Find("DeathPanel");
+        if (t != null) return t.gameObject;
+
+        // 兜底：递归找一个带名为 RespawnBtn 子节点的面板
+        foreach (var rt in GetComponentsInChildren<RectTransform>(true))
+        {
+            if (rt == transform) continue;
+            if (rt.Find("RespawnBtn") != null)
+            {
+                Debug.Log($"[Hud] 自动识别到死亡面板: {rt.name}");
+                return rt.gameObject;
+            }
+        }
+        return null;
+    }
+
+    /// <summary>从死亡面板里解析出标题文本与两个按钮的引用。</summary>
+    private void ResolveDeathPanelRefs()
+    {
+        if (deathPanel == null) return;
+
+        if (deathTitleText == null)
+        {
+            var t = deathPanel.transform.Find("Title");
+            if (t != null) deathTitleText = t.GetComponent<Text>();
+        }
+
+        if (respawnButton == null)
+        {
+            var rb = deathPanel.transform.Find("RespawnBtn");
+            if (rb != null) respawnButton = rb.GetComponent<Button>();
+        }
+
+        // 换皮肤按钮：面板里没有就运行时补一个（放在 Respawn 按钮正下方，避免重叠）
+        if (backToSkinButton == null)
+        {
+            var bb = deathPanel.transform.Find("BackToSkinBtn");
+            if (bb != null) backToSkinButton = bb.GetComponent<Button>();
+            else
+            {
+                Vector2 pos = new Vector2(0, -100);
+                if (respawnButton != null)
+                {
+                    // 跟随 Respawn 按钮：X 对齐，Y 再往下挪一个按钮高度 + 间距
+                    var rrt = respawnButton.GetComponent<RectTransform>();
+                    float h = (rrt != null && rrt.sizeDelta.y > 0f) ? rrt.sizeDelta.y : 50f;
+                    pos = new Vector2(rrt != null ? rrt.anchoredPosition.x : 0f,
+                                      (rrt != null ? rrt.anchoredPosition.y : 0f) - h - 12f);
+                }
+                backToSkinButton = CreateDeathButton("BackToSkinBtn", "换皮肤",
+                    new Color(0.25f, 0.35f, 0.6f, 0.9f), pos);
+            }
+        }
+    }
+
+    /// <summary>把 deathPanelPrefab 实例化到 HUD 下。</summary>
+    private void InstantiateDeathPanelPrefab()
+    {
+        deathPanel = Instantiate(deathPanelPrefab, transform, false);
+        deathPanel.name = "DeathPanel(Instance)";
+        deathPanel.SetActive(false);
+        Debug.Log("[Hud] 已从 deathPanelPrefab 实例化死亡面板");
     }
 
     void Update()
@@ -173,14 +260,51 @@ public class HudController : MonoBehaviour
         titleRt.anchoredPosition = new Vector2(0, 40);
 
         // 重新开始按钮
-        var btnGo = new GameObject("RespawnBtn", typeof(Image), typeof(Button));
+        respawnButton = CreateDeathButton("RespawnBtn", "Respawn",
+            new Color(0.2f, 0.6f, 0.2f, 0.9f), new Vector2(0, -40));
+
+        // 返回皮肤选择界面按钮
+        backToSkinButton = CreateDeathButton("BackToSkinBtn", "换皮肤",
+            new Color(0.25f, 0.35f, 0.6f, 0.9f), new Vector2(0, -100));
+
+        // 事件绑定统一交给 BindDeathPanelButtons()，避免与预制体路径重复绑定
+        deathPanel.SetActive(false);
+    }
+
+    /// <summary>
+    /// 给死亡面板按钮补绑事件。预制体拖拽路径不会走 BuildDeathPanel，
+    /// 若不在 Start 里统一绑定，Inspector 里只拖字段、没连 onClick 的按钮会点了没反应。
+    /// </summary>
+    public void BindDeathPanelButtons()
+    {
+        if (respawnButton != null)
+        {
+            respawnButton.onClick.RemoveListener(OnRespawnClicked);
+            respawnButton.onClick.AddListener(OnRespawnClicked);
+            Debug.Log($"[Hud] 已绑定 Respawn 按钮: {respawnButton.name}");
+        }
+        else Debug.LogWarning("[Hud] respawnButton 未赋值，Rebirth 按钮不会响应");
+
+        if (backToSkinButton != null)
+        {
+            backToSkinButton.onClick.RemoveListener(OnBackToSkinClicked);
+            backToSkinButton.onClick.AddListener(OnBackToSkinClicked);
+            Debug.Log($"[Hud] 已绑定 换皮肤 按钮: {backToSkinButton.name}");
+        }
+        else Debug.LogWarning("[Hud] backToSkinButton 未赋值，换皮肤按钮不会响应");
+    }
+
+    /// <summary>死亡面板里造一个居中按钮（程序化兜底路径用）。</summary>
+    private Button CreateDeathButton(string goName, string label, Color bgColor, Vector2 anchoredPos)
+    {
+        var btnGo = new GameObject(goName, typeof(Image), typeof(Button));
         btnGo.transform.SetParent(deathPanel.transform, false);
-        respawnButton = btnGo.GetComponent<Button>();
-        btnGo.GetComponent<Image>().color = new Color(0.2f, 0.6f, 0.2f, 0.9f);
+        btnGo.GetComponent<Image>().color = bgColor;
         var btnRt = btnGo.GetComponent<RectTransform>();
         btnRt.anchorMin = new Vector2(0.5f, 0.5f); btnRt.anchorMax = new Vector2(0.5f, 0.5f);
         btnRt.sizeDelta = new Vector2(200, 50);
-        btnRt.anchoredPosition = new Vector2(0, -40);
+        btnRt.anchoredPosition = anchoredPos;
+
         var btnTxtGo = new GameObject("BtnText", typeof(Text));
         btnTxtGo.transform.SetParent(btnGo.transform, false);
         var btnTxt = btnTxtGo.GetComponent<Text>();
@@ -188,26 +312,53 @@ public class HudController : MonoBehaviour
         btnTxt.fontSize = 24;
         btnTxt.alignment = TextAnchor.MiddleCenter;
         btnTxt.color = Color.white;
-        btnTxt.text = "Respawn";
+        btnTxt.text = label;
         var btnTxtRt = btnTxtGo.GetComponent<RectTransform>();
         btnTxtRt.anchorMin = Vector2.zero; btnTxtRt.anchorMax = Vector2.one;
         btnTxtRt.sizeDelta = Vector2.zero;
 
-        respawnButton.onClick.AddListener(OnRespawnClicked);
-
-        deathPanel.SetActive(false);
+        return btnGo.GetComponent<Button>();
     }
 
     private void OnRespawnClicked()
     {
+        Debug.Log("[Hud] 点击 Respawn");
         HideDeathScreen();
         GameManager.Instance?.RespawnPlayer();
+    }
+
+    /// <summary>死亡面板「换皮肤」：关掉游戏 HUD，回到皮肤选择界面。</summary>
+    private void OnBackToSkinClicked()
+    {
+        Debug.Log("[Hud] 点击 换皮肤");
+        HideDeathScreen();
+
+        // 隐藏游戏内 HUD（含死亡面板），否则会叠在皮肤面板上
+        var gm = GameManager.Instance;
+        if (gm != null && gm.canvasGo != null)
+            gm.canvasGo.SetActive(false);
+
+        // 显示皮肤选择界面（优先走静态单例，兜底走 LobbyUIController 引用）
+        var skinUI = SkinSelectionUIController.Instance
+                     ?? (LobbyUIController.Instance != null ? LobbyUIController.Instance.skinSelectionUI : null);
+        if (skinUI == null)
+            Debug.LogError("[Hud] 找不到 SkinSelectionUIController，无法返回皮肤界面");
+        else
+            skinUI.Show();
     }
 
     /// <summary>显示死亡画面</summary>
     public void ShowDeathScreen()
     {
-        if (deathPanel != null) deathPanel.SetActive(true);
+        if (deathPanel != null)
+        {
+            deathPanel.SetActive(true);
+            deathPanel.transform.SetAsLastSibling(); // 置顶，避免被 HUD 其它元素遮挡点击
+            Debug.Log($"[Hud] ShowDeathScreen: active={deathPanel.activeInHierarchy}, " +
+                      $"respawn={respawnButton != null}, backSkin={backToSkinButton != null}, " +
+                      $"parent={deathPanel.transform.parent?.name}");
+        }
+        else Debug.LogWarning("[Hud] ShowDeathScreen 但 deathPanel 为空！");
     }
 
     /// <summary>隐藏死亡画面</summary>
