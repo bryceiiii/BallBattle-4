@@ -196,6 +196,7 @@ public class LeaderboardController : MonoBehaviour
         hpFillRt.anchorMin = new Vector2(0, 0); hpFillRt.anchorMax = new Vector2(1, 1);
         hpFillRt.offsetMin = Vector2.zero; hpFillRt.offsetMax = Vector2.zero;
         ctx.hpFill = hpFill.AddComponent<Image>();
+        ctx.hpFill.sprite = GetSolidSprite();
         ctx.hpFill.type = Image.Type.Filled;
         ctx.hpFill.fillMethod = Image.FillMethod.Vertical;
         ctx.hpFill.fillOrigin = 0; // bottom-up
@@ -333,6 +334,21 @@ public class LeaderboardController : MonoBehaviour
     // ============================================================
     //  辅助
     // ============================================================
+    static Sprite _solidSprite;
+    /// <summary>1x1 纯白 Sprite（Filled 血条底图，运行时生成一次复用）。</summary>
+    static Sprite GetSolidSprite()
+    {
+        if (_solidSprite != null) return _solidSprite;
+        var tex = new Texture2D(4, 4, TextureFormat.RGBA32, false);
+        var px = new Color32[16];
+        for (int i = 0; i < px.Length; i++) px[i] = new Color32(255, 255, 255, 255);
+        tex.SetPixels32(px);
+        tex.Apply();
+        tex.wrapMode = TextureWrapMode.Clamp;
+        _solidSprite = Sprite.Create(tex, new Rect(0, 0, 4, 4), new Vector2(0.5f, 0.5f));
+        return _solidSprite;
+    }
+
     static void AddLayoutElement(GameObject go, float width, float height)
     {
         var le = go.AddComponent<LayoutElement>();
