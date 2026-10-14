@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.UI;
 using SpacetimeDB;
+using Random = UnityEngine.Random;
 
 [RequireComponent(typeof(CircleCollider2D))]
 [RequireComponent(typeof(Rigidbody2D))]
@@ -47,6 +48,16 @@ public class CircleController : MonoBehaviour
     private RectTransform hpFillRect;    // HP 填充条 RectTransform（缓存，避免每帧 GetComponent）
     private RectTransform hpCanvasRect;  // Canvas 的 RectTransform（控制位置+尺寸+显隐）
     private bool hpBarCreated = false;
+
+    // ===== HP 条受击反馈（抖动 + 闪白） =====
+    [Header("HP 条受击反馈")]
+    public float hpFlashDuration = 0.12f;   // 闪白时长（秒）
+    public float hpShakeDuration = 0.2f;    // 抖动时长（秒）
+    public float hpShakeIntensity = 0.02f;  // 抖动幅度（局部单位，随球尺寸缩放）
+    private float _hpFlashTimer = 0f;       // 闪白剩余时间
+    private float _hpShakeTimer = 0f;       // 抖动剩余时间
+    private bool _hpWasFlashing = false;    // 闪白进行中标志
+    private float _lastHp = -1f;            // 上一帧血量，用于检测掉血
 
     // ===== 服务端权威目标值 =====
     private Vector3 targetPos = Vector3.zero;
@@ -236,6 +247,10 @@ public class CircleController : MonoBehaviour
     /// </summary>
     public void SetHp(float currentHp, float maxHpValue)
     {
+        // 掉血检测：当前血量低于上一帧 → 触发受击反馈
+        bool tookDamage = _lastHp >= 0f && currentHp < _lastHp - 0.001f;
+        _lastHp = currentHp;
+
         hp = currentHp;
         maxHp = maxHpValue;
 
@@ -244,6 +259,14 @@ public class CircleController : MonoBehaviour
         debugMaxHp = maxHpValue;
 
         if (!hpBarCreated) CreateHpBar();
+
+        // 掉血：触发闪白 + 抖动（纯客户端表现）
+        if (tookDamage)
+        {
+            _hpFlashTimer = hpFlashDuration;
+            _hpShakeTimer = hpShakeDuration;
+            _hpWasFlashing = true;
+        }
 
         if (hpFillRect == null || hp <= 0 || maxHp <= 0) return;
 
@@ -255,19 +278,24 @@ public class CircleController : MonoBehaviour
         float fillWidth = barFullWidth * ratio;
         hpFillRect.sizeDelta = new Vector2(fillWidth, 0f);
 
-        // 颜色：绿(>60%) → 黄(30-60%) → 红(<30%)
-        if (ratio > 0.6f)
-            hpFillImage.color = Color.green;
-        else if (ratio > 0.3f)
-            hpFillImage.color = Color.yellow;
-        else
-            hpFillImage.color = Color.red;
+        // 闪白期间由 Update 覆盖为白色，其余时间按比例上色
+        if (_hpFlashTimer <= 0f)
+            ApplyHpFillColor(ratio);
 
         // 控制 Canvas 级显隐：满血隐藏，受伤显示
         if (hpCanvasRect != null)
         {
             hpCanvasRect.gameObject.SetActive(ratio < 1f);
         }
+    }
+
+    /// <summary>按血量比例设置血条颜色：绿(>60%) → 黄(30-60%) → 红(<30%)。</summary>
+    private void ApplyHpFillColor(float ratio)
+    {
+        if (hpFillImage == null) return;
+        if (ratio > 0.6f) hpFillImage.color = Color.green;
+        else if (ratio > 0.3f) hpFillImage.color = Color.yellow;
+        else hpFillImage.color = Color.red;
     }
 
     public void SetTargetPos(Vector3 newPos)
@@ -349,6 +377,23 @@ public class CircleController : MonoBehaviour
             }
         }
 
+        // ===== HP 条受击反馈：闪白 + 抖动计时（每帧递减，与位置更新频率无关） =====
+        if (_hpFlashTimer > 0f) _hpFlashTimer -= Time.deltaTime;
+        if (_hpShakeTimer > 0f) _hpShakeTimer -= Time.deltaTime;
+
+        if (_hpWasFlashing)
+        {
+            if (_hpFlashTimer > 0f && hpFillImage != null)
+            {
+                hpFillImage.color = Color.white;              // 闪白
+            }
+            else
+            {
+                _hpWasFlashing = false;
+                ApplyHpFillColor(Mathf.Clamp01(hp / maxHp));  // 恢复正常色
+            }
+        }
+
         // ===== 合并动画 =====
         if (isMergeAnim)
         {
@@ -419,7 +464,17 @@ public class CircleController : MonoBehaviour
             // 位置：球顶在局部 Y = 0.5（因为 ballScale.x = 直径）
             // 加上条高/间距的局部偏移
             float localOffset = 0.5f + (curH * 0.5f + hpBarTopGap) / diameter;
-            hpCanvasRect.localPosition = new Vector3(0f, localOffset, hpBarZDepth);
+            Vector3 hpPos = new Vector3(0f, localOffset, hpBarZDepth);
+
+            // 受击抖动：幅度随剩余时间线性衰减到 0
+            if (_hpShakeTimer > 0f)
+            {
+                float k = Mathf.Clamp01(_hpShakeTimer / Mathf.Max(0.0001f, hpShakeDuration));
+                float amp = hpShakeIntensity * k;
+                hpPos.x += Random.Range(-amp, amp);
+                hpPos.y += Random.Range(-amp, amp);
+            }
+            hpCanvasRect.localPosition = hpPos;
 
             // 取消继承父球缩放，仅通过 sizeDelta 传递父级缩放
             hpCanvasRect.localScale = Vector3.one;
