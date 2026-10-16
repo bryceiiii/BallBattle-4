@@ -13,7 +13,9 @@ public static partial class Module
     private static float PRIMARY_PLAYER_MASS = 5.0f;
     private static int BASE_FOOD_COUNT = 600;     // 基础食物数（适配 100×100 地图）
     private static float FOOD_MASS_RATIO = 0.3f;  // 食物动态系数：每总质量单位增加 0.3 个食物
-    private static int START_PLAYER_SPEED = 14;
+    private static int START_PLAYER_SPEED = 16;      // 基础移动速度（配合更缓衰减，小球更跟手）
+    private static float SPEED_DECAY_COEFF = 0.03f; // 质量减速系数（0.06→0.03，大球不再变死靶）
+    private static float MIN_SPEED_SCALE = 0.18f;   // 质量减速地板：大球最低保持 18% 速度
     private static float MIN_SPLIT_MASS = 10.0f; // 允许分裂的最小质量
     private static int MAX_CIRCLES_PER_PLAYER = 16; // 每人最多球数，防止分裂过多导致O(n?)碰撞检测卡顿
     //合并配置
@@ -502,8 +504,9 @@ public static partial class Module
             var entity = entityNullable.Value;
             var player = playerNullable.Value;
 
-            // 质量减速系数
-            float speedScale = 1f / (entity.mass * 0.06f + 1f);
+            // 质量减速系数（更缓衰减 + 地板，大球从"死靶"变"缓慢但能威胁"）
+            float speedScale = 1f / (entity.mass * SPEED_DECAY_COEFF + 1f);
+            if (speedScale < MIN_SPEED_SCALE) speedScale = MIN_SPEED_SCALE;
             float moveStep = SERVER_DELTA * START_PLAYER_SPEED * speedScale;
 
             // 速度buff：玩家全局加速

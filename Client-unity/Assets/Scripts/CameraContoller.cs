@@ -13,17 +13,20 @@ public class CameraContoller : MonoBehaviour
     public float smoothSpeed = 3.5f;
 
     [Header("Zoom")]
-    public float sizeSmoothSpeed = 2f;
-    public float minSize = 5f; // 相机最小的正交视野大小
+    public float sizeSmoothSpeed = 4f; // 缩放平滑（分裂瞬间球数突变时更跟手，时间常数≈0.25s）
+    public float minSize = 3f; // 相机最小的正交视野大小（小球阶段视野更聚焦，出生球看得清）
     public float padding = 2f; // 屏幕边缘留白的距离
 
     [Header("Diameter-based view")]
-    [Tooltip("基于最大球直径的额外视野比例（例如 0.4 表示在半径基础上再增加 40% 的''呼吸''空间）")]
-    public float diameterMargin = 0.4f;
+    [Tooltip("基于最大球直径的额外视野比例（0.22 表示在半径基础上再增加 22% 的''呼吸''空间）")]
+    public float diameterMargin = 0.22f; // 大球额外视野比例（0.4→0.22，大球在屏幕里更紧凑）
     [Tooltip("视野上限（防止极端情况下放得过远），<= 0 则不生效")]
-    public float maxSize = 0f;
+    public float maxSize = 35f; // 视野上限（防止分裂多球时拉得太远）
 
     private Camera cam;
+
+    // 世界尺寸（与服务端 Lib.cs 的 WORLD_SIZE 保持一致）
+    private const float WORLD_SIZE = 100f;
 
     // ===== 屏幕震动（游戏手感） =====
     private Vector3 _logicalPos;         // 相机平滑后的逻辑位置（不含震动，避免震动被平滑"吃掉"）
@@ -90,15 +93,28 @@ public class CameraContoller : MonoBehaviour
 
         if (followTargets.Count == 0) return;
 
-        // --- 1. 相机平滑移动到所有球的几何中心 ---
+        // --- 1. 相机平滑移动到所有球的质量加权中心 ---
+        // 大球主导视野，远处小球只轻微拉动，避免一个远距小球把中心硬拉偏。
+        // 权重 = 质量 ∝ 直径?（MassToDiameter = sqrt(mass)/2 → mass = 4×diameter?）
         Vector2 center = Vector2.zero;
+        float totalWeight = 0f;
         foreach (var target in followTargets)
         {
-            center += (Vector2)target.position;
+            float diameter = target.localScale.x;
+            float weight = Mathf.Max(0.001f, diameter * diameter);
+            center += (Vector2)target.position * weight;
+            totalWeight += weight;
         }
-        center /= followTargets.Count;
+        if (totalWeight > 0f) center /= totalWeight;
 
-        Vector3 targetPosition = new Vector3(center.x, center.y, transform.position.z);
+        // 边界钳制：球贴边时相机中心不越界，避免显示地图外空白
+        // 视野比地图还大时（halfW/halfH 超过地图半宽/半高），相机锁定在地图中心
+        float halfH = cam != null ? cam.orthographicSize : minSize;
+        float halfW = halfH * (cam != null ? cam.aspect : 1f);
+        float clampX = halfW >= WORLD_SIZE * 0.5f ? WORLD_SIZE * 0.5f : Mathf.Clamp(center.x, halfW, WORLD_SIZE - halfW);
+        float clampY = halfH >= WORLD_SIZE * 0.5f ? WORLD_SIZE * 0.5f : Mathf.Clamp(center.y, halfH, WORLD_SIZE - halfH);
+
+        Vector3 targetPosition = new Vector3(clampX, clampY, transform.position.z);
         if (!_logicalInit) { _logicalPos = transform.position; _logicalInit = true; }
         _logicalPos = Vector3.Lerp(_logicalPos, targetPosition, Time.deltaTime * smoothSpeed);
         transform.position = _logicalPos + (Vector3)UpdateShake();
