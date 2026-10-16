@@ -617,7 +617,7 @@ public class GameManager : MonoBehaviour
             }
         }
 
-        // [调试] H 键对自己最大球扣 10 HP
+        // [调试] H 键对自己最大球扣 10 HP（纯服务端扣血：只测血条掉血/死亡流程）
         if (Input.GetKeyDown(KeyCode.H))
         {
             if (Conn != null)
@@ -636,6 +636,32 @@ public class GameManager : MonoBehaviour
                 {
                     Debug.LogWarning("[调试] 未找到本地玩家的球");
                 }
+            }
+        }
+
+        // [调试] J 键对自己最大球触发完整受击表现（本地 GameFeel 全套，不依赖服务端回包）
+        // 球闪色 + 后座 + 顿帧 + 爆炸粒子 + 屏幕震动 + 音效 + 护盾闪红（若有盾），并顺带扣血让血条也掉
+        if (Input.GetKeyDown(KeyCode.J))
+        {
+            var mainBall = FindLocalMainBall();
+            if (mainBall != null)
+            {
+                var ctrl = mainBall.GetComponent<CircleController>();
+                if (ctrl != null)
+                {
+                    // 模拟子弹从右侧命中
+                    GameFeel.Instance?.OnHit(mainBall.transform.position, ctrl, Vector2.right);
+
+                    // 顺带走服务端扣血，让血条闪白+抖动也生效（连不上服务端时本地表现照常）
+                    if (Conn != null)
+                        Conn.Reducers.DebugDamage(ctrl.entityId, 10f);
+
+                    Debug.Log("[调试] J 键：触发完整受击效果");
+                }
+            }
+            else
+            {
+                Debug.LogWarning("[调试] 未找到本地玩家的球");
             }
         }
     }

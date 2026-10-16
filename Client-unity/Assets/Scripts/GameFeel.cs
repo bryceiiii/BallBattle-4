@@ -77,9 +77,14 @@ public class GameFeel : MonoBehaviour
 
     // ===== 命中爆炸 =====
     [Header("命中爆炸")]
-    public int hitBurstCount = 6;
-    public float hitBurstSize = 0.35f;
-    public float hitBurstLife = 0.25f;
+    [Tooltip("爆炸碎片数量")]
+    public int hitBurstCount = 12;
+    [Tooltip("碎片初始尺寸 = 被击球直径 × 此比例（随球缩放，大球碎片更大）")]
+    public float hitBurstSize = 0.22f;
+    [Tooltip("碎片存活时长（秒）")]
+    public float hitBurstLife = 0.3f;
+    [Tooltip("碎片扩散速度范围（世界单位/秒）")]
+    public Vector2 hitBurstSpeed = new Vector2(3f, 9f);
     public Color hitBurstColor = new Color(1f, 0.55f, 0.15f, 1f);
     public float hitFlashDuration = 0.15f;
     public Color hitFlashColor = new Color(1f, 0.35f, 0.3f, 1f);
@@ -177,8 +182,9 @@ public class GameFeel : MonoBehaviour
         // 命中顿帧
         TriggerHitStop();
 
-        // 爆炸粒子
-        SpawnHitBurst(hitPos);
+        // 爆炸粒子（尺寸随被击球直径缩放）
+        float hitDiameter = target != null ? target.transform.localScale.x : 1f;
+        SpawnHitBurst(hitPos, hitDiameter);
 
         // 被击球：闪色 + 反方向推动（纯视觉）
         if (target != null)
@@ -324,16 +330,20 @@ public class GameFeel : MonoBehaviour
             muzzleFlashColor, dir * 2f, muzzleFlashDuration, 0f, ReturnParticle);
     }
 
-    void SpawnHitBurst(Vector3 pos)
+    void SpawnHitBurst(Vector3 pos, float diameter)
     {
         for (int i = 0; i < hitBurstCount; i++)
         {
             float angle = Random.Range(0f, Mathf.PI * 2f);
-            Vector2 v = new Vector2(Mathf.Cos(angle), Mathf.Sin(angle)) * Random.Range(2f, 6f);
-            float s = hitBurstSize * Random.Range(0.7f, 1.3f);
+            float speed = Random.Range(hitBurstSpeed.x, hitBurstSpeed.y);
+            Vector2 v = new Vector2(Mathf.Cos(angle), Mathf.Sin(angle)) * speed;
+
+            // 碎片尺寸随球直径缩放（大球大碎片），再叠加随机浮动
+            float s = Mathf.Max(0.04f, hitBurstSize * diameter) * Random.Range(0.8f, 1.4f);
             var p = GetParticle();
+            // startScale=s → endScale=s*1.6：向外膨胀扩散，更像爆炸
             p.Init(_circleSprite, pos,
-                new Vector2(s, s), new Vector2(0.04f, 0.04f),
+                new Vector2(s, s), new Vector2(s * 1.6f, s * 1.6f),
                 hitBurstColor, v, hitBurstLife * Random.Range(0.7f, 1.2f), 6f, ReturnParticle);
         }
     }

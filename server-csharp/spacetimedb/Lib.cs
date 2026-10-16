@@ -452,19 +452,19 @@ public static partial class Module
             int foodType;
             if (roll < HEALTH_ORB_CHANCE)
             {
-                foodType = 1; foodCurrentMass = 1.5f; // 回血球
+                foodType = 1; foodCurrentMass = 2f; // 回血球
             }
             else if (roll < HEALTH_ORB_CHANCE + SPLIT_ORB_CHANCE)
             {
-                foodType = 2; foodCurrentMass = 1.8f; // 分裂弹
+                foodType = 2; foodCurrentMass = 2f; // 分裂弹
             }
             else if (roll < HEALTH_ORB_CHANCE + SPLIT_ORB_CHANCE + SHIELD_ORB_CHANCE)
             {
-                foodType = 3; foodCurrentMass = 1.6f; // 护盾球
+                foodType = 3; foodCurrentMass = 2f; // 护盾球
             }
             else if (roll < HEALTH_ORB_CHANCE + SPLIT_ORB_CHANCE + SHIELD_ORB_CHANCE + SPEED_ORB_CHANCE)
             {
-                foodType = 4; foodCurrentMass = 1.4f; // 速度球
+                foodType = 4; foodCurrentMass = 2f; // 速度球
             }
             else
             {

@@ -4567,7 +4567,7 @@ SpriteRenderer:
   m_LightmapParameters: {fileID: 0}
   m_SortingLayerID: 0
   m_SortingLayer: 0
-  m_SortingOrder: 0
+  m_SortingOrder: -1
   m_Sprite: {fileID: 21300000, guid: acaec5b89da1d084f89edef6480f6b8c, type: 3}
   m_Color: {r: 1, g: 1, b: 1, a: 1}
   m_FlipX: 0
@@ -4891,6 +4891,7 @@ MonoBehaviour:
   hitBurstCount: 6
   hitBurstSize: 0.35
   hitBurstLife: 0.25
+  hitBurstSpeed: {x: 3, y: 9}
   hitBurstColor: {r: 1, g: 0.55, b: 0.15, a: 1}
   hitFlashDuration: 0.15
   hitFlashColor: {r: 1, g: 0.35, b: 0.3, a: 1}
