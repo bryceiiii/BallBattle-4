@@ -805,11 +805,11 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: fd6c88589c42df649a888bf58f601b60, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  smoothSpeed: 7
+  smoothSpeed: 4
   sizeSmoothSpeed: 2
   minSize: 5
   padding: 2
-  diameterMargin: 0.4
+  diameterMargin: 0.22
   maxSize: 0
 --- !u!114 &183541908 stripped
 MonoBehaviour:
@@ -4900,10 +4900,11 @@ MonoBehaviour:
   shieldHitFlashColor: {r: 1, g: 0.3, b: 0.25, a: 1}
   damageTextColor: {r: 1, g: 1, b: 1, a: 1}
   blockedTextColor: {r: 0.6, g: 0.8, b: 1, a: 1}
-  fireClip: {fileID: 0}
-  hitClip: {fileID: 0}
-  emptyClip: {fileID: 8300000, guid: 7f4bb029a84be7a4c9474a435956ccaf, type: 3}
-  splitClip: {fileID: 0}
+  fireClip: {fileID: 8300000, guid: 374c7c3d9750a14458f238acefc0559b, type: 3}
+  hitClip: {fileID: 8300000, guid: a4cd977e02fbd164c89e929ca88f811b, type: 3}
+  emptyClip: {fileID: 8300000, guid: b725d393d1dc7bf4d8cb4920124b5189, type: 3}
+  splitClip: {fileID: 8300000, guid: 7aa23524883c3764fbea0430b56e1f10, type: 3}
+  pickupClip: {fileID: 8300000, guid: 1e5bd1534adf73e49a6f581c08adda3b, type: 3}
   sfxVolume: 0.8
   sfxPitchMin: 0.9
   sfxPitchMax: 1.1
@@ -5751,6 +5752,54 @@ Transform:
   - {fileID: 1684252907}
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!1 &2112988022
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 2112988024}
+  - component: {fileID: 2112988023}
+  m_Layer: 0
+  m_Name: GameAudioManager
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!114 &2112988023
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 2112988022}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 9a3f2d7c5e4b49b883164a5c6f9d2e10, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  backgroundMusic: {fileID: 0}
+  loadBackgroundMusicFromResources: 1
+  defaultMusicVolume: 0.7
+  sfxVolume: 1
+--- !u!4 &2112988024
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 2112988022}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 0, y: 0, z: 0}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 0}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!1001 &4817944203758910850
 PrefabInstance:
   m_ObjectHideFlags: 0
@@ -5891,3 +5940,4 @@ SceneRoots:
   - {fileID: 907005052}
   - {fileID: 4817944203758910850}
   - {fileID: 9191623734102289358}
+  - {fileID: 2112988024}

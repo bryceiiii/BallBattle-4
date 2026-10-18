@@ -49,6 +49,24 @@ HP系统、子弹射击、特殊食物球(5种)、弹药栏、排行榜、重生
 ## 子弹命中特效判定（重要约定）
 - 客户端子弹命中特效**不用物理触发器 `OnTriggerEnter2D`**（多子弹聚簇/顿帧/kinematic 直接移 transform 会漏判），改用 `BulletController` 每帧**手动数学距离判定**：遍历 `GameManager.Circles`，`dist <= 球半径 + hitRadius` 即命中，三点采样（cur/mid/prev）防隧穿。服务端仍权威判定伤害。
 
+## Unity MCP 操作规则（强制）
+- Unity 工程根目录是 `D:\UnityProjects\BallBattle-4\Client-unity`。
+- 优先通过 unityMCP 读取和修改 Unity 对象。
+- 有 MCP 时不要手工编辑 `.unity`、`.prefab`、`.asset`、`.mat` 等序列化资产。
+- 大规模修改前先执行 `git status`；不要覆盖用户未提交的修改。
+- 修改后读取 UnityEngine Console，必要时运行 EditMode、PlayMode 测试和构建。
+- Unity 应保持打开，MCP Server 和 Bridge 应处于 Running。
+- 不要以管理员权限运行 Unity。
+- 相关任务优先复用现有 `unity-tdd`、`unity-bdd`、`unity-ui-button-debug` 技能。
+
+## Unity MCP 连接参数（已验证 2026-10-17）
+- 名称 `unityMCP`，类型 `streamableHttp`，URL `http://127.0.0.1:8080/mcp`，timeout 30000。
+- **自定义 MCP 落点（唯一有效）**：`C:\Users\Administrator\.workbuddy\mcp.json`（不带点，用户可编辑）。
+- 不要写 `~/.workbuddy/.mcp.json` 或 `~/.workbuddy/connectors/<id>/mcp.json` —— 这两个是 ConnectorService 启动时自动重写的，手工条目会被覆盖。
+- instance id：`Client-unity@706b2b3fb00eb91f`
+- 服务端 `mcp-for-unity-server` 3.4.9；Unity 2022.3.62f3c1。
+- 改完 mcp.json 必须重载会话/重启 WorkBuddy 才生效；工具名形如 `mcp__unityMCP__manage_scene`。
+
 ## 设计文档
 - `GDD.md` — 游戏设计文档 v0.1
 

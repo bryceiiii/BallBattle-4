@@ -106,6 +106,7 @@ public class GameFeel : MonoBehaviour
     public AudioClip hitClip;
     public AudioClip emptyClip;
     public AudioClip splitClip;
+    public AudioClip pickupClip;
     [Range(0f, 1f)] public float sfxVolume = 0.8f;
     [Range(0.9f, 1.1f)] public float sfxPitchMin = 0.9f;
     [Range(0.9f, 1.1f)] public float sfxPitchMax = 1.1f;
@@ -119,7 +120,6 @@ public class GameFeel : MonoBehaviour
     private Sprite _circleSprite;
     private readonly List<GameFeelParticle> _particlePool = new();
     private readonly List<FloatingText> _textPool = new();
-    private readonly List<AudioSource> _audioPool = new();
     private readonly List<MuzzleFlashFx> _flashPool = new();
 
     // 程序生成的占位音
@@ -137,6 +137,11 @@ public class GameFeel : MonoBehaviour
     {
         _originalTimeScale = Time.timeScale;
         _circleSprite = MobileCanvasSetup.CreateCircleSprite(64, Color.white);
+        fireClip = LoadClipIfMissing(fireClip, "Audio/SFX_Shoot");
+        hitClip = LoadClipIfMissing(hitClip, "Audio/SFX_Hit");
+        emptyClip = LoadClipIfMissing(emptyClip, "Audio/SFX_Empty");
+        splitClip = LoadClipIfMissing(splitClip, "Audio/SFX_Split");
+        pickupClip = LoadClipIfMissing(pickupClip, "Audio/SFX_Pickup");
         _fireGen = GenerateFire();
         _hitGen = GenerateHit();
         _emptyGen = GenerateEmpty();
@@ -219,6 +224,13 @@ public class GameFeel : MonoBehaviour
     public void OnSplit()
     {
         PlaySfx(splitClip, _splitGen, 1f);
+    }
+
+    /// <summary>Local power-up pickup feedback. Type: 0 shield, 1 speed, 2 ammo.</summary>
+    public void OnPickup(int pickupType)
+    {
+        float pitch = pickupType == 1 ? 1.10f : pickupType == 2 ? 0.94f : 1f;
+        PlaySfx(pickupClip, _splitGen, 0.82f, pitch);
     }
 
     /// <summary>伤害飘字（可选）。damage>0 白字扣血；blocked=true 出"格挡"。</summary>
@@ -399,32 +411,21 @@ public class GameFeel : MonoBehaviour
     // ============================================================
     //  音效
     // ============================================================
-    void PlaySfx(AudioClip clip, AudioClip fallback, float volumeScale)
+    void PlaySfx(AudioClip clip, AudioClip fallback, float volumeScale, float pitch = -1f)
     {
         if (!enableSfx) return;
         var c = clip != null ? clip : fallback;
         if (c == null) return;
 
-        var src = GetAudioSource();
-        // 注意：PlayOneShot 不响应 pitch，故用 clip+Play() 实现随机音高
-        src.clip = c;
-        src.volume = sfxVolume * volumeScale;
-        src.pitch = Random.Range(sfxPitchMin, sfxPitchMax);
-        src.Play();
+        GameAudioManager.Instance.PlaySfx(
+            c,
+            sfxVolume * volumeScale,
+            pitch > 0f ? pitch : Random.Range(sfxPitchMin, sfxPitchMax));
     }
 
-    AudioSource GetAudioSource()
+    static AudioClip LoadClipIfMissing(AudioClip clip, string resourcePath)
     {
-        foreach (var a in _audioPool)
-            if (a != null && !a.isPlaying) return a;
-        var go = new GameObject("SfxSource");
-        go.transform.SetParent(transform, false);
-        var src = go.AddComponent<AudioSource>();
-        src.playOnAwake = false;
-        src.loop = false;
-        src.spatialBlend = 0f; // 2D 音效
-        _audioPool.Add(src);
-        return src;
+        return clip != null ? clip : Resources.Load<AudioClip>(resourcePath);
     }
 
     // ============================================================

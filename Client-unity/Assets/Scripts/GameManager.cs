@@ -10,7 +10,7 @@ public class GameManager : MonoBehaviour
     public static GameManager Instance { get; private set; }
     public InputField InputField;
     public GameObject canvasGo;
-    public GameObject bulletPrefab;      // ×Óµ¯Ô¤ÖÆÌå£¨ÍÏ×§£©
+    public GameObject bulletPrefab;      // ï¿½Óµï¿½Ô¤ï¿½ï¿½ï¿½å£¨ï¿½ï¿½×§ï¿½ï¿½
 
     private static Dictionary<int, GameObject> Entities = new Dictionary<int, GameObject>();
     public static Dictionary<int, GameObject> Circles = new Dictionary<int, GameObject>();
@@ -18,17 +18,17 @@ public class GameManager : MonoBehaviour
 
     private static Dictionary<int, List<int>> PlayerBallMap = new Dictionary<int, List<int>>();
 
-    // ===== Ã¿Ö¡Ã¿ÊµÌåÖ»´¦Àí×îºóÒ»´Î¸üÐÂ =====
+    // ===== Ã¿Ö¡Ã¿Êµï¿½ï¿½Ö»ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ò»ï¿½Î¸ï¿½ï¿½ï¿½ =====
     private static HashSet<int> entitiesUpdatedThisFrame = new HashSet<int>();
 
-    // ===== »¤¶ÜÌØÐ§×·×Ù =====
+    // ===== ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ð§×·ï¿½ï¿½ =====
     private static Dictionary<int, GameObject> shieldEffects = new Dictionary<int, GameObject>();
 
     private Identity localIdentity;
     public DbConnection Conn => SpacetimeDBNetworkManager.Instance?.Db;
 
     private bool isSubscribed = false;
-    private bool _mainThreadSubscribed = false; // [ÐÂÔö] Ö÷Ïß³Ì¶©ÔÄ±êÖ¾
+    private bool _mainThreadSubscribed = false; // [ï¿½ï¿½ï¿½ï¿½] ï¿½ï¿½ï¿½ß³Ì¶ï¿½ï¿½Ä±ï¿½Ö¾
 
     void Awake()
     {
@@ -39,7 +39,7 @@ public class GameManager : MonoBehaviour
         }
         Instance = this;
 
-        // Èç¹û canvasGo ´æÔÚ£¬³õÊ¼Òþ²Ø£¨µÈ LobbyUIController »ò¾ÉÁ÷³ÌÀ´ÏÔÊ¾£©
+        // ï¿½ï¿½ï¿½ canvasGo ï¿½ï¿½ï¿½Ú£ï¿½ï¿½ï¿½Ê¼ï¿½ï¿½ï¿½Ø£ï¿½ï¿½ï¿½ LobbyUIController ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ê¾ï¿½ï¿½
         if (canvasGo != null) canvasGo.SetActive(false);
     }
 
@@ -47,8 +47,8 @@ public class GameManager : MonoBehaviour
     {
         Application.runInBackground = true;
 
-        // ²»ÔÙ×Ô¶¯Á¬½Ó¡ª¡ªÁ¬½ÓÓÉ LobbyUIController »òÍâ²¿µ÷ÓÃ´¥·¢
-        // ¼àÌýÁ¬½Ó³É¹¦ÊÂ¼þ£¬ÔÚÁ¬½Ó½¨Á¢ºóÔÙ¶©ÔÄ±í
+        // ï¿½ï¿½ï¿½ï¿½ï¿½Ô¶ï¿½ï¿½ï¿½ï¿½Ó¡ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ LobbyUIController ï¿½ï¿½ï¿½â²¿ï¿½ï¿½ï¿½Ã´ï¿½ï¿½ï¿½
+        // ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ó³É¹ï¿½ï¿½Â¼ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ó½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ù¶ï¿½ï¿½Ä±ï¿½
         SpacetimeDBNetworkManager.OnConnected += SubscribeToTables;
     }
 
@@ -56,24 +56,24 @@ public class GameManager : MonoBehaviour
     {
         if (isSubscribed) return;
         if (Conn == null) return;
-        if (Conn.Db == null) return; // Á¬½ÓÉÐÎ´ÍêÈ«¾ÍÐ÷
+        if (Conn.Db == null) return; // ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Î´ï¿½ï¿½È«ï¿½ï¿½ï¿½ï¿½
 
-        // [Android ¹Ø¼ü] ¼ì²âµ±Ç°ÊÇ·ñÔÚ Unity Ö÷Ïß³Ì
-        // SpacetimeDB SDK ÔÚ Android ÉÏ´ÓºóÌ¨Ïß³Ìµ÷ÓÃ OnConnected »Øµ÷
-        // ÊÂ¼þ¶©ÔÄ£¨OnInsert += ...£©ÔÚºóÌ¨Ïß³Ì¿ÉÄÜ²»»á´¥·¢
-        // Òò´Ë£ººóÌ¨Ïß³ÌÖ±½Ó return£¬ÓÉ Update() ÔÚÖ÷Ïß³ÌÖØÊÔ
-        // ²»ÔÚÖ÷Ïß³ÌÊ±£¬ÍÆ³Ùµ½ÏÂÒ»Ö¡Ö÷Ïß³ÌÖ´ÐÐ
+        // [Android ï¿½Ø¼ï¿½] ï¿½ï¿½âµ±Ç°ï¿½Ç·ï¿½ï¿½ï¿½ Unity ï¿½ï¿½ï¿½ß³ï¿½
+        // SpacetimeDB SDK ï¿½ï¿½ Android ï¿½Ï´Óºï¿½Ì¨ï¿½ß³Ìµï¿½ï¿½ï¿½ OnConnected ï¿½Øµï¿½
+        // ï¿½Â¼ï¿½ï¿½ï¿½ï¿½Ä£ï¿½OnInsert += ...ï¿½ï¿½ï¿½Úºï¿½Ì¨ï¿½ß³Ì¿ï¿½ï¿½Ü²ï¿½ï¿½á´¥ï¿½ï¿½
+        // ï¿½ï¿½Ë£ï¿½ï¿½ï¿½Ì¨ï¿½ß³ï¿½Ö±ï¿½ï¿½ returnï¿½ï¿½ï¿½ï¿½ Update() ï¿½ï¿½ï¿½ï¿½ï¿½ß³ï¿½ï¿½ï¿½ï¿½ï¿½
+        // ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ß³ï¿½Ê±ï¿½ï¿½ï¿½Æ³Ùµï¿½ï¿½ï¿½Ò»Ö¡ï¿½ï¿½ï¿½ß³ï¿½Ö´ï¿½ï¿½
         if (!IsMainThread())
         {
-            Debug.Log("[GameManager] ºóÌ¨Ïß³ÌÍÆ³Ù¶©ÔÄ£¬½«ÔÚÖ÷Ïß³ÌÖ´ÐÐ");
-            return;  // ¡û ²»ÒªÉè isSubscribed=true£¬ÈÃ¶µµ×À´
+            Debug.Log("[GameManager] ï¿½ï¿½Ì¨ï¿½ß³ï¿½ï¿½Æ³Ù¶ï¿½ï¿½Ä£ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ß³ï¿½Ö´ï¿½ï¿½");
+            return;  // ï¿½ï¿½ ï¿½ï¿½Òªï¿½ï¿½ isSubscribed=trueï¿½ï¿½ï¿½Ã¶ï¿½ï¿½ï¿½ï¿½ï¿½
         }
 
 
         if (Conn.Identity.HasValue)
         {
             localIdentity = Conn.Identity.Value;
-            Debug.Log($"ÒÑ³É¹¦»ñÈ¡²¢¸³Öµ localIdentity: {localIdentity}");
+            Debug.Log($"ï¿½Ñ³É¹ï¿½ï¿½ï¿½È¡ï¿½ï¿½ï¿½ï¿½Öµ localIdentity: {localIdentity}");
         }
 
         Conn.Db.Food.OnInsert += OnFoodInserted;
@@ -94,31 +94,31 @@ public class GameManager : MonoBehaviour
 
         isSubscribed = true;
         _mainThreadSubscribed = true;
-        Debug.Log("[GameManager] ÒÑÔÚÖ÷Ïß³ÌÍê³ÉËùÓÐ±íÊÂ¼þ¶©ÔÄ");
+        Debug.Log("[GameManager] ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ß³ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ð±ï¿½ï¿½Â¼ï¿½ï¿½ï¿½ï¿½ï¿½");
 
-        // µ÷ÓÃ SubscribeToAllTables ÇëÇó·þÎñ¶ËÍÆËÍÊý¾Ý
+        // ï¿½ï¿½ï¿½ï¿½ SubscribeToAllTables ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½
         try
         {
             Conn.SubscriptionBuilder().SubscribeToAllTables();
-            Debug.Log("[GameManager] ÒÑµ÷ÓÃ SubscribeToAllTables");
+            Debug.Log("[GameManager] ï¿½Ñµï¿½ï¿½ï¿½ SubscribeToAllTables");
         }
         catch (Exception e)
         {
-            Debug.LogError($"[GameManager] SubscribeToAllTables Ê§°Ü: {e.Message}");
+            Debug.LogError($"[GameManager] SubscribeToAllTables Ê§ï¿½ï¿½: {e.Message}");
         }
     }
 
     /// <summary>
-    /// ¼ì²âµ±Ç°ÊÇ·ñÔÚ Unity Ö÷Ïß³Ì¡£
-    /// Android IL2CPP ÉÏ SpacetimeDB SDK »áÔÚºóÌ¨Ïß³Ìµ÷ÓÃ OnConnected
+    /// ï¿½ï¿½âµ±Ç°ï¿½Ç·ï¿½ï¿½ï¿½ Unity ï¿½ï¿½ï¿½ß³Ì¡ï¿½
+    /// Android IL2CPP ï¿½ï¿½ SpacetimeDB SDK ï¿½ï¿½ï¿½Úºï¿½Ì¨ï¿½ß³Ìµï¿½ï¿½ï¿½ OnConnected
     /// </summary>
     private static bool IsMainThread()
     {
 #if UNITY_ANDROID || UNITY_IOS
-        // ¼òµ¥·½·¨£ºÍ¨¹ýÒ»¸ö±êÖ¾Î»£¨Ã¿´Î Update ¶¼ÔÚÖ÷Ïß³ÌÉèÖÃ£©
+        // ï¿½òµ¥·ï¿½ï¿½ï¿½ï¿½ï¿½Í¨ï¿½ï¿½Ò»ï¿½ï¿½ï¿½ï¿½Ö¾Î»ï¿½ï¿½Ã¿ï¿½ï¿½ Update ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ß³ï¿½ï¿½ï¿½ï¿½Ã£ï¿½
         return _lastUpdateFrame == Time.frameCount;
 #else
-        return true; // PC ÉÏ OnConnected ÓÀÔ¶ÔÚÖ÷Ïß³Ì
+        return true; // PC ï¿½ï¿½ OnConnected ï¿½ï¿½Ô¶ï¿½ï¿½ï¿½ï¿½ï¿½ß³ï¿½
 #endif
     }
 
@@ -130,14 +130,14 @@ public class GameManager : MonoBehaviour
     }
 
     /// <summary>
-    /// Í¬Íæ¼ÒÇòÊÖ¶¯ÍÆ¿ª£¬Ìæ´ú Rigidbody2D ÎïÀíÅö×²£¬±ÜÃâ SmoothDamp Õñµ´¶¶¶¯¡£
-    /// Ã¿Ö¡¶ÔËùÓÐÍ¬Íæ¼ÒÇò¶Ô×öÖØµþ¼ì²â£¬ÖØµþÔò¸÷ÍÆÒ»°ë¡£
+    /// Í¬ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ö¶ï¿½ï¿½Æ¿ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ Rigidbody2D ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½×²ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ SmoothDamp ï¿½ñµ´¶ï¿½ï¿½ï¿½ï¿½ï¿½
+    /// Ã¿Ö¡ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Í¬ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Øµï¿½ï¿½ï¿½â£¬ï¿½Øµï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ò»ï¿½ë¡£
     private void OnEntityUpdated(EventContext context, Entity oldRow, Entity newRow)
     {
         if (entitiesUpdatedThisFrame.Contains(newRow.Id)) return;
         entitiesUpdatedThisFrame.Add(newRow.Id);
 
-        // ¸üÐÂÍæ¼ÒÇò
+        // ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½
         if (Circles.TryGetValue(newRow.Id, out var go))
         {
             var ctrl = go.GetComponent<CircleController>();
@@ -145,14 +145,14 @@ public class GameManager : MonoBehaviour
             ctrl.SetTargetScale(newRow.Mass);
             ctrl.SetHp(newRow.Hp, newRow.MaxHp);
 
-            // ±¾µØÍæ¼ÒÇò¸üÐÂÊ±Í¬²½ HUD
+            // ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ê±Í¬ï¿½ï¿½ HUD
             if (ctrl.isLocalPlayer)
             {
                 UpdateHudForLocalPlayer(newRow);
             }
         }
 
-        // ¸üÐÂ×Óµ¯£¨SmoothDamp ²åÖµ£©
+        // ï¿½ï¿½ï¿½ï¿½ï¿½Óµï¿½ï¿½ï¿½SmoothDamp ï¿½ï¿½Öµï¿½ï¿½
         if (Bullets.TryGetValue(newRow.Id, out var bulletGo))
         {
             var trgPos = new Vector3(newRow.Position.X, newRow.Position.Y, 0);
@@ -168,12 +168,12 @@ public class GameManager : MonoBehaviour
     {
         if (Circles.Remove(row.EntityId, out var go))
         {
-            Debug.Log($"[Circle ±í¸üÐÂ] Íæ¼ÒCircle ±»É¾³ý£¡EntityId: {row.EntityId}");
+            Debug.Log($"[Circle ï¿½ï¿½ï¿½ï¿½ï¿½] ï¿½ï¿½ï¿½Circle ï¿½ï¿½É¾ï¿½ï¿½ï¿½ï¿½EntityId: {row.EntityId}");
 
             RemoveFromPlayerBallMap(row.PlayerId, row.EntityId);
             GameObject.Destroy(go);
 
-            // ¼ì²â±¾µØÍæ¼ÒÊÇ·ñËÀÍö£¨Ã»ÓÐÊ£ÓàÇòÌå£©
+            // ï¿½ï¿½â±¾ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ç·ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ã»ï¿½ï¿½Ê£ï¿½ï¿½ï¿½ï¿½ï¿½å£©
             CheckLocalPlayerDeath();
         }
     }
@@ -184,13 +184,13 @@ public class GameManager : MonoBehaviour
         {
             var ctrl = go.GetComponent<CircleController>();
 
-            // Æ¤·ô±ä¸ü£ºUpdatePlayerSkin ¸üÐÂÏÖ´æÇòÊ±´¥·¢
+            // Æ¤ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½UpdatePlayerSkin ï¿½ï¿½ï¿½ï¿½ï¿½Ö´ï¿½ï¿½ï¿½Ê±ï¿½ï¿½ï¿½ï¿½
             if (oldC.SkinIndex != newC.SkinIndex)
                 ctrl.ApplySkinByIndex(newC.SkinIndex);
 
             if (newC.IsMerging)
             {
-                // ·þÎñ¶ËÔÚ splitFromEntityId Àï´æÁËºÏ²¢Ä¿±êÇòµÄ´óÇò entity_id
+                // ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ splitFromEntityId ï¿½ï¿½ï¿½ï¿½ËºÏ²ï¿½Ä¿ï¿½ï¿½ï¿½ï¿½Ä´ï¿½ï¿½ï¿½ entity_id
                 Transform mergeTarget = null;
                 if (newC.SplitFromEntityId != 0 && Circles.TryGetValue(newC.SplitFromEntityId, out var targetGo))
                 {
@@ -203,7 +203,7 @@ public class GameManager : MonoBehaviour
                 }
                 else
                 {
-                    // ÕÒ²»µ½Ä¿±ê£¨Ä¿±êÒÑ±»É¾³ý»òÒì³££©£¬Ö±½ÓÍ¨Öª·þÎñ¶ËÍê³ÉºÏ²¢
+                    // ï¿½Ò²ï¿½ï¿½ï¿½Ä¿ï¿½ê£¨Ä¿ï¿½ï¿½ï¿½Ñ±ï¿½É¾ï¿½ï¿½ï¿½ï¿½ï¿½ì³£ï¿½ï¿½ï¿½ï¿½Ö±ï¿½ï¿½Í¨Öªï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ÉºÏ²ï¿½
                     var conndb = SpacetimeDBNetworkManager.Instance?.Db;
                     if (conndb != null)
                     {
@@ -215,7 +215,7 @@ public class GameManager : MonoBehaviour
     }
 
     /// <summary>
-    /// ÕÒÖ¸¶¨Íæ¼ÒÖÐÖÊÁ¿×î´ó£¨scale ×î´ó£©µÄÇò¡£
+    /// ï¿½ï¿½Ö¸ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½scale ï¿½ï¿½ó£©µï¿½ï¿½ï¿½
     /// </summary>
     private Transform FindBiggestBallOfPlayer(int playerId)
     {
@@ -252,8 +252,8 @@ public class GameManager : MonoBehaviour
         var controller = circleGo.GetComponent<CircleController>();
         controller.entityId = row.EntityId;
         controller.playerId = row.PlayerId;
-        if (entity != null) controller.SetHp(entity.Hp, entity.MaxHp); // ³õÊ¼»¯ HP
-        controller.SetTargetScale(entity.Mass); // ¹Ø¼ü£ºÉè¶¨ scale Ä¿±êÖµ£¬·ñÔòÆ½»¬Çý¶¯»áËõ»ØÄ¬ÈÏ 1
+        if (entity != null) controller.SetHp(entity.Hp, entity.MaxHp); // ï¿½ï¿½Ê¼ï¿½ï¿½ HP
+        controller.SetTargetScale(entity.Mass); // ï¿½Ø¼ï¿½ï¿½ï¿½ï¿½è¶¨ scale Ä¿ï¿½ï¿½Öµï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Æ½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ä¬ï¿½ï¿½ 1
 
         RegisterPlayerBall(row.PlayerId, row.EntityId);
 
@@ -276,19 +276,19 @@ public class GameManager : MonoBehaviour
             controller.SetTargetPos(new Vector3(entity.Position.X, entity.Position.Y, 0));
         }
 
-        // Åö×²£ºÍ¬Íæ¼ÒÇòÎïÀí»¥ÍÆ£¬²»Í¬Íæ¼ÒÇò´©Í¸£¨·þÎñ¶ËÅÐÍÌÊÉ£©
+        // ï¿½ï¿½×²ï¿½ï¿½Í¬ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Æ£ï¿½ï¿½ï¿½Í¬ï¿½ï¿½ï¿½ï¿½ï¿½Í¸ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½É£ï¿½
         SetupCrossPlayerCollisionIgnore(controller);
 
-        // Æ¤·ô£º¸ù¾Ý·þÎñ¶ËÍ¬²½µÄ skin_index Ó¦ÓÃµ½ËùÓÐÇò£¨±¾µØºÍÔ¶³Ì£©
+        // Æ¤ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ý·ï¿½ï¿½ï¿½ï¿½Í¬ï¿½ï¿½ï¿½ï¿½ skin_index Ó¦ï¿½Ãµï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ò£¨±ï¿½ï¿½Øºï¿½Ô¶ï¿½Ì£ï¿½
         controller.ApplySkinByIndex(row.SkinIndex);
 
         if (player.Identity == localIdentity)
         {
             CameraContoller.Instance.AddFollowTarget(circleGo.transform);
             controller.isLocalPlayer = true;
-            controller.ApplyLocalPlayerVisual(); // Start() Ö´ÐÐÊ± isLocalPlayer »¹ÊÇ false£¬ÕâÀï²¹ÉÏ
+            controller.ApplyLocalPlayerVisual(); // Start() Ö´ï¿½ï¿½Ê± isLocalPlayer ï¿½ï¿½ï¿½ï¿½ falseï¿½ï¿½ï¿½ï¿½ï¿½ï²¹ï¿½ï¿½
 
-            // Îª±¾µØÍæ¼ÒÇòÌí¼ÓÃé×¼·½ÏòÖ¸Ê¾Æ÷
+            // Îªï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½×¼ï¿½ï¿½ï¿½ï¿½Ö¸Ê¾ï¿½ï¿½
             var aimIndicator = circleGo.GetComponent<AimIndicator>();
             if (aimIndicator == null) aimIndicator = circleGo.AddComponent<AimIndicator>();
             aimIndicator.isLocalPlayer = true;
@@ -321,9 +321,9 @@ public class GameManager : MonoBehaviour
     }
 
     /// <summary>
-    /// ËùÓÐÔ²-Ô²Ö®¼äÒ»ÂÉ½ûÓÃÎïÀíÅö×²£¨ÎÞÂÛÍ¬Íæ¼Ò»¹ÊÇ²»Í¬Íæ¼Ò£©¡£
-    /// ³ÔÇò/ºÏ²¢ÅÐ¶¨ÍêÈ«ÔÚ·þÎñ¶Ë£¨MergePlayerCheck ÓÃ dist<=ra+rb ÅÐ¶¨£©£¬
-    /// ¿Í»§¶ËÔ²-Ô²ÎïÀí·´¶ø»á°ÑÉîÖØµþµÄÇòÒ»´ÎÐÔÍÆ¿ª ¡ú Ë²ÒÆ/¶¶¶¯¡£
+    /// ï¿½ï¿½ï¿½ï¿½Ô²-Ô²Ö®ï¿½ï¿½Ò»ï¿½É½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½×²ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Í¬ï¿½ï¿½Ò»ï¿½ï¿½Ç²ï¿½Í¬ï¿½ï¿½Ò£ï¿½ï¿½ï¿½
+    /// ï¿½ï¿½ï¿½ï¿½/ï¿½Ï²ï¿½ï¿½Ð¶ï¿½ï¿½ï¿½È«ï¿½Ú·ï¿½ï¿½ï¿½Ë£ï¿½MergePlayerCheck ï¿½ï¿½ dist<=ra+rb ï¿½Ð¶ï¿½ï¿½ï¿½ï¿½ï¿½
+    /// ï¿½Í»ï¿½ï¿½ï¿½Ô²-Ô²ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Øµï¿½ï¿½ï¿½ï¿½ï¿½Ò»ï¿½ï¿½ï¿½ï¿½ï¿½Æ¿ï¿½ ï¿½ï¿½ Ë²ï¿½ï¿½/ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½
     /// </summary>
     private void SetupCrossPlayerCollisionIgnore(CircleController newController)
     {
@@ -336,14 +336,14 @@ public class GameManager : MonoBehaviour
             var otherCtrl = kv.Value.GetComponent<CircleController>();
             if (otherCtrl == null) continue;
 
-            // Ô²ÓëÔ²Ö®¼äÒ»ÂÉ IgnoreCollision(true)£ºÍ¬Íæ¼Ò/²»Í¬Íæ¼Ò¶¼²»×öÎïÀí»¥×²
+            // Ô²ï¿½ï¿½Ô²Ö®ï¿½ï¿½Ò»ï¿½ï¿½ IgnoreCollision(true)ï¿½ï¿½Í¬ï¿½ï¿½ï¿½/ï¿½ï¿½Í¬ï¿½ï¿½Ò¶ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½×²
             var otherCol = kv.Value.GetComponent<CircleCollider2D>();
             if (otherCol != null)
                 Physics2D.IgnoreCollision(thisCol, otherCol, true);
         }
     }
 
-    // ===== Ê³ÎïÏà¹Ø =====
+    // ===== Ê³ï¿½ï¿½ï¿½ï¿½ï¿½ =====
     private void OnFoodDelete(EventContext ctx, Food deletedFood)
     {
         if (Entities.Remove(deletedFood.EntityId, out var go))
@@ -372,13 +372,13 @@ public class GameManager : MonoBehaviour
         Entities.Add(newFood.EntityId, foodGo);
     }
 
-    // ===== ×Óµ¯Ïà¹Ø =====
+    // ===== ï¿½Óµï¿½ï¿½ï¿½ï¿½ =====
     private void OnBulletInserted(EventContext ctx, Bullet newBullet)
     {
         var entity = Conn.Db.Entity.Id.Find(newBullet.EntityId);
         if (entity == null) return;
 
-        // °´×Óµ¯ÀàÐÍÑ¡Ô¤ÖÆÌå£º·ÖÁÑµ¯ÓÃ×¨ÊôÔ¤ÖÆÌå£¬ÆÕÍ¨µ¯ÓÃÄ¬ÈÏÔ¤ÖÆÌå
+        // ï¿½ï¿½ï¿½Óµï¿½ï¿½ï¿½ï¿½ï¿½Ñ¡Ô¤ï¿½ï¿½ï¿½å£ºï¿½ï¿½ï¿½Ñµï¿½ï¿½ï¿½×¨ï¿½ï¿½Ô¤ï¿½ï¿½ï¿½å£¬ï¿½ï¿½Í¨ï¿½ï¿½ï¿½ï¿½Ä¬ï¿½ï¿½Ô¤ï¿½ï¿½ï¿½ï¿½
         GameObject bulletGo;
         bool isSplit = newBullet.BulletType == 1;
         GameObject chosenPrefab = null;
@@ -394,7 +394,7 @@ public class GameManager : MonoBehaviour
         else
         {
             bulletGo = GameObject.CreatePrimitive(PrimitiveType.Sphere);
-            Destroy(bulletGo.GetComponent<Collider>()); // ÒÆ³ýÅö×²Ìå
+            Destroy(bulletGo.GetComponent<Collider>()); // ï¿½Æ³ï¿½ï¿½ï¿½×²ï¿½ï¿½
             var sr = bulletGo.AddComponent<SpriteRenderer>();
             var tex = new Texture2D(16, 16);
             for (int y = 0; y < 16; y++)
@@ -412,7 +412,7 @@ public class GameManager : MonoBehaviour
         bulletGo.transform.position = new Vector3(entity.Position.X, entity.Position.Y, 0);
         
 
-        // ×Óµ¯Åö×²ÌåÉèÎª Trigger + Rigidbody Kinematic£¬·ÀÖ¹ÍÆ¶¯ÇòÌåµ¼ÖÂ¶¶¶¯
+        // ï¿½Óµï¿½ï¿½ï¿½×²ï¿½ï¿½ï¿½ï¿½Îª Trigger + Rigidbody Kinematicï¿½ï¿½ï¿½ï¿½Ö¹ï¿½Æ¶ï¿½ï¿½ï¿½ï¿½åµ¼ï¿½Â¶ï¿½ï¿½ï¿½
         foreach (var col in bulletGo.GetComponentsInChildren<Collider2D>())
         {
             col.isTrigger = true;
@@ -423,13 +423,13 @@ public class GameManager : MonoBehaviour
             rb2d.isKinematic = true;
         }
 
-        // È·±£ÓÐ BulletController
+        // È·ï¿½ï¿½ï¿½ï¿½ BulletController
         var bulletCtrl = bulletGo.GetComponent<BulletController>();
         if (bulletCtrl == null) bulletCtrl = bulletGo.AddComponent<BulletController>();
         bulletCtrl.entityId = newBullet.EntityId;
-        bulletCtrl.ownerPlayerId = newBullet.OwnerPlayerId; // ·ÀÖ¹×ÔÉË
+        bulletCtrl.ownerPlayerId = newBullet.OwnerPlayerId; // ï¿½ï¿½Ö¹ï¿½ï¿½ï¿½ï¿½
 
-        // ÐÂÔö£ºÁ¢¿Ì¸ù¾Ý·þÎñ¶ËµÄ dir ÉèÖÃ³õÊ¼³¯Ïò£¬±ÜÃâ·¢ÉäË²¼ä³¯Ïò´íÎ»
+        // ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ì¸ï¿½ï¿½Ý·ï¿½ï¿½ï¿½Ëµï¿½ dir ï¿½ï¿½ï¿½Ã³ï¿½Ê¼ï¿½ï¿½ï¿½ò£¬±ï¿½ï¿½â·¢ï¿½ï¿½Ë²ï¿½ä³¯ï¿½ï¿½ï¿½Î»
         bulletCtrl.InitializeDirection(new Vector2(newBullet.DirX, newBullet.DirY));
 
         Bullets.Add(newBullet.EntityId, bulletGo);
@@ -443,12 +443,12 @@ public class GameManager : MonoBehaviour
         }
     }
 
-    // ===== ¾É°æUI£¨¼æÈÝ¾É³¡¾°£© =====
+    // ===== ï¿½É°ï¿½UIï¿½ï¿½ï¿½ï¿½ï¿½Ý¾É³ï¿½ï¿½ï¿½ï¿½ï¿½ =====
     public void OnButtonEnterGameClick()
     {
         if (Conn == null)
         {
-            Debug.LogError("SpacetimeDB ÉÐÎ´Á¬½Ó£¡ÇëÏÈµã»÷Á¬½Ó°´Å¥¡£");
+            Debug.LogError("SpacetimeDB ï¿½ï¿½Î´ï¿½ï¿½ï¿½Ó£ï¿½ï¿½ï¿½ï¿½Èµï¿½ï¿½ï¿½ï¿½ï¿½Ó°ï¿½Å¥ï¿½ï¿½");
             return;
         }
 
@@ -459,10 +459,12 @@ public class GameManager : MonoBehaviour
         Conn.Reducers.EnterGame(playerName);
     }
 
-    // ===== µ¯Ò©Ïà¹Ø =====
-    private void OnPlayerAmmoInserted(EventContext ctx, PlayerAmmo ammo)
+    // ===== ï¿½ï¿½Ò©ï¿½ï¿½ï¿½ =====
+private void OnPlayerAmmoInserted(EventContext ctx, PlayerAmmo ammo)
     {
         UpdateHudAmmo(ammo);
+        if (IsLocalPlayerId(ammo.PlayerId))
+            GameFeel.Instance?.OnPickup(2);
     }
 
     private void OnPlayerAmmoUpdated(EventContext ctx, PlayerAmmo oldAmmo, PlayerAmmo newAmmo)
@@ -470,9 +472,11 @@ public class GameManager : MonoBehaviour
         UpdateHudAmmo(newAmmo);
     }
 
-    private void OnShieldInserted(EventContext ctx, Shield shield)
+private void OnShieldInserted(EventContext ctx, Shield shield)
     {
         UpdateHudShield(shield);
+        if (IsLocalShield(shield.EntityId))
+            GameFeel.Instance?.OnPickup(0);
     }
 
     private void OnShieldUpdated(EventContext ctx, Shield oldShield, Shield newShield)
@@ -482,14 +486,14 @@ public class GameManager : MonoBehaviour
 
     private void OnShieldDeleted(EventContext ctx, Shield shield)
     {
-        // »¤¶ÜÆÆËé£ºÍÑÀëÇòÌå²¥ Break ¶¯»­ºó×Ô»Ù£¨²»ÔÙË²¼ä Destroy£©
+        // ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½é£ºï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½å²¥ Break ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ô»Ù£ï¿½ï¿½ï¿½ï¿½ï¿½Ë²ï¿½ï¿½ Destroyï¿½ï¿½
         if (shieldEffects.TryGetValue(shield.EntityId, out var fx))
         {
             fx?.GetComponent<ShieldBuffController>()?.Break();
             shieldEffects.Remove(shield.EntityId);
         }
 
-        // ¼ì²é»¤¶ÜÊÇ·ñÊôÓÚ±¾µØÍæ¼Ò
+        // ï¿½ï¿½é»¤ï¿½ï¿½ï¿½Ç·ï¿½ï¿½ï¿½ï¿½Ú±ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½
         foreach (var kv in Circles)
         {
             var ctrl = kv.Value?.GetComponent<CircleController>();
@@ -501,10 +505,12 @@ public class GameManager : MonoBehaviour
         }
     }
 
-    // ===== ËÙ¶ÈBuff =====
-    private void OnSpeedBuffInserted(EventContext ctx, SpeedBuff sb)
+    // ===== ï¿½Ù¶ï¿½Buff =====
+private void OnSpeedBuffInserted(EventContext ctx, SpeedBuff sb)
     {
         UpdateHudSpeedBuff(sb);
+        if (IsLocalPlayerId(sb.PlayerId))
+            GameFeel.Instance?.OnPickup(1);
     }
 
     private void OnSpeedBuffDeleted(EventContext ctx, SpeedBuff sb)
@@ -514,7 +520,7 @@ public class GameManager : MonoBehaviour
 
     private void UpdateHudSpeedBuff(SpeedBuff sb)
     {
-        // ¼ì²é¼ÓËÙÊÇ·ñÊôÓÚ±¾µØÍæ¼Ò
+        // ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ç·ï¿½ï¿½ï¿½ï¿½Ú±ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½
         if (localIdentity != null)
         {
             var player = Conn.Db.LoggedInPlayer.Identity.Find(localIdentity);
@@ -539,13 +545,13 @@ public class GameManager : MonoBehaviour
 
     private void UpdateHudShield(Shield shield)
     {
-        // ÕÒµ½»¤¶ÜËùÊôµÄÇò£¨±¾µØ/Ô¶¶Ë¶¼Òª¹ÒÌØÐ§£¬Ô¶¶Ë»¤¶ÜÔ­À´¿´²»µ½£©
+        // ï¿½Òµï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ò£¨±ï¿½ï¿½ï¿½/Ô¶ï¿½Ë¶ï¿½Òªï¿½ï¿½ï¿½ï¿½Ð§ï¿½ï¿½Ô¶ï¿½Ë»ï¿½ï¿½ï¿½Ô­ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½
         foreach (var kv in Circles)
         {
             var ctrl = kv.Value?.GetComponent<CircleController>();
             if (ctrl == null || ctrl.entityId != shield.EntityId) continue;
 
-            // »¤¶ÜÌØÐ§£ºËùÓÐÍæ¼ÒµÄÇò¶¼´´½¨
+            // ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ð§ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Òµï¿½ï¿½ò¶¼´ï¿½ï¿½ï¿½
             if (PrefabsManager.Instance.shieldEffectPrefab != null && !shieldEffects.ContainsKey(shield.EntityId))
             {
                 var fx = Instantiate(PrefabsManager.Instance.shieldEffectPrefab, kv.Value.transform);
@@ -553,7 +559,7 @@ public class GameManager : MonoBehaviour
                 shieldEffects[shield.EntityId] = fx;
             }
 
-            // HUD µ¹¼ÆÊ±/¶ÜÖµÌõÖ»ÓÐ±¾µØÍæ¼ÒÐèÒª
+            // HUD ï¿½ï¿½ï¿½ï¿½Ê±/ï¿½ï¿½Öµï¿½ï¿½Ö»ï¿½Ð±ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Òª
             if (ctrl.isLocalPlayer)
             {
                 HudController.Instance?.SetShield(shield.ExpireAtMs);
@@ -564,14 +570,14 @@ public class GameManager : MonoBehaviour
     }
 
     /// <summary>
-    /// ¸ÃÇòµ±Ç°ÊÇ·ñ¹Ò×Å»¤¶Ü£¨ÒÔ·þÎñ¶Ë Shield ±íÎª×¼£¬ÓëÌØÐ§Ô¤ÖÆÌåÊÇ·ñ¸³ÖµÎÞ¹Ø£©¡£
+    /// ï¿½ï¿½ï¿½ï¿½Ç°ï¿½Ç·ï¿½ï¿½ï¿½Å»ï¿½ï¿½Ü£ï¿½ï¿½Ô·ï¿½ï¿½ï¿½ï¿½ Shield ï¿½ï¿½Îª×¼ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ð§Ô¤ï¿½ï¿½ï¿½ï¿½ï¿½Ç·ï¿½Öµï¿½Þ¹Ø£ï¿½ï¿½ï¿½
     /// </summary>
     public static bool HasShield(int ballEntityId)
         => SpacetimeDBNetworkManager.Instance?.Db?.Db?.Shield.EntityId.Find(ballEntityId) != null;
 
     /// <summary>
-    /// »¤¶Ü±»×Óµ¯´òÖÐ£ºÈÃ»¤¶ÜÌØÐ§ÉÁÒ»ÏÂ£¨´¿¿Í»§¶Ëµ±Ö¡±íÏÖ£¬²»µÈ·þÎñ¶Ë»Ø°ü£©¡£
-    /// ·µ»ØÊÇ·ñÕæµÄÉÁÁË£¨Ã»ÓÐ»¤¶ÜÌØÐ§Ôò·µ»Ø false£©¡£
+    /// ï¿½ï¿½ï¿½Ü±ï¿½ï¿½Óµï¿½ï¿½ï¿½ï¿½Ð£ï¿½ï¿½Ã»ï¿½ï¿½ï¿½ï¿½ï¿½Ð§ï¿½ï¿½Ò»ï¿½Â£ï¿½ï¿½ï¿½ï¿½Í»ï¿½ï¿½Ëµï¿½Ö¡ï¿½ï¿½ï¿½Ö£ï¿½ï¿½ï¿½ï¿½È·ï¿½ï¿½ï¿½Ë»Ø°ï¿½ï¿½ï¿½ï¿½ï¿½
+    /// ï¿½ï¿½ï¿½ï¿½ï¿½Ç·ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ë£ï¿½Ã»ï¿½Ð»ï¿½ï¿½ï¿½ï¿½ï¿½Ð§ï¿½ò·µ»ï¿½ falseï¿½ï¿½ï¿½ï¿½
     /// </summary>
     public static bool FlashShieldHit(int ballEntityId, Color color, float duration)
     {
@@ -597,14 +603,14 @@ public class GameManager : MonoBehaviour
 
     void Update()
     {
-        _lastUpdateFrame = Time.frameCount; // [Ö÷Ïß³Ì±ê¼Ç] Ã¿´Î Update ¶¼¸üÐÂ£¬¹© IsMainThread() ÅÐ¶Ï
+        _lastUpdateFrame = Time.frameCount; // [ï¿½ï¿½ï¿½ß³Ì±ï¿½ï¿½] Ã¿ï¿½ï¿½ Update ï¿½ï¿½ï¿½ï¿½ï¿½Â£ï¿½ï¿½ï¿½ IsMainThread() ï¿½Ð¶ï¿½
 
-        // [Android ¶µµ×] ºóÌ¨Ïß³Ì¶©ÔÄÊÂ¼þÃ»ÉúÐ§Ê±£¬Ö÷Ïß³ÌÖØÐÂ¶©ÔÄ
+        // [Android ï¿½ï¿½ï¿½ï¿½] ï¿½ï¿½Ì¨ï¿½ß³Ì¶ï¿½ï¿½ï¿½ï¿½Â¼ï¿½Ã»ï¿½ï¿½Ð§Ê±ï¿½ï¿½ï¿½ï¿½ï¿½ß³ï¿½ï¿½ï¿½ï¿½Â¶ï¿½ï¿½ï¿½
         if (!_mainThreadSubscribed && SpacetimeDBNetworkManager.Instance != null
             && SpacetimeDBNetworkManager.Instance.IsConnected)
         {
-            Debug.Log("[GameManager] Ö÷Ïß³Ì¶µµ×£º·¢ÏÖÒÑÁ¬½Óµ«Î´ÔÚÖ÷Ïß³Ì¶©ÔÄ£¬ÖØÐÂ¶©ÔÄ");
-            // ÖØÖÃ isSubscribed£¬ÈÃ SubscribeToTables ÄÜÔÙ½øÀ´
+            Debug.Log("[GameManager] ï¿½ï¿½ï¿½ß³Ì¶ï¿½ï¿½×£ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Óµï¿½Î´ï¿½ï¿½ï¿½ï¿½ï¿½ß³Ì¶ï¿½ï¿½Ä£ï¿½ï¿½ï¿½ï¿½Â¶ï¿½ï¿½ï¿½");
+            // ï¿½ï¿½ï¿½ï¿½ isSubscribedï¿½ï¿½ï¿½ï¿½ SubscribeToTables ï¿½ï¿½ï¿½Ù½ï¿½ï¿½ï¿½
             isSubscribed = false;
             SubscribeToTables();
         }
@@ -613,11 +619,11 @@ public class GameManager : MonoBehaviour
         {
             if (Conn != null)
             {
-                print($"µ±Ç°Ê³Îï×ÜÊý: {Conn.Db.Food.Count}");
+                print($"ï¿½ï¿½Ç°Ê³ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½: {Conn.Db.Food.Count}");
             }
         }
 
-        // [µ÷ÊÔ] H ¼ü¶Ô×Ô¼º×î´óÇò¿Û 10 HP£¨´¿·þÎñ¶Ë¿ÛÑª£ºÖ»²âÑªÌõµôÑª/ËÀÍöÁ÷³Ì£©
+        // [ï¿½ï¿½ï¿½ï¿½] H ï¿½ï¿½ï¿½ï¿½ï¿½Ô¼ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ 10 HPï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ë¿ï¿½Ñªï¿½ï¿½Ö»ï¿½ï¿½Ñªï¿½ï¿½ï¿½ï¿½Ñª/ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ì£ï¿½
         if (Input.GetKeyDown(KeyCode.H))
         {
             if (Conn != null)
@@ -629,18 +635,18 @@ public class GameManager : MonoBehaviour
                     if (ctrl != null)
                     {
                         Conn.Reducers.DebugDamage(ctrl.entityId, 10f);
-                        Debug.Log($"[µ÷ÊÔ] ¶Ô×Ô¼º×î´óÇò {ctrl.entityId} ¿ÛÑª 10");
+                        Debug.Log($"[ï¿½ï¿½ï¿½ï¿½] ï¿½ï¿½ï¿½Ô¼ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ {ctrl.entityId} ï¿½ï¿½Ñª 10");
                     }
                 }
                 else
                 {
-                    Debug.LogWarning("[µ÷ÊÔ] Î´ÕÒµ½±¾µØÍæ¼ÒµÄÇò");
+                    Debug.LogWarning("[ï¿½ï¿½ï¿½ï¿½] Î´ï¿½Òµï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Òµï¿½ï¿½ï¿½");
                 }
             }
         }
 
-        // [µ÷ÊÔ] J ¼ü¶Ô×Ô¼º×î´óÇò´¥·¢ÍêÕûÊÜ»÷±íÏÖ£¨±¾µØ GameFeel È«Ì×£¬²»ÒÀÀµ·þÎñ¶Ë»Ø°ü£©
-        // ÇòÉÁÉ« + ºó×ù + ¶ÙÖ¡ + ±¬Õ¨Á£×Ó + ÆÁÄ»Õð¶¯ + ÒôÐ§ + »¤¶ÜÉÁºì£¨ÈôÓÐ¶Ü£©£¬²¢Ë³´ø¿ÛÑªÈÃÑªÌõÒ²µô
+        // [ï¿½ï¿½ï¿½ï¿½] J ï¿½ï¿½ï¿½ï¿½ï¿½Ô¼ï¿½ï¿½ï¿½ï¿½ï¿½ò´¥·ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ü»ï¿½ï¿½ï¿½ï¿½Ö£ï¿½ï¿½ï¿½ï¿½ï¿½ GameFeel È«ï¿½×£ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ë»Ø°ï¿½ï¿½ï¿½
+        // ï¿½ï¿½ï¿½ï¿½É« + ï¿½ï¿½ï¿½ï¿½ + ï¿½ï¿½Ö¡ + ï¿½ï¿½Õ¨ï¿½ï¿½ï¿½ï¿½ + ï¿½ï¿½Ä»ï¿½ï¿½ + ï¿½ï¿½Ð§ + ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ì£¨ï¿½ï¿½ï¿½Ð¶Ü£ï¿½ï¿½ï¿½ï¿½ï¿½Ë³ï¿½ï¿½ï¿½ï¿½Ñªï¿½ï¿½Ñªï¿½ï¿½Ò²ï¿½ï¿½
         if (Input.GetKeyDown(KeyCode.J))
         {
             var mainBall = FindLocalMainBall();
@@ -649,19 +655,19 @@ public class GameManager : MonoBehaviour
                 var ctrl = mainBall.GetComponent<CircleController>();
                 if (ctrl != null)
                 {
-                    // Ä£Äâ×Óµ¯´ÓÓÒ²àÃüÖÐ
+                    // Ä£ï¿½ï¿½ï¿½Óµï¿½ï¿½ï¿½ï¿½Ò²ï¿½ï¿½ï¿½ï¿½ï¿½
                     GameFeel.Instance?.OnHit(mainBall.transform.position, ctrl, Vector2.right);
 
-                    // Ë³´ø×ß·þÎñ¶Ë¿ÛÑª£¬ÈÃÑªÌõÉÁ°×+¶¶¶¯Ò²ÉúÐ§£¨Á¬²»ÉÏ·þÎñ¶ËÊ±±¾µØ±íÏÖÕÕ³££©
+                    // Ë³ï¿½ï¿½ï¿½ß·ï¿½ï¿½ï¿½Ë¿ï¿½Ñªï¿½ï¿½ï¿½ï¿½Ñªï¿½ï¿½ï¿½ï¿½ï¿½ï¿½+ï¿½ï¿½ï¿½ï¿½Ò²ï¿½ï¿½Ð§ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ï·ï¿½ï¿½ï¿½ï¿½Ê±ï¿½ï¿½ï¿½Ø±ï¿½ï¿½ï¿½ï¿½Õ³ï¿½ï¿½ï¿½
                     if (Conn != null)
                         Conn.Reducers.DebugDamage(ctrl.entityId, 10f);
 
-                    Debug.Log("[µ÷ÊÔ] J ¼ü£º´¥·¢ÍêÕûÊÜ»÷Ð§¹û");
+                    Debug.Log("[ï¿½ï¿½ï¿½ï¿½] J ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ü»ï¿½Ð§ï¿½ï¿½");
                 }
             }
             else
             {
-                Debug.LogWarning("[µ÷ÊÔ] Î´ÕÒµ½±¾µØÍæ¼ÒµÄÇò");
+                Debug.LogWarning("[ï¿½ï¿½ï¿½ï¿½] Î´ï¿½Òµï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Òµï¿½ï¿½ï¿½");
             }
         }
     }
@@ -691,8 +697,8 @@ public class GameManager : MonoBehaviour
     }
 
     /// <summary>
-    /// »ñÈ¡±¾µØÍæ¼ÒÖ÷ÇòµÄÊÀ½ç×ø±êÎ»ÖÃ¡£
-    /// ¹© PlayerInputController µÈÍâ²¿×é¼þµ÷ÓÃ¡£
+    /// ï¿½ï¿½È¡ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Î»ï¿½Ã¡ï¿½
+    /// ï¿½ï¿½ PlayerInputController ï¿½ï¿½ï¿½â²¿ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ã¡ï¿½
     /// </summary>
     public static Vector3 GetLocalMainBallPosition()
     {
@@ -701,7 +707,7 @@ public class GameManager : MonoBehaviour
         return t != null ? t.position : Vector3.zero;
     }
 
-    /// <summary>»ñÈ¡±¾µØÍæ¼ÒÖ÷ÇòµÄ CircleController£¨¹© GameFeel ºó×ù/ÉÁÉ«µÈ±íÏÖ²ãµ÷ÓÃ£©¡£</summary>
+    /// <summary>ï¿½ï¿½È¡ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ CircleControllerï¿½ï¿½ï¿½ï¿½ GameFeel ï¿½ï¿½ï¿½ï¿½/ï¿½ï¿½É«ï¿½È±ï¿½ï¿½Ö²ï¿½ï¿½ï¿½Ã£ï¿½ï¿½ï¿½</summary>
     public static CircleController GetLocalMainBallController()
     {
         if (Instance == null) return null;
@@ -709,7 +715,7 @@ public class GameManager : MonoBehaviour
         return t != null ? t.GetComponent<CircleController>() : null;
     }
 
-    /// <summary>»ñÈ¡±¾µØÍæ¼ÒËùÓÐÇòµÄ CircleController ÁÐ±í£¨¹© GameFeel ¿ª»ðºó×ù/Ç¹¿ÚÉÁ¹âµÈ±íÏÖ²ã±éÀú£©¡£</summary>
+    /// <summary>ï¿½ï¿½È¡ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ CircleController ï¿½Ð±ï¿½ï¿½ï¿½ï¿½ GameFeel ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½/Ç¹ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½È±ï¿½ï¿½Ö²ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½</summary>
     public static List<CircleController> GetLocalPlayerBalls()
     {
         var result = new List<CircleController>();
@@ -746,12 +752,12 @@ public class GameManager : MonoBehaviour
         return mainBall;
     }
 
-    /// <summary>½«±¾µØÍæ¼ÒÊµÌåÊý¾ÝÍ¬²½µ½ HUD</summary>
+    /// <summary>ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Êµï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Í¬ï¿½ï¿½ï¿½ï¿½ HUD</summary>
     private void UpdateHudForLocalPlayer(Entity ent)
     {
         if (HudController.Instance == null) return;
 
-        // »ã×Ü±¾µØÍæ¼ÒËùÓÐÇòµÄÖÊÁ¿ºÍ HP
+        // ï¿½ï¿½ï¿½Ü±ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ HP
         float totalMass = 0f, totalHp = 0f, totalMaxHp = 0f;
         foreach (var kv in Circles)
         {
@@ -769,19 +775,19 @@ public class GameManager : MonoBehaviour
         HudController.Instance.SetMass(totalMass);
     }
 
-    /// <summary>¼ì²é±¾µØÍæ¼ÒÊÇ·ñÒÑ¾­Ã»ÓÐÇòÌå£¨ËÀÍö£©</summary>
+    /// <summary>ï¿½ï¿½é±¾ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ç·ï¿½ï¿½Ñ¾ï¿½Ã»ï¿½ï¿½ï¿½ï¿½ï¿½å£¨ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½</summary>
     private void CheckLocalPlayerDeath()
     {
         foreach (var kv in Circles)
         {
             if (kv.Value != null && kv.Value.GetComponent<CircleController>()?.isLocalPlayer == true)
-                return; // »¹ÓÐ±¾µØÍæ¼ÒµÄÇò£¬Ã»ËÀ
+                return; // ï¿½ï¿½ï¿½Ð±ï¿½ï¿½ï¿½ï¿½ï¿½Òµï¿½ï¿½ï¿½Ã»ï¿½ï¿½
         }
-        // ±¾µØÍæ¼ÒÃ»ÓÐÊ£ÓàÇòÌå ¡ú ÏÔÊ¾ËÀÍö»­Ãæ
+        // ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ã»ï¿½ï¿½Ê£ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½ ï¿½ï¿½Ê¾ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½
         HudController.Instance?.ShowDeathScreen();
     }
 
-    /// <summary>»ñÈ¡±¾µØÍæ¼Òµ±Ç°ÇòÊý£¨º¬ºÏ²¢¶¯»­ÖÐµÄÇò£©</summary>
+    /// <summary>ï¿½ï¿½È¡ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Òµï¿½Ç°ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ï²ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ðµï¿½ï¿½ï¿½</summary>
     public static int GetLocalPlayerBallCount()
     {
         int count = 0;
@@ -793,7 +799,7 @@ public class GameManager : MonoBehaviour
         return count;
     }
 
-    /// <summary>ÖØÐÂ¿ªÊ¼ÓÎÏ·£¨ËÀÍö»­Ãæ°´Å¥»Øµ÷£©</summary>
+    /// <summary>ï¿½ï¿½ï¿½Â¿ï¿½Ê¼ï¿½ï¿½Ï·ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½æ°´Å¥ï¿½Øµï¿½ï¿½ï¿½</summary>
     public void RespawnPlayer()
     {
         if (Conn != null)
@@ -805,7 +811,7 @@ public class GameManager : MonoBehaviour
         }
     }
 
-    /// <summary>»ñÈ¡ÒÑ±£´æµÄÍæ¼ÒÃû³Æ£¨ÓÅÏÈ InputField ¡ú ·þÎñ¶ËÒÑÓÐÃû£©</summary>
+    /// <summary>ï¿½ï¿½È¡ï¿½Ñ±ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Æ£ï¿½ï¿½ï¿½ï¿½ï¿½ InputField ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½</summary>
     private string GetSavedPlayerName()
     {
         if (InputField != null && !string.IsNullOrEmpty(InputField.text.Trim()))
@@ -817,5 +823,24 @@ public class GameManager : MonoBehaviour
                 return p.Name;
         }
         return null;
+    }
+
+
+    private bool IsLocalPlayerId(int playerId)
+    {
+        if (localIdentity == null || Conn == null || Conn.Db == null) return false;
+        var player = Conn.Db.LoggedInPlayer.Identity.Find(localIdentity);
+        return player != null && player.PlayerId == playerId;
+    }
+
+    private bool IsLocalShield(int entityId)
+    {
+        foreach (var kv in Circles)
+        {
+            var ctrl = kv.Value != null ? kv.Value.GetComponent<CircleController>() : null;
+            if (ctrl != null && ctrl.isLocalPlayer && ctrl.entityId == entityId)
+                return true;
+        }
+        return false;
     }
 }
