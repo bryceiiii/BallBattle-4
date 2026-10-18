@@ -19,13 +19,18 @@ public class LobbyUIController : MonoBehaviour
     [Header("玩家名")]
     public InputField playerNameInput;
 
-    [Header("连接模式 — 3个互斥按钮")]
+    [Header("连接模式 — 4个互斥按钮")]
+    public Button modeSingleBtn;
     public Button modeLocalBtn;
     public Button modeLANBtn;
     public Button modeCloudBtn;
+    public Text modeSingleLabel;
     public Text modeLocalLabel;
     public Text modeLANLabel;
     public Text modeCloudLabel;
+
+    [Header("单机模式")]
+    [Range(0, 12)] public int singlePlayerBotCount = 5;
 
     [Header("局域网设置（仅LAN模式显示）")]
     public GameObject lanSettingsGroup;
@@ -45,7 +50,16 @@ public class LobbyUIController : MonoBehaviour
     public SkinSelectionUIController skinSelectionUI;
 
     private bool _isConnected = false;
-    private int _currentMode = 0; // 0=本机, 1=LAN, 2=云端
+    private int _currentMode = 0; // 0=单机, 1=本机, 2=LAN, 3=云端
+    public bool IsSinglePlayerMode => _currentMode == 0;
+
+    public void ResetForLobby()
+    {
+        _isConnected = false;
+        if (connectButton != null) connectButton.interactable = true;
+        if (enterGameButton != null) enterGameButton.interactable = false;
+        if (statusText != null) statusText.text = "";
+    }
 
     void Awake()
     {
@@ -64,6 +78,7 @@ public class LobbyUIController : MonoBehaviour
 
     void Update()
     {
+        if (_currentMode == 0) return;
         // 兜底轮询：不依赖事件，直接检测连接状态
         var net = SpacetimeDBNetworkManager.Instance;
         if (net != null && _isConnected != net.IsConnected)
@@ -146,19 +161,21 @@ public class LobbyUIController : MonoBehaviour
     {
         _currentMode = mode;
 
-        // 给3个按钮应用选中/未选中样式
-        SetModeButtonStyle(modeLocalBtn,  modeLocalLabel,  mode == 0);
-        SetModeButtonStyle(modeLANBtn,    modeLANLabel,    mode == 1);
-        SetModeButtonStyle(modeCloudBtn,  modeCloudLabel,  mode == 2);
+        SetModeButtonStyle(modeSingleBtn, modeSingleLabel, mode == 0);
+        SetModeButtonStyle(modeLocalBtn,  modeLocalLabel,  mode == 1);
+        SetModeButtonStyle(modeLANBtn,    modeLANLabel,    mode == 2);
+        SetModeButtonStyle(modeCloudBtn,  modeCloudLabel,  mode == 3);
 
         // 显示/隐藏局域网设置
         if (lanSettingsGroup != null)
-            lanSettingsGroup.SetActive(mode == 1);
+            lanSettingsGroup.SetActive(mode == 2);
 
         UpdateConnectButtonLabel(mode);
         if (statusText != null) statusText.text = "";
 
-        if (mode == 0) UpdateHostAddressHint();
+        if (hostAddressHint != null)
+            hostAddressHint.gameObject.SetActive(mode == 1);
+        if (mode == 1) UpdateHostAddressHint();
     }
 
     private void SetModeButtonStyle(Button btn, Text label, bool active)
@@ -178,9 +195,10 @@ public class LobbyUIController : MonoBehaviour
         if (connectButtonLabel == null) return;
         switch (mode)
         {
-            case 0: connectButtonLabel.text = "启动本机服务器"; break;
-            case 1: connectButtonLabel.text = "连接到主机"; break;
-            case 2: connectButtonLabel.text = "连接到云端"; break;
+            case 0: connectButtonLabel.text = "开始单机游戏"; break;
+            case 1: connectButtonLabel.text = "启动本机服务器"; break;
+            case 2: connectButtonLabel.text = "连接到主机"; break;
+            case 3: connectButtonLabel.text = "连接到云端"; break;
         }
     }
 
@@ -190,9 +208,10 @@ public class LobbyUIController : MonoBehaviour
 
     private void BindEvents()
     {
-        if (modeLocalBtn != null)  modeLocalBtn.onClick.AddListener(() => SelectMode(0));
-        if (modeLANBtn != null)    modeLANBtn.onClick.AddListener(() => SelectMode(1));
-        if (modeCloudBtn != null)  modeCloudBtn.onClick.AddListener(() => SelectMode(2));
+        if (modeSingleBtn != null) modeSingleBtn.onClick.AddListener(() => SelectMode(0));
+        if (modeLocalBtn != null)  modeLocalBtn.onClick.AddListener(() => SelectMode(1));
+        if (modeLANBtn != null)    modeLANBtn.onClick.AddListener(() => SelectMode(2));
+        if (modeCloudBtn != null)  modeCloudBtn.onClick.AddListener(() => SelectMode(3));
 
         if (connectButton != null) connectButton.onClick.AddListener(OnConnectClicked);
         if (enterGameButton != null) enterGameButton.onClick.AddListener(OnEnterGameClicked);
@@ -215,6 +234,12 @@ public class LobbyUIController : MonoBehaviour
 
     private void OnConnectClicked()
     {
+        if (_currentMode == 0)
+        {
+            StartSingleModeReady();
+            return;
+        }
+
         var net = SpacetimeDBNetworkManager.Instance;
         if (net == null)
         {
@@ -227,8 +252,8 @@ public class LobbyUIController : MonoBehaviour
 
         switch (_currentMode)
         {
-            case 0: net.ConnectLocal(); break;
-            case 1:
+            case 1: net.ConnectLocal(); break;
+            case 2:
                 string ip = ipInput != null ? ipInput.text.Trim() : "127.0.0.1";
                 if (string.IsNullOrEmpty(ip)) ip = "127.0.0.1";
                 int port = 3000;
@@ -236,7 +261,28 @@ public class LobbyUIController : MonoBehaviour
                 if (port <= 0) port = 3000;
                 net.ConnectToLAN(ip, port);
                 break;
-            case 2: net.ConnectCloud(); break;
+            case 3: net.ConnectCloud(); break;
+        }
+    }
+
+    private void StartSingleModeReady()
+    {
+        _isConnected = true;
+        if (statusText != null)
+        {
+            statusText.text = "单机世界已准备就绪";
+            statusText.color = Green;
+        }
+        if (connectButton != null) connectButton.interactable = false;
+
+        if (skinSelectionUI != null)
+        {
+            if (lobbyPanel != null) lobbyPanel.SetActive(false);
+            skinSelectionUI.Show();
+        }
+        else if (enterGameButton != null)
+        {
+            enterGameButton.interactable = true;
         }
     }
 
@@ -257,15 +303,24 @@ public class LobbyUIController : MonoBehaviour
 
     private void EnterGameInternal()
     {
-        var conn = SpacetimeDBNetworkManager.Instance?.Db;
         string playerName = playerNameInput != null ? playerNameInput.text.Trim() : "Player";
         if (string.IsNullOrEmpty(playerName)) playerName = "Player" + Random.Range(100, 999);
-        if (conn != null)
+        if (_currentMode == 0)
         {
             if (lobbyPanel != null) lobbyPanel.SetActive(false);
             if (GameManager.Instance != null && GameManager.Instance.canvasGo != null)
                 GameManager.Instance.canvasGo.SetActive(false);
-            conn.Reducers.EnterGame(playerName);
+            GameManager.Instance?.StartLocalGame(playerName, singlePlayerBotCount);
+            return;
+        }
+
+        var session = GameSessionManager.Current;
+        if (session != null)
+        {
+            if (lobbyPanel != null) lobbyPanel.SetActive(false);
+            if (GameManager.Instance != null && GameManager.Instance.canvasGo != null)
+                GameManager.Instance.canvasGo.SetActive(false);
+            session.Actions.EnterGame(playerName);
         }
     }
 

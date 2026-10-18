@@ -409,10 +409,10 @@ public class CircleController : MonoBehaviour
                 isMergeAnim = false;
 
                 // 通知服务端：动画完成，可以真正删除此球
-                var conn = SpacetimeDBNetworkManager.Instance?.Db;
-                if (conn != null && entityId != 0)
+                var session = GameSessionManager.Current;
+                if (session != null && entityId != 0)
                 {
-                    conn.Reducers.FinishMerge(entityId);
+                    session.Actions.FinishMerge(entityId);
                 }
 
                 // 动画完成后的超时保护：如果服务端因某种原因没删除（如网络延迟），

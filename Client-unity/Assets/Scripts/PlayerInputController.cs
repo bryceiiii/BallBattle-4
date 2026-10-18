@@ -4,13 +4,13 @@ using SpacetimeDB.Types;
 public class PlayerInputController : MonoBehaviour
 {
     private DbVector2 lastSendDir = new DbVector2(0, 0);
-    private float _sendDirCooldown; // ·ÀÖ¹Í¬Ò»Ö¡ÄÚÖØ¸´·¢ËÍ
+    private float _sendDirCooldown; // ï¿½ï¿½Ö¹Í¬Ò»Ö¡ï¿½ï¿½ï¿½Ø¸ï¿½ï¿½ï¿½ï¿½ï¿½
     public static PlayerInputController Instance { get; private set; }
     public Vector2 CurrentDirection { get; private set; }
-    public int SelectedAmmoType { get; private set; } = 0; // 0=ÆÕÍ¨, 1=·ÖÁÑµ¯
+    public int SelectedAmmoType { get; private set; } = 0; // 0=ï¿½ï¿½Í¨, 1=ï¿½ï¿½ï¿½Ñµï¿½
 
-    // ===== RTT ²âÁ¿ =====
-    /// <summary>×î½üÒ»´Î·½Ïò·¢ËÍµÄÊ±¼ä´Á£¨ÓÃÓÚ RTT ¹ÀËã£©</summary>
+    // ===== RTT ï¿½ï¿½ï¿½ï¿½ =====
+    /// <summary>ï¿½ï¿½ï¿½Ò»ï¿½Î·ï¿½ï¿½ï¿½ï¿½Íµï¿½Ê±ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ RTT ï¿½ï¿½ï¿½ã£©</summary>
     public static float LastDirSendTime { get; private set; } = 0f;
 
     private void Awake()
@@ -20,7 +20,7 @@ public class PlayerInputController : MonoBehaviour
     }
     private void Update()
     {
-        if (SpacetimeDBNetworkManager.Instance?.Db == null) return;
+        if (GameSessionManager.Current == null) return;
 
         HandleMovementInput();
         HandleSplitInput();
@@ -41,33 +41,33 @@ public class PlayerInputController : MonoBehaviour
         DbVector2 curDir = new DbVector2(moveX, moveY);
         if (curDir.X == lastSendDir.X && curDir.Y == lastSendDir.Y) return;
 
-        SpacetimeDBNetworkManager.Instance.Db.Reducers.UpdatePlayerDir(curDir);
+        GameSessionManager.Current.Actions.UpdatePlayerDir(curDir);
         lastSendDir = curDir;
-        LastDirSendTime = Time.time;  // ¼ÇÂ¼·¢ËÍÊ±¼ä£¬ÓÃÓÚ RTT ¹ÀËã
+        LastDirSendTime = Time.time;  // ï¿½ï¿½Â¼ï¿½ï¿½ï¿½ï¿½Ê±ï¿½ä£¬ï¿½ï¿½ï¿½ï¿½ RTT ï¿½ï¿½ï¿½ï¿½
     }
 
     private void HandleSplitInput()
     {
         if (!Input.GetKeyDown(KeyCode.Space)) return;
 
-        // ¿Í»§¶ËÏÈÐÐ¼ì²é£ºÒÑ´ïÉÏÏÞÔò×èÖ¹·ÖÁÑ£¬²»·¢ËÍÍøÂçÇëÇó£¬²»²¥¶¯»­
+        // ï¿½Í»ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ð¼ï¿½é£ºï¿½Ñ´ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ö¹ï¿½ï¿½ï¿½Ñ£ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ó£¬²ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½
         if (GameManager.GetLocalPlayerBallCount() >= 16)
             return;
 
-        SpacetimeDBNetworkManager.Instance.Db.Reducers.SplitPlayer();
+        GameSessionManager.Current.Actions.SplitPlayer();
 
-        // ·ÖÁÑÊÖ¸Ð·´À¡£¨´¿¿Í»§¶Ë±íÏÖ£©
+        // ï¿½ï¿½ï¿½ï¿½ï¿½Ö¸Ð·ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Í»ï¿½ï¿½Ë±ï¿½ï¿½Ö£ï¿½
         GameFeel.Instance?.OnSplit();
     }
 
-    /// <summary>Êý×Ö¼ü 1-2 ÇÐ»»µ¯ÖÖ</summary>
+    /// <summary>ï¿½ï¿½ï¿½Ö¼ï¿½ 1-2 ï¿½Ð»ï¿½ï¿½ï¿½ï¿½ï¿½</summary>
     private void HandleAmmoSwitch()
     {
         for (int i = 1; i <= 2; i++)
         {
             if (Input.GetKeyDown(KeyCode.Alpha0 + i))
             {
-                SelectedAmmoType = i - 1; // 0=ÆÕÍ¨, 1=·ÖÁÑµ¯
+                SelectedAmmoType = i - 1; // 0=ï¿½ï¿½Í¨, 1=ï¿½ï¿½ï¿½Ñµï¿½
                 HudController.Instance?.SelectAmmo(i - 1);
             }
         }
@@ -77,8 +77,8 @@ public class PlayerInputController : MonoBehaviour
     {
         if (!Input.GetMouseButtonDown(0)) return;
 
-        var conn = SpacetimeDBNetworkManager.Instance?.Db;
-        if (conn == null) return;
+        var session = GameSessionManager.Current;
+        if (session == null) return;
 
         Vector3 ballPos = GameManager.GetLocalMainBallPosition();
         if (ballPos == Vector3.zero) return;
@@ -98,10 +98,10 @@ public class PlayerInputController : MonoBehaviour
         dirX /= len;
         dirY /= len;
 
-        // ¿ª»ðÊÖ¸Ð·´À¡£¨´¿¿Í»§¶Ë±íÏÖ£ºÉÁ¹â/ºó×ù/Õð¶¯/ÒôÐ§£¬µ±Ö¡Á¢¼´ÉúÐ§£©
+        // ï¿½ï¿½ï¿½ï¿½ï¿½Ö¸Ð·ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Í»ï¿½ï¿½Ë±ï¿½ï¿½Ö£ï¿½ï¿½ï¿½ï¿½ï¿½/ï¿½ï¿½ï¿½ï¿½/ï¿½ï¿½/ï¿½ï¿½Ð§ï¿½ï¿½ï¿½ï¿½Ö¡ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ð§ï¿½ï¿½
         GameFeel.Instance?.OnFire(new Vector2(dirX, dirY));
 
-        // ·¢ËÍ¹éÒ»»¯·½ÏòÏòÁ¿£¨»ùÓÚ±¾µØÖ÷Çò£©£¬·þÎñ¶ËËùÓÐÇòÍ³Ò»³¯´Ë·½ÏòÆ½ÐÐÉä»÷
-        conn.Reducers.ShootBullet(dirX, dirY, SelectedAmmoType);
+        // ï¿½ï¿½ï¿½Í¹ï¿½Ò»ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ú±ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ò£©£ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Í³Ò»ï¿½ï¿½ï¿½Ë·ï¿½ï¿½ï¿½Æ½ï¿½ï¿½ï¿½ï¿½ï¿½
+        session.Actions.ShootBullet(dirX, dirY, SelectedAmmoType);
     }
 }

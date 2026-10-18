@@ -24,10 +24,12 @@ public class GameManager : MonoBehaviour
     // ===== ������Ч׷�� =====
     private static Dictionary<int, GameObject> shieldEffects = new Dictionary<int, GameObject>();
 
-    private Identity localIdentity;
     public DbConnection Conn => SpacetimeDBNetworkManager.Instance?.Db;
+    public IGameSession Session => GameSessionManager.Current;
+    private Identity localIdentity;
 
     private bool isSubscribed = false;
+    private IGameSession _boundSession;
     private bool _mainThreadSubscribed = false; // [����] ���̶߳��ı�־
 
     void Awake()
@@ -54,9 +56,13 @@ public class GameManager : MonoBehaviour
 
     private void SubscribeToTables()
     {
-        if (isSubscribed) return;
+        if (isSubscribed && Conn != null
+            && _boundSession is SpacetimeGameSession onlineSession
+            && onlineSession.Connection == Conn)
+            return;
         if (Conn == null) return;
         if (Conn.Db == null) return; // ������δ��ȫ����
+        GameSessionManager.EnsureOnline(Conn);
 
         // [Android �ؼ�] ��⵱ǰ�Ƿ��� Unity ���߳�
         // SpacetimeDB SDK �� Android �ϴӺ�̨�̵߳��� OnConnected �ص�
@@ -76,21 +82,7 @@ public class GameManager : MonoBehaviour
             Debug.Log($"�ѳɹ���ȡ����ֵ localIdentity: {localIdentity}");
         }
 
-        Conn.Db.Food.OnInsert += OnFoodInserted;
-        Conn.Db.Food.OnDelete += OnFoodDelete;
-        Conn.Db.Entity.OnUpdate += OnEntityUpdated;
-        Conn.Db.Circle.OnInsert += OnCircleInserted;
-        Conn.Db.Circle.OnDelete += OnCircleDeleted;
-        Conn.Db.Circle.OnUpdate += OnCircleUpdated;
-        Conn.Db.Bullet.OnInsert += OnBulletInserted;
-        Conn.Db.Bullet.OnDelete += OnBulletDeleted;
-        Conn.Db.PlayerAmmo.OnInsert += OnPlayerAmmoInserted;
-        Conn.Db.PlayerAmmo.OnUpdate += OnPlayerAmmoUpdated;
-        Conn.Db.Shield.OnInsert += OnShieldInserted;
-        Conn.Db.Shield.OnUpdate += OnShieldUpdated;
-        Conn.Db.Shield.OnDelete += OnShieldDeleted;
-        Conn.Db.SpeedBuff.OnInsert += OnSpeedBuffInserted;
-        Conn.Db.SpeedBuff.OnDelete += OnSpeedBuffDeleted;
+        if (!BindSession()) return;
 
         isSubscribed = true;
         _mainThreadSubscribed = true;
@@ -106,6 +98,91 @@ public class GameManager : MonoBehaviour
         {
             Debug.LogError($"[GameManager] SubscribeToAllTables ʧ��: {e.Message}");
         }
+    }
+
+    public void StartLocalGame(string playerName, int botCount)
+    {
+        UnbindSession();
+        ClearRenderedWorld();
+        var local = GameSessionManager.CreateLocal();
+        localIdentity = default;
+        if (!BindSession())
+            return;
+
+        int skinIndex = SkinManager.Instance != null ? SkinManager.Instance.SelectedSkinIndex : 0;
+        local.StartGame(playerName, botCount, Mathf.Max(0, skinIndex));
+        Debug.Log($"[GameManager] 单机模式已启动，Bots={botCount}");
+    }
+
+    private void ClearRenderedWorld()
+    {
+        foreach (var go in Entities.Values)
+            if (go != null) Destroy(go);
+        foreach (var go in Circles.Values)
+            if (go != null) Destroy(go);
+        foreach (var go in Bullets.Values)
+            if (go != null) Destroy(go);
+        foreach (var fx in shieldEffects.Values)
+            if (fx != null) Destroy(fx);
+
+        Entities.Clear();
+        Circles.Clear();
+        Bullets.Clear();
+        PlayerBallMap.Clear();
+        shieldEffects.Clear();
+        entitiesUpdatedThisFrame.Clear();
+    }
+
+    private bool BindSession()
+    {
+        var session = Session;
+        if (session == null || !session.IsReady) return false;
+        if (_boundSession == session) return true;
+
+        UnbindSession();
+        _boundSession = session;
+        session.Tables.Food.OnInsert += OnFoodInserted;
+        session.Tables.Food.OnDelete += OnFoodDelete;
+        session.Tables.Entity.OnUpdate += OnEntityUpdated;
+        session.Tables.Circle.OnInsert += OnCircleInserted;
+        session.Tables.Circle.OnDelete += OnCircleDeleted;
+        session.Tables.Circle.OnUpdate += OnCircleUpdated;
+        session.Tables.Bullet.OnInsert += OnBulletInserted;
+        session.Tables.Bullet.OnDelete += OnBulletDeleted;
+        session.Tables.PlayerAmmo.OnInsert += OnPlayerAmmoInserted;
+        session.Tables.PlayerAmmo.OnUpdate += OnPlayerAmmoUpdated;
+        session.Tables.Shield.OnInsert += OnShieldInserted;
+        session.Tables.Shield.OnUpdate += OnShieldUpdated;
+        session.Tables.Shield.OnDelete += OnShieldDeleted;
+        session.Tables.SpeedBuff.OnInsert += OnSpeedBuffInserted;
+        session.Tables.SpeedBuff.OnDelete += OnSpeedBuffDeleted;
+
+        isSubscribed = true;
+        _mainThreadSubscribed = true;
+        return true;
+    }
+
+    private void UnbindSession()
+    {
+        if (_boundSession == null) return;
+        _boundSession.Tables.Food.OnInsert -= OnFoodInserted;
+        _boundSession.Tables.Food.OnDelete -= OnFoodDelete;
+        _boundSession.Tables.Entity.OnUpdate -= OnEntityUpdated;
+        _boundSession.Tables.Circle.OnInsert -= OnCircleInserted;
+        _boundSession.Tables.Circle.OnDelete -= OnCircleDeleted;
+        _boundSession.Tables.Circle.OnUpdate -= OnCircleUpdated;
+        _boundSession.Tables.Bullet.OnInsert -= OnBulletInserted;
+        _boundSession.Tables.Bullet.OnDelete -= OnBulletDeleted;
+        _boundSession.Tables.PlayerAmmo.OnInsert -= OnPlayerAmmoInserted;
+        _boundSession.Tables.PlayerAmmo.OnUpdate -= OnPlayerAmmoUpdated;
+        _boundSession.Tables.Shield.OnInsert -= OnShieldInserted;
+        _boundSession.Tables.Shield.OnUpdate -= OnShieldUpdated;
+        _boundSession.Tables.Shield.OnDelete -= OnShieldDeleted;
+        _boundSession.Tables.SpeedBuff.OnInsert -= OnSpeedBuffInserted;
+        _boundSession.Tables.SpeedBuff.OnDelete -= OnSpeedBuffDeleted;
+        _boundSession = null;
+        isSubscribed = false;
+        _mainThreadSubscribed = false;
     }
 
     /// <summary>
@@ -132,7 +209,7 @@ public class GameManager : MonoBehaviour
     /// <summary>
     /// ͬ������ֶ��ƿ������ Rigidbody2D ������ײ������ SmoothDamp �񵴶�����
     /// ÿ֡������ͬ���������ص���⣬�ص������һ�롣
-    private void OnEntityUpdated(EventContext context, Entity oldRow, Entity newRow)
+    private void OnEntityUpdated(Entity oldRow, Entity newRow)
     {
         if (entitiesUpdatedThisFrame.Contains(newRow.Id)) return;
         entitiesUpdatedThisFrame.Add(newRow.Id);
@@ -164,7 +241,7 @@ public class GameManager : MonoBehaviour
         }
     }
 
-    private void OnCircleDeleted(EventContext context, Circle row)
+    private void OnCircleDeleted(Circle row)
     {
         if (Circles.Remove(row.EntityId, out var go))
         {
@@ -178,7 +255,7 @@ public class GameManager : MonoBehaviour
         }
     }
 
-    private void OnCircleUpdated(EventContext ctx, Circle oldC, Circle newC)
+    private void OnCircleUpdated(Circle oldC, Circle newC)
     {
         if (Circles.TryGetValue(newC.EntityId, out var go))
         {
@@ -204,11 +281,7 @@ public class GameManager : MonoBehaviour
                 else
                 {
                     // �Ҳ���Ŀ�꣨Ŀ���ѱ�ɾ�����쳣����ֱ��֪ͨ�������ɺϲ�
-                    var conndb = SpacetimeDBNetworkManager.Instance?.Db;
-                    if (conndb != null)
-                    {
-                        conndb.Reducers.FinishMerge(newC.EntityId);
-                    }
+                    Session?.Actions.FinishMerge(newC.EntityId);
                 }
             }
         }
@@ -238,11 +311,12 @@ public class GameManager : MonoBehaviour
         return biggest;
     }
 
-    private void OnCircleInserted(EventContext context, Circle row)
+    private void OnCircleInserted(Circle row)
     {
-        var entity = Conn.Db.Entity.Id.Find(row.EntityId);
-        var player = Conn.Db.LoggedInPlayer.PlayerId.Find(row.PlayerId)
+        var entity = Session?.FindEntity(row.EntityId);
+        var player = Session?.FindPlayerByPlayerId(row.PlayerId)
                      ?? new Player { Name = "Unknown" };
+        if (entity == null) return;
 
         GameObject circleGo = PrefabsManager.Instance.SpawnCircle(
             row.EntityId, entity.Position.X, entity.Position.Y, entity.Mass, player.Name
@@ -282,7 +356,7 @@ public class GameManager : MonoBehaviour
         // Ƥ������ݷ����ͬ���� skin_index Ӧ�õ������򣨱��غ�Զ�̣�
         controller.ApplySkinByIndex(row.SkinIndex);
 
-        if (player.Identity == localIdentity)
+        if (Session != null && Session.IsLocalPlayerId(row.PlayerId))
         {
             CameraContoller.Instance.AddFollowTarget(circleGo.transform);
             controller.isLocalPlayer = true;
@@ -344,7 +418,7 @@ public class GameManager : MonoBehaviour
     }
 
     // ===== ʳ����� =====
-    private void OnFoodDelete(EventContext ctx, Food deletedFood)
+    private void OnFoodDelete(Food deletedFood)
     {
         if (Entities.Remove(deletedFood.EntityId, out var go))
         {
@@ -352,9 +426,9 @@ public class GameManager : MonoBehaviour
         }
     }
 
-    private void OnFoodInserted(EventContext ctx, Food newFood)
+    private void OnFoodInserted(Food newFood)
     {
-        var entity = Conn.Db.Entity.Id.Find(newFood.EntityId);
+        var entity = Session?.FindEntity(newFood.EntityId);
         if (entity == null) return;
 
         GameObject foodGo;
@@ -373,9 +447,9 @@ public class GameManager : MonoBehaviour
     }
 
     // ===== �ӵ���� =====
-    private void OnBulletInserted(EventContext ctx, Bullet newBullet)
+    private void OnBulletInserted(Bullet newBullet)
     {
-        var entity = Conn.Db.Entity.Id.Find(newBullet.EntityId);
+        var entity = Session?.FindEntity(newBullet.EntityId);
         if (entity == null) return;
 
         // ���ӵ�����ѡԤ���壺���ѵ���ר��Ԥ���壬��ͨ����Ĭ��Ԥ����
@@ -435,7 +509,7 @@ public class GameManager : MonoBehaviour
         Bullets.Add(newBullet.EntityId, bulletGo);
     }
 
-    private void OnBulletDeleted(EventContext ctx, Bullet deletedBullet)
+    private void OnBulletDeleted(Bullet deletedBullet)
     {
         if (Bullets.Remove(deletedBullet.EntityId, out var go))
         {
@@ -446,9 +520,9 @@ public class GameManager : MonoBehaviour
     // ===== �ɰ�UI�����ݾɳ����� =====
     public void OnButtonEnterGameClick()
     {
-        if (Conn == null)
+        if (Session == null)
         {
-            Debug.LogError("SpacetimeDB ��δ���ӣ����ȵ�����Ӱ�ť��");
+            Debug.LogError("游戏会话尚未就绪");
             return;
         }
 
@@ -456,35 +530,35 @@ public class GameManager : MonoBehaviour
         if (string.IsNullOrEmpty(playerName)) playerName = "Player" + UnityEngine.Random.Range(100, 999);
 
         canvasGo.SetActive(false);
-        Conn.Reducers.EnterGame(playerName);
+        Session.Actions.EnterGame(playerName);
     }
 
     // ===== ��ҩ��� =====
-private void OnPlayerAmmoInserted(EventContext ctx, PlayerAmmo ammo)
+private void OnPlayerAmmoInserted(PlayerAmmo ammo)
     {
         UpdateHudAmmo(ammo);
         if (IsLocalPlayerId(ammo.PlayerId))
             GameFeel.Instance?.OnPickup(2);
     }
 
-    private void OnPlayerAmmoUpdated(EventContext ctx, PlayerAmmo oldAmmo, PlayerAmmo newAmmo)
+    private void OnPlayerAmmoUpdated(PlayerAmmo oldAmmo, PlayerAmmo newAmmo)
     {
         UpdateHudAmmo(newAmmo);
     }
 
-private void OnShieldInserted(EventContext ctx, Shield shield)
+private void OnShieldInserted(Shield shield)
     {
         UpdateHudShield(shield);
         if (IsLocalShield(shield.EntityId))
             GameFeel.Instance?.OnPickup(0);
     }
 
-    private void OnShieldUpdated(EventContext ctx, Shield oldShield, Shield newShield)
+    private void OnShieldUpdated(Shield oldShield, Shield newShield)
     {
         UpdateHudShield(newShield);
     }
 
-    private void OnShieldDeleted(EventContext ctx, Shield shield)
+    private void OnShieldDeleted(Shield shield)
     {
         // �������飺�������岥 Break �������Ի٣�����˲�� Destroy��
         if (shieldEffects.TryGetValue(shield.EntityId, out var fx))
@@ -506,14 +580,14 @@ private void OnShieldInserted(EventContext ctx, Shield shield)
     }
 
     // ===== �ٶ�Buff =====
-private void OnSpeedBuffInserted(EventContext ctx, SpeedBuff sb)
+private void OnSpeedBuffInserted(SpeedBuff sb)
     {
         UpdateHudSpeedBuff(sb);
         if (IsLocalPlayerId(sb.PlayerId))
             GameFeel.Instance?.OnPickup(1);
     }
 
-    private void OnSpeedBuffDeleted(EventContext ctx, SpeedBuff sb)
+    private void OnSpeedBuffDeleted(SpeedBuff sb)
     {
         ClearHudSpeedBuff(sb);
     }
@@ -521,9 +595,9 @@ private void OnSpeedBuffInserted(EventContext ctx, SpeedBuff sb)
     private void UpdateHudSpeedBuff(SpeedBuff sb)
     {
         // �������Ƿ����ڱ������
-        if (localIdentity != null)
+        if (Session != null)
         {
-            var player = Conn.Db.LoggedInPlayer.Identity.Find(localIdentity);
+            var player = Session.FindLocalPlayer();
             if (player != null && player.PlayerId == sb.PlayerId)
             {
                 HudController.Instance?.SetSpeed(sb.ExpireAtMs);
@@ -533,9 +607,9 @@ private void OnSpeedBuffInserted(EventContext ctx, SpeedBuff sb)
 
     private void ClearHudSpeedBuff(SpeedBuff sb)
     {
-        if (localIdentity != null)
+        if (Session != null)
         {
-            var player = Conn.Db.LoggedInPlayer.Identity.Find(localIdentity);
+            var player = Session.FindLocalPlayer();
             if (player != null && player.PlayerId == sb.PlayerId)
             {
                 HudController.Instance?.ClearSpeed();
@@ -573,7 +647,7 @@ private void OnSpeedBuffInserted(EventContext ctx, SpeedBuff sb)
     /// ����ǰ�Ƿ���Ż��ܣ��Է���� Shield ��Ϊ׼������ЧԤ�����Ƿ�ֵ�޹أ���
     /// </summary>
     public static bool HasShield(int ballEntityId)
-        => SpacetimeDBNetworkManager.Instance?.Db?.Db?.Shield.EntityId.Find(ballEntityId) != null;
+        => GameSessionManager.Current?.FindShield(ballEntityId) != null;
 
     /// <summary>
     /// ���ܱ��ӵ����У��û�����Ч��һ�£����ͻ��˵�֡���֣����ȷ���˻ذ�����
@@ -590,9 +664,9 @@ private void OnSpeedBuffInserted(EventContext ctx, SpeedBuff sb)
 
     private void UpdateHudAmmo(PlayerAmmo ammo)
     {
-        if (localIdentity != null)
+        if (Session != null)
         {
-            var player = Conn.Db.LoggedInPlayer.Identity.Find(localIdentity);
+            var player = Session.FindLocalPlayer();
             if (player != null && player.PlayerId == ammo.PlayerId)
             {
                 int max = PrefabsManager.Instance != null ? PrefabsManager.Instance.maxSplitAmmo : 5;
@@ -604,6 +678,7 @@ private void OnSpeedBuffInserted(EventContext ctx, SpeedBuff sb)
     void Update()
     {
         _lastUpdateFrame = Time.frameCount; // [���̱߳��] ÿ�� Update �����£��� IsMainThread() �ж�
+        Session?.Tick(Time.deltaTime);
 
         // [Android ����] ��̨�̶߳����¼�û��Чʱ�����߳����¶���
         if (!_mainThreadSubscribed && SpacetimeDBNetworkManager.Instance != null
@@ -617,16 +692,16 @@ private void OnSpeedBuffInserted(EventContext ctx, SpeedBuff sb)
 
         if (Input.GetMouseButtonDown(0))
         {
-            if (Conn != null)
+            if (Session != null)
             {
-                print($"��ǰʳ������: {Conn.Db.Food.Count}");
+                print($"当前食物数量: {Session.FoodCount}");
             }
         }
 
         // [����] H �����Լ������� 10 HP��������˿�Ѫ��ֻ��Ѫ����Ѫ/�������̣�
         if (Input.GetKeyDown(KeyCode.H))
         {
-            if (Conn != null)
+            if (Session != null)
             {
                 var mainBall = FindLocalMainBall();
                 if (mainBall != null)
@@ -634,7 +709,7 @@ private void OnSpeedBuffInserted(EventContext ctx, SpeedBuff sb)
                     var ctrl = mainBall.GetComponent<CircleController>();
                     if (ctrl != null)
                     {
-                        Conn.Reducers.DebugDamage(ctrl.entityId, 10f);
+                        Session.Actions.DebugDamage(ctrl.entityId, 10f);
                         Debug.Log($"[����] ���Լ������ {ctrl.entityId} ��Ѫ 10");
                     }
                 }
@@ -659,8 +734,8 @@ private void OnSpeedBuffInserted(EventContext ctx, SpeedBuff sb)
                     GameFeel.Instance?.OnHit(mainBall.transform.position, ctrl, Vector2.right);
 
                     // ˳���߷���˿�Ѫ����Ѫ������+����Ҳ��Ч�������Ϸ����ʱ���ر����ճ���
-                    if (Conn != null)
-                        Conn.Reducers.DebugDamage(ctrl.entityId, 10f);
+                    if (Session != null)
+                        Session.Actions.DebugDamage(ctrl.entityId, 10f);
 
                     Debug.Log("[����] J �������������ܻ�Ч��");
                 }
@@ -675,25 +750,9 @@ private void OnSpeedBuffInserted(EventContext ctx, SpeedBuff sb)
     private void OnDestroy()
     {
         SpacetimeDBNetworkManager.OnConnected -= SubscribeToTables;
-
-        if (Conn != null)
-        {
-            Conn.Db.Food.OnInsert -= OnFoodInserted;
-            Conn.Db.Food.OnDelete -= OnFoodDelete;
-            Conn.Db.Entity.OnUpdate -= OnEntityUpdated;
-            Conn.Db.Circle.OnInsert -= OnCircleInserted;
-            Conn.Db.Circle.OnDelete -= OnCircleDeleted;
-            Conn.Db.Circle.OnUpdate -= OnCircleUpdated;
-            Conn.Db.Bullet.OnInsert -= OnBulletInserted;
-            Conn.Db.Bullet.OnDelete -= OnBulletDeleted;
-            Conn.Db.PlayerAmmo.OnInsert -= OnPlayerAmmoInserted;
-            Conn.Db.PlayerAmmo.OnUpdate -= OnPlayerAmmoUpdated;
-            Conn.Db.Shield.OnInsert -= OnShieldInserted;
-            Conn.Db.Shield.OnUpdate -= OnShieldUpdated;
-            Conn.Db.Shield.OnDelete -= OnShieldDeleted;
-            Conn.Db.SpeedBuff.OnInsert -= OnSpeedBuffInserted;
-            Conn.Db.SpeedBuff.OnDelete -= OnSpeedBuffDeleted;
-        }
+        UnbindSession();
+        if (GameSessionManager.Current != null && GameSessionManager.Current.IsLocal)
+            GameSessionManager.Shutdown();
     }
 
     /// <summary>
@@ -802,12 +861,12 @@ private void OnSpeedBuffInserted(EventContext ctx, SpeedBuff sb)
     /// <summary>���¿�ʼ��Ϸ���������水ť�ص���</summary>
     public void RespawnPlayer()
     {
-        if (Conn != null)
+        if (Session != null)
         {
             string playerName = GetSavedPlayerName();
             if (string.IsNullOrEmpty(playerName))
                 playerName = "Player" + UnityEngine.Random.Range(100, 999);
-            Conn.Reducers.EnterGame(playerName);
+            Session.Actions.EnterGame(playerName);
         }
     }
 
@@ -816,9 +875,9 @@ private void OnSpeedBuffInserted(EventContext ctx, SpeedBuff sb)
     {
         if (InputField != null && !string.IsNullOrEmpty(InputField.text.Trim()))
             return InputField.text.Trim();
-        if (Conn != null && Conn.Identity.HasValue)
+        if (Session != null)
         {
-            var p = Conn.Db.LoggedInPlayer.Identity.Find(Conn.Identity.Value);
+            var p = Session.FindLocalPlayer();
             if (p != null && !string.IsNullOrEmpty(p.Name))
                 return p.Name;
         }
@@ -828,9 +887,7 @@ private void OnSpeedBuffInserted(EventContext ctx, SpeedBuff sb)
 
     private bool IsLocalPlayerId(int playerId)
     {
-        if (localIdentity == null || Conn == null || Conn.Db == null) return false;
-        var player = Conn.Db.LoggedInPlayer.Identity.Find(localIdentity);
-        return player != null && player.PlayerId == playerId;
+        return Session != null && Session.IsLocalPlayerId(playerId);
     }
 
     private bool IsLocalShield(int entityId)

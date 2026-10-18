@@ -180,7 +180,10 @@ public class SkinSelectionUIController : MonoBehaviour
             skinPanel.SetActive(false);
             // 回到大厅面板，让玩家重新连接
             if (LobbyUIController.Instance != null && LobbyUIController.Instance.lobbyPanel != null)
+            {
                 LobbyUIController.Instance.lobbyPanel.SetActive(true);
+                LobbyUIController.Instance.ResetForLobby();
+            }
         }
     }
 
@@ -433,7 +436,9 @@ public class SkinSelectionUIController : MonoBehaviour
 
         // 防御：面板可能因时序残留而仍处于激活状态，未连接时禁止进入游戏
         var net = SpacetimeDBNetworkManager.Instance;
-        if (net == null || !net.IsConnected)
+        bool singlePlayer = LobbyUIController.Instance != null
+            && LobbyUIController.Instance.IsSinglePlayerMode;
+        if (!singlePlayer && (net == null || !net.IsConnected))
         {
             Debug.LogWarning("[SkinSelectionUI] 未连接，忽略进入游戏请求");
             Hide();
@@ -458,7 +463,10 @@ public class SkinSelectionUIController : MonoBehaviour
 
         // 显示大厅面板
         if (LobbyUIController.Instance != null && LobbyUIController.Instance.lobbyPanel != null)
+        {
             LobbyUIController.Instance.lobbyPanel.SetActive(true);
+            LobbyUIController.Instance.ResetForLobby();
+        }
     }
 
     /// <summary>
@@ -471,7 +479,9 @@ public class SkinSelectionUIController : MonoBehaviour
         if (skinPanel == null || !skinPanel.activeSelf) return;
 
         var net = SpacetimeDBNetworkManager.Instance;
-        if (net != null && !net.IsConnected)
+        bool singlePlayer = LobbyUIController.Instance != null
+            && LobbyUIController.Instance.IsSinglePlayerMode;
+        if (!singlePlayer && net != null && !net.IsConnected)
         {
             Debug.LogWarning("[SkinSelectionUI] 检测到连接已断开，关闭皮肤面板");
             skinPanel.SetActive(false);

@@ -72,7 +72,7 @@ public class MobileInputController : MonoBehaviour
 
     void Update()
     {
-        if (SpacetimeDBNetworkManager.Instance?.Db == null) return;
+        if (GameSessionManager.Current == null) return;
 
         if (_isMobile)
             HandleMobileInput();
@@ -165,7 +165,7 @@ public class MobileInputController : MonoBehaviour
             Mathf.Approximately(curDir.Y, _lastSentDir.Y))
             return;
         _lastSentDir = curDir;
-        SpacetimeDBNetworkManager.Instance?.Db?.Reducers.UpdatePlayerDir(curDir);
+        GameSessionManager.Current.Actions.UpdatePlayerDir(curDir);
     }
 
     // ============================================================
@@ -173,8 +173,8 @@ public class MobileInputController : MonoBehaviour
     // ============================================================
     public void Shoot()
     {
-        var conn = SpacetimeDBNetworkManager.Instance?.Db;
-        if (conn == null) return;
+        var session = GameSessionManager.Current;
+        if (session == null) return;
 
         Vector2 dir = AimDirection;
         if (dir.sqrMagnitude < 0.001f) return;
@@ -184,7 +184,7 @@ public class MobileInputController : MonoBehaviour
         GameFeel.Instance?.OnFire(dir);
 
         // 发送归一化方向向量（基于本地主球），服务端所有球统一朝此方向平行射击
-        conn.Reducers.ShootBullet(dir.x, dir.y, SelectedAmmoType);
+        session.Actions.ShootBullet(dir.x, dir.y, SelectedAmmoType);
     }
 
     // ============================================================
@@ -192,7 +192,7 @@ public class MobileInputController : MonoBehaviour
     // ============================================================
     public void SplitPlayer()
     {
-        SpacetimeDBNetworkManager.Instance?.Db?.Reducers.SplitPlayer();
+        GameSessionManager.Current?.Actions.SplitPlayer();
         GameFeel.Instance?.OnSplit();
     }
 

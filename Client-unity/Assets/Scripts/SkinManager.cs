@@ -67,10 +67,10 @@ public class SkinManager : MonoBehaviour
             OnSkinChanged?.Invoke(index, skins[index]);
 
             // 通知服务器皮肤变更
-            var conn = SpacetimeDBNetworkManager.Instance?.Db;
-            if (conn != null)
+            var session = GameSessionManager.Current;
+            if (session != null)
             {
-                conn.Reducers.UpdatePlayerSkin(index);
+                session.Actions.UpdatePlayerSkin(index);
             }
         }
         return true;
