@@ -17,7 +17,6 @@ public class GameAudioManager : MonoBehaviour
     private const string MusicVolumeKey = "settings.audio.music_volume";
     private const string DefaultBackgroundMusicPath = "Audio/BackgroundMusic";
     private const string AlternateBackgroundMusicPath = "BackgroundMusic";
-    private const string UiClickPath = "Audio/SFX_UI_Click";
 
     private static GameAudioManager _instance;
 
@@ -37,17 +36,51 @@ public class GameAudioManager : MonoBehaviour
         }
     }
 
-    [Header("Music")]
-    [Tooltip("Optional. If empty, Resources/Audio/BackgroundMusic is loaded automatically.")]
+    [Header("设置入口 Settings Entry")]
+    [InspectorName("设置按钮")]
+    [Tooltip("可直接在 Scene 中拖动 SettingsButton 调整位置。留空时运行时自动生成。")]
+    public Button settingsButton;
+
+    [Header("背景音乐 BGM")]
+    [InspectorName("背景音乐")]
+    [Tooltip("循环播放的背景音乐。留空时会尝试从 Resources/Audio/BackgroundMusic 加载。")]
     public AudioClip backgroundMusic;
+    [InspectorName("自动加载背景音乐")]
+    [Tooltip("允许从 Resources/Audio/BackgroundMusic 自动查找背景音乐。")]
     public bool loadBackgroundMusicFromResources = true;
+    [InspectorName("默认音量")]
+    [Tooltip("首次启动时的默认背景音乐音量。")]
     [Range(0f, 1f)] public float defaultMusicVolume = 0.7f;
+
+    [Header("音效 SFX")]
+    [InspectorName("射击音效")]
+    [Tooltip("射击音效")]
+    public AudioClip shootClip;
+    [InspectorName("命中音效")]
+    [Tooltip("命中音效")]
+    public AudioClip hitClip;
+    [InspectorName("空枪音效")]
+    [Tooltip("射速冷却时的空枪音效")]
+    public AudioClip emptyClip;
+    [InspectorName("分裂音效")]
+    [Tooltip("分裂音效")]
+    public AudioClip splitClip;
+    [InspectorName("拾取音效")]
+    [Tooltip("护盾、加速和特殊弹药拾取音效")]
+    public AudioClip pickupClip;
+    [InspectorName("UI 点击音效")]
+    [Tooltip("设置面板按钮点击音效")]
+    public AudioClip uiClickClip;
+    [InspectorName("音效总音量")]
+    [Tooltip("所有游戏音效的总音量。")]
     [Range(0f, 1f)] public float sfxVolume = 1f;
+    [InspectorName("UI 点击音量")]
+    [Tooltip("设置面板按钮点击音的额外音量。")]
+    [Range(0f, 1f)] public float uiClickVolume = 0.62f;
 
     private AudioSource _musicSource;
     private readonly List<AudioSource> _sfxSources = new List<AudioSource>();
     private float _musicVolume = 0.7f;
-    private AudioClip _uiClickClip;
 
     private GameObject _settingsRoot;
     private GameObject _settingsButton;
@@ -117,7 +150,6 @@ public class GameAudioManager : MonoBehaviour
         _musicSource.spatialBlend = 0f;
         _musicSource.volume = _musicVolume;
         _musicSource.priority = 0;
-        _uiClickClip = Resources.Load<AudioClip>(UiClickPath);
 
         AudioClip clip = backgroundMusic;
         if (clip == null && loadBackgroundMusicFromResources)
@@ -127,8 +159,33 @@ public class GameAudioManager : MonoBehaviour
                 clip = Resources.Load<AudioClip>(AlternateBackgroundMusicPath);
         }
 
+        backgroundMusic = clip;
+        shootClip = LoadClipIfMissing(shootClip, "Audio/SFX_Shoot");
+        hitClip = LoadClipIfMissing(hitClip, "Audio/SFX_Hit");
+        emptyClip = LoadClipIfMissing(emptyClip, "Audio/SFX_Empty");
+        splitClip = LoadClipIfMissing(splitClip, "Audio/SFX_Split");
+        pickupClip = LoadClipIfMissing(pickupClip, "Audio/SFX_Pickup");
+        uiClickClip = LoadClipIfMissing(uiClickClip, "Audio/SFX_UI_Click");
+
         if (clip != null)
             PlayBackgroundMusic(clip, true);
+    }
+
+    [ContextMenu("自动填充 Resources 音频")]
+    private void AutoFillAudioFromResources()
+    {
+        if (backgroundMusic == null)
+        {
+            backgroundMusic = Resources.Load<AudioClip>(DefaultBackgroundMusicPath);
+            if (backgroundMusic == null)
+                backgroundMusic = Resources.Load<AudioClip>(AlternateBackgroundMusicPath);
+        }
+        shootClip = LoadClipIfMissing(shootClip, "Audio/SFX_Shoot");
+        hitClip = LoadClipIfMissing(hitClip, "Audio/SFX_Hit");
+        emptyClip = LoadClipIfMissing(emptyClip, "Audio/SFX_Empty");
+        splitClip = LoadClipIfMissing(splitClip, "Audio/SFX_Split");
+        pickupClip = LoadClipIfMissing(pickupClip, "Audio/SFX_Pickup");
+        uiClickClip = LoadClipIfMissing(uiClickClip, "Audio/SFX_UI_Click");
     }
 
     public void SetBackgroundMusic(AudioClip clip, bool restart = true)
@@ -189,6 +246,11 @@ public class GameAudioManager : MonoBehaviour
         sfxVolume = Mathf.Clamp01(volume);
     }
 
+    private static AudioClip LoadClipIfMissing(AudioClip clip, string resourcePath)
+    {
+        return clip != null ? clip : Resources.Load<AudioClip>(resourcePath);
+    }
+
     public void PlaySfx(AudioClip clip, float volumeScale = 1f, float pitch = 1f)
     {
         if (clip == null) return;
@@ -231,23 +293,85 @@ public class GameAudioManager : MonoBehaviour
         EnsureEventSystem();
         EnsureUiSprites();
 
+        Canvas canvas = ResolveSettingsCanvas();
+        if (canvas == null)
+        {
+            canvas = CreateSettingsCanvas();
+        }
+
+        if (settingsButton == null && canvas != null)
+        {
+            var buttonTransform = canvas.transform.Find("SettingsButton");
+            if (buttonTransform != null)
+                settingsButton = buttonTransform.GetComponent<Button>();
+        }
+
+        if (settingsButton != null)
+        {
+            _settingsButton = settingsButton.gameObject;
+            ApplySettingsButtonStyle(settingsButton);
+        }
+        else
+        {
+            _settingsButton = CreateSettingsButton(canvas.transform);
+            settingsButton = _settingsButton.GetComponent<Button>();
+        }
+
+        _settingsRoot = CreateSettingsPanel(canvas.transform);
+        _settingsRoot.SetActive(false);
+    }
+
+    private Canvas ResolveSettingsCanvas()
+    {
+        if (settingsButton != null)
+        {
+            var parentCanvas = settingsButton.GetComponentInParent<Canvas>();
+            if (parentCanvas != null)
+                return ConfigureSettingsCanvas(parentCanvas.rootCanvas);
+        }
+
+        var existingCanvasGo = GameObject.Find("GlobalSettingsCanvas");
+        if (existingCanvasGo != null)
+        {
+            var existingCanvas = existingCanvasGo.GetComponent<Canvas>();
+            if (existingCanvas != null)
+                return ConfigureSettingsCanvas(existingCanvas);
+        }
+        return null;
+    }
+
+    private Canvas CreateSettingsCanvas()
+    {
         var canvasGo = new GameObject("GlobalSettingsCanvas",
             typeof(RectTransform), typeof(Canvas), typeof(CanvasScaler), typeof(GraphicRaycaster));
         canvasGo.transform.SetParent(transform, false);
 
         var canvas = canvasGo.GetComponent<Canvas>();
+        return ConfigureSettingsCanvas(canvas);
+    }
+
+    private Canvas ConfigureSettingsCanvas(Canvas canvas)
+    {
+        if (canvas == null) return null;
+
         canvas.renderMode = RenderMode.ScreenSpaceOverlay;
-        canvas.sortingOrder = 5000;
+        if (canvas.sortingOrder < 5000)
+            canvas.sortingOrder = 5000;
 
-        var scaler = canvasGo.GetComponent<CanvasScaler>();
-        scaler.uiScaleMode = CanvasScaler.ScaleMode.ScaleWithScreenSize;
-        scaler.referenceResolution = new Vector2(1920f, 1080f);
-        scaler.screenMatchMode = CanvasScaler.ScreenMatchMode.MatchWidthOrHeight;
-        scaler.matchWidthOrHeight = 0.5f;
+        var scaler = canvas.GetComponent<CanvasScaler>();
+        if (scaler == null)
+            scaler = canvas.gameObject.AddComponent<CanvasScaler>();
+        if (scaler.uiScaleMode != CanvasScaler.ScaleMode.ScaleWithScreenSize)
+        {
+            scaler.uiScaleMode = CanvasScaler.ScaleMode.ScaleWithScreenSize;
+            scaler.referenceResolution = new Vector2(1920f, 1080f);
+            scaler.screenMatchMode = CanvasScaler.ScreenMatchMode.MatchWidthOrHeight;
+            scaler.matchWidthOrHeight = 0.5f;
+        }
 
-        _settingsButton = CreateSettingsButton(canvasGo.transform);
-        _settingsRoot = CreateSettingsPanel(canvasGo.transform);
-        _settingsRoot.SetActive(false);
+        if (canvas.GetComponent<GraphicRaycaster>() == null)
+            canvas.gameObject.AddComponent<GraphicRaycaster>();
+        return canvas;
     }
 
     private void EnsureUiSprites()
@@ -292,8 +416,48 @@ public class GameAudioManager : MonoBehaviour
         shadow.effectDistance = new Vector2(0f, -3f);
         glow.color = new Color(0.085f, 0.13f, 0.22f, 0.94f);
 
-        button.onClick.AddListener(OpenSettings);
+        ApplySettingsButtonStyle(button);
         return button.gameObject;
+    }
+
+    private void ApplySettingsButtonStyle(Button button)
+    {
+        if (button == null) return;
+
+        var image = button.GetComponent<Image>();
+        if (image == null)
+            image = button.gameObject.AddComponent<Image>();
+        image.sprite = _roundedSurfaceSprite;
+        image.type = Image.Type.Sliced;
+        image.color = new Color(0.085f, 0.13f, 0.22f, 0.94f);
+
+        button.targetGraphic = image;
+        button.transition = Selectable.Transition.ColorTint;
+        var colors = button.colors;
+        colors.normalColor = new Color(0.085f, 0.13f, 0.22f, 0.94f);
+        colors.highlightedColor = new Color(0.18f, 0.48f, 0.95f, 0.98f);
+        colors.pressedColor = new Color(0.12f, 0.32f, 0.66f, 1f);
+        colors.selectedColor = colors.highlightedColor;
+        colors.disabledColor = new Color(0.2f, 0.22f, 0.28f, 0.5f);
+        colors.colorMultiplier = 1f;
+        colors.fadeDuration = 0.08f;
+        button.colors = colors;
+
+        if (button.GetComponent<Shadow>() == null)
+        {
+            var shadow = button.gameObject.AddComponent<Shadow>();
+            shadow.effectColor = new Color(0f, 0.08f, 0.2f, 0.55f);
+            shadow.effectDistance = new Vector2(0f, -3f);
+        }
+
+        if (button.GetComponentInChildren<Text>(true) == null)
+        {
+            var text = CreateText("Label", button.transform, "设置", 22, FontStyle.Bold, TextAnchor.MiddleCenter);
+            SetRect(text.rectTransform, Vector2.zero, Vector2.one, new Vector2(0.5f, 0.5f), Vector2.zero, Vector2.zero);
+        }
+
+        button.onClick.RemoveListener(OpenSettings);
+        button.onClick.AddListener(OpenSettings);
     }
 
     private GameObject CreateSettingsPanel(Transform parent)
@@ -641,8 +805,8 @@ public class GameAudioManager : MonoBehaviour
 
     private void PlayUiClick()
     {
-        if (_uiClickClip != null)
-            PlaySfx(_uiClickClip, 0.62f, Random.Range(0.98f, 1.03f));
+        if (uiClickClip != null)
+            PlaySfx(uiClickClip, uiClickVolume, Random.Range(0.98f, 1.03f));
     }
 
     private static Text CreateText(

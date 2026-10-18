@@ -100,14 +100,9 @@ public class GameFeel : MonoBehaviour
     public Color damageTextColor = Color.white;
     public Color blockedTextColor = new Color(0.6f, 0.8f, 1f, 1f);
 
-    // ===== 音效（留空则用程序生成的占位音） =====
-    [Header("音效（留空则用程序生成的占位音）")]
-    public AudioClip fireClip;
-    public AudioClip hitClip;
-    public AudioClip emptyClip;
-    public AudioClip splitClip;
-    public AudioClip pickupClip;
-    [Range(0f, 1f)] public float sfxVolume = 0.8f;
+    // ===== 音效表现（音频资源统一在 GameAudioManager 中配置） =====
+    [Header("音效表现")]
+    [Tooltip("音效随机音高范围。音频资源请在 GameAudioManager 的 Inspector 中修改。")]
     [Range(0.9f, 1.1f)] public float sfxPitchMin = 0.9f;
     [Range(0.9f, 1.1f)] public float sfxPitchMax = 1.1f;
 
@@ -137,11 +132,6 @@ public class GameFeel : MonoBehaviour
     {
         _originalTimeScale = Time.timeScale;
         _circleSprite = MobileCanvasSetup.CreateCircleSprite(64, Color.white);
-        fireClip = LoadClipIfMissing(fireClip, "Audio/SFX_Shoot");
-        hitClip = LoadClipIfMissing(hitClip, "Audio/SFX_Hit");
-        emptyClip = LoadClipIfMissing(emptyClip, "Audio/SFX_Empty");
-        splitClip = LoadClipIfMissing(splitClip, "Audio/SFX_Split");
-        pickupClip = LoadClipIfMissing(pickupClip, "Audio/SFX_Pickup");
         _fireGen = GenerateFire();
         _hitGen = GenerateHit();
         _emptyGen = GenerateEmpty();
@@ -217,20 +207,20 @@ public class GameFeel : MonoBehaviour
             CameraContoller.Instance?.Shake(hitShakeIntensity, hitShakeDuration);
 
         // 音效
-        PlaySfx(hitClip, _hitGen, 1f);
+        PlaySfx(GameAudioManager.Instance.hitClip, _hitGen, 1f);
     }
 
     /// <summary>分裂反馈（音效）。</summary>
     public void OnSplit()
     {
-        PlaySfx(splitClip, _splitGen, 1f);
+        PlaySfx(GameAudioManager.Instance.splitClip, _splitGen, 1f);
     }
 
     /// <summary>Local power-up pickup feedback. Type: 0 shield, 1 speed, 2 ammo.</summary>
     public void OnPickup(int pickupType)
     {
         float pitch = pickupType == 1 ? 1.10f : pickupType == 2 ? 0.94f : 1f;
-        PlaySfx(pickupClip, _splitGen, 0.82f, pitch);
+        PlaySfx(GameAudioManager.Instance.pickupClip, _splitGen, 0.82f, pitch);
     }
 
     /// <summary>伤害飘字（可选）。damage>0 白字扣血；blocked=true 出"格挡"。</summary>
@@ -254,7 +244,7 @@ public class GameFeel : MonoBehaviour
         {
             if (enableMuzzleFlash) SpawnFlash(ballPos, dir, 1f);
             if (enableScreenShake) CameraContoller.Instance?.Shake(fireShakeIntensity, fireShakeDuration);
-            PlaySfx(fireClip, _fireGen, 1f);
+            PlaySfx(GameAudioManager.Instance.shootClip, _fireGen, 1f);
             return;
         }
 
@@ -282,7 +272,7 @@ public class GameFeel : MonoBehaviour
             CameraContoller.Instance?.Shake(fireShakeIntensity, fireShakeDuration);
 
         // 音效（只触发一次）
-        PlaySfx(fireClip, _fireGen, 1f);
+        PlaySfx(GameAudioManager.Instance.shootClip, _fireGen, 1f);
     }
 
     void PlayEmptyShot(Vector3 ballPos, Vector2 dir)
@@ -291,7 +281,7 @@ public class GameFeel : MonoBehaviour
         if (enableMuzzleFlash)
             SpawnFlash(ballPos, dir, 0.5f, 0.3f); // 更小更暗的闪光
 
-        PlaySfx(emptyClip, _emptyGen, 0.6f);
+        PlaySfx(GameAudioManager.Instance.emptyClip, _emptyGen, 0.6f);
     }
 
     // ============================================================
@@ -419,17 +409,12 @@ public class GameFeel : MonoBehaviour
 
         GameAudioManager.Instance.PlaySfx(
             c,
-            sfxVolume * volumeScale,
+            volumeScale,
             pitch > 0f ? pitch : Random.Range(sfxPitchMin, sfxPitchMax));
     }
 
-    static AudioClip LoadClipIfMissing(AudioClip clip, string resourcePath)
-    {
-        return clip != null ? clip : Resources.Load<AudioClip>(resourcePath);
-    }
-
     // ============================================================
-    //  程序生成占位音（有素材后替换 public 的 fireClip/hitClip/... 即可）
+    //  程序生成后备音（Inspector 音频槽为空时使用）
     // ============================================================
     const int SR = 44100;
 
