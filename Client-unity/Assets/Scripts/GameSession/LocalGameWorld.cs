@@ -73,6 +73,7 @@ public sealed class LocalGameWorld
     }
 
     public bool IsStarted { get; private set; }
+    public double SimulationTimeMs => _timeMs;
     public int LocalPlayerId => _localPlayerId;
     public int FoodCount => _foods.Count;
 
@@ -1430,6 +1431,7 @@ public sealed class LocalGameWorld
         var newRow = CloneSpeedBuff(current);
         mutate(newRow);
         _speedBuffs[playerId] = newRow;
+        _session.RaiseSpeedBuffUpdate(oldRow, CloneSpeedBuff(newRow));
     }
 
     private void DeleteSpeedBuff(int playerId)

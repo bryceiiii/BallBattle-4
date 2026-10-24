@@ -101,14 +101,31 @@ public class HudController : MonoBehaviour
             var slot = buffPanel.Find($"Buff_{i}");
             if (slot == null) continue;
 
+            var card = EnsureBuffCard(buffPanel, i);
+            slot.SetParent(card, false);
+            var slotRect = slot as RectTransform;
+            if (slotRect != null)
+            {
+                slotRect.anchorMin = slotRect.anchorMax = new Vector2(0f, 0.5f);
+                slotRect.pivot = new Vector2(0f, 0.5f);
+                slotRect.anchoredPosition = new Vector2(8f, 0f);
+                slotRect.sizeDelta = new Vector2(42f, 42f);
+            }
+
             var icon = slot.GetComponent<Image>();
-            if (icon != null) icons.Add(icon);
+            if (icon != null)
+            {
+                icon.preserveAspect = true;
+                icons.Add(icon);
+            }
 
             var timerTransform = slot.Find("Text (Legacy)");
             var timer = timerTransform != null ? timerTransform.GetComponent<Text>() : null;
+            if (timerTransform != null)
+                timerTransform.SetParent(card, false);
             if (timer == null)
             {
-                timer = CreateTimerText(slot);
+                timer = CreateTimerText(card);
             }
             else
             {
@@ -130,6 +147,32 @@ public class HudController : MonoBehaviour
             buffIcons[1].color = Color.white;
             buffIcons[1].gameObject.SetActive(false);
         }
+
+        for (int i = 0; i < buffIcons.Length; i++)
+        {
+            if (buffIcons[i] != null)
+                SetBuffSlotVisible(i, buffIcons[i].gameObject.activeSelf);
+        }
+    }
+
+    private static RectTransform EnsureBuffCard(Transform buffPanel, int index)
+    {
+        string cardName = $"BuffCard_{index}";
+        var existing = buffPanel.Find(cardName) as RectTransform;
+        if (existing != null) return existing;
+
+        var go = new GameObject(cardName, typeof(RectTransform), typeof(Image));
+        var rect = go.GetComponent<RectTransform>();
+        rect.SetParent(buffPanel, false);
+        rect.anchorMin = rect.anchorMax = new Vector2(0f, 1f);
+        rect.pivot = new Vector2(0f, 1f);
+        rect.anchoredPosition = new Vector2(16f, -16f - index * 50f);
+        rect.sizeDelta = new Vector2(164f, 46f);
+
+        var image = go.GetComponent<Image>();
+        image.color = new Color(0.035f, 0.065f, 0.105f, 0.88f);
+        image.raycastTarget = false;
+        return rect;
     }
 
     private static Text CreateTimerText(Transform slot)
@@ -158,6 +201,15 @@ public class HudController : MonoBehaviour
         rect.pivot = new Vector2(0f, 0.5f);
         rect.anchoredPosition = new Vector2(58f, 0f);
         rect.sizeDelta = new Vector2(92f, 32f);
+    }
+
+    private void SetBuffSlotVisible(int slot, bool visible)
+    {
+        if (buffIcons == null || slot < 0 || slot >= buffIcons.Length || buffIcons[slot] == null) return;
+        buffIcons[slot].gameObject.SetActive(visible);
+        var card = buffIcons[slot].transform.parent;
+        if (card != null && card.name.StartsWith("BuffCard_"))
+            card.gameObject.SetActive(visible);
     }
 
     /// <summary>在本 HUD 的子节点里查找已存在的死亡面板（场景手动摆的 Prefab 实例）。</summary>
@@ -262,7 +314,10 @@ public class HudController : MonoBehaviour
 
     private static double NowMs()
     {
-        return System.DateTime.UtcNow.Subtract(new System.DateTime(1970, 1, 1)).TotalMilliseconds;
+        var session = GameSessionManager.Current;
+        if (session != null)
+            return session.NowMs;
+        return System.DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
     }
 
     /// <summary>设置护盾（只激活图标和记录过期时间，倒计时由 Update 驱动）</summary>
@@ -270,7 +325,7 @@ public class HudController : MonoBehaviour
     {
         _shieldExpireMs = expireAtMs;
         if (buffIcons != null && buffIcons.Length > 0 && buffIcons[0] != null)
-            buffIcons[0].gameObject.SetActive(true);
+            SetBuffSlotVisible(0, true);
     }
 
     /// <summary>更新护盾条显示</summary>
@@ -305,7 +360,7 @@ public class HudController : MonoBehaviour
                 buffIcons[1].sprite = speedBuffIcon;
             buffIcons[1].preserveAspect = true;
             buffIcons[1].color = Color.white;
-            buffIcons[1].gameObject.SetActive(true);
+            SetBuffSlotVisible(1, true);
         }
     }
 
@@ -515,6 +570,6 @@ public class HudController : MonoBehaviour
     public void ClearBuff(int slot)
     {
         if (buffIcons == null || slot < 0 || slot >= buffIcons.Length) return;
-        if (buffIcons[slot] != null) buffIcons[slot].gameObject.SetActive(false);
+        if (buffIcons[slot] != null) SetBuffSlotVisible(slot, false);
     }
 }

@@ -66,9 +66,19 @@ HP系统、子弹射击、特殊食物球(5种)、弹药栏、排行榜、重生
 - instance id：`Client-unity@706b2b3fb00eb91f`
 - 服务端 `mcp-for-unity-server` 3.4.9；Unity 2022.3.62f3c1。
 - 改完 mcp.json 必须重载会话/重启 WorkBuddy 才生效；工具名形如 `mcp__unityMCP__manage_scene`。
+- **信任是硬门槛**：`~/.workbuddy/mcp-approvals.json` 里必须存在 `sha256(origin)::unityMCP`
+  （origin 即 `http://127.0.0.1:8080`，值为毫秒时间戳）。缺失 ⇒ `McpTrustStore` 判 `trust-pending`，
+  server 会被 `isBlocked` 静默丢弃，工具永远不出现（这是 2026-10-24 排查出的根因）。
+- 信任文件与 mcp.json 都只在 daemon 启动时读一次（无 fs.watch），改完必须重启 WorkBuddy 主程序。
 
 ## 设计文档
 - `GDD.md` — 游戏设计文档 v0.1
+
+## UI 约定（2026-10-24 起）
+- 排行榜已改为**场景内手工 UI**（`HudCanvas/Leaderboard`），`LeaderboardController` 只填数据 + 克隆 `RowTemplate`，
+  不再运行时生成元素。改大小：直接改 `Leaderboard` 的 RectTransform 宽度 / `RowTemplate` 的 LayoutElement 行高。
+- 通用约定：新增 UI 优先在场景/Prefab 里搭，脚本只用 SerializeField 引用 + 写数据，避免代码 clamp 尺寸。
+- `execute_code` 是 CodeDom(C#6) 且按方法体注入，不能写 `using`；复杂编辑器操作走临时 `[MenuItem]` 脚本。
 
 ## 用户偏好
 - 使用中文交流

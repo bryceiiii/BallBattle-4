@@ -22,6 +22,7 @@ public sealed class LocalGameSession : IGameSession
 
     public bool IsReady => !_disposed;
     public bool IsLocal => true;
+    public double NowMs => _world.SimulationTimeMs;
     public int LocalPlayerId => _world.LocalPlayerId;
     public Identity LocalIdentity => default;
     public IGameTables Tables => _tables;
@@ -88,6 +89,8 @@ public sealed class LocalGameSession : IGameSession
     internal void RaiseShieldUpdate(Shield oldRow, Shield newRow) => _tables.Shield.RaiseUpdate(oldRow, newRow);
     internal void RaiseShieldDelete(Shield row) => _tables.Shield.RaiseDelete(row);
     internal void RaiseSpeedBuffInsert(SpeedBuff row) => _tables.SpeedBuff.RaiseInsert(row);
+    internal void RaiseSpeedBuffUpdate(SpeedBuff oldRow, SpeedBuff newRow)
+        => _tables.SpeedBuff.RaiseUpdate(oldRow, newRow);
     internal void RaiseSpeedBuffDelete(SpeedBuff row) => _tables.SpeedBuff.RaiseDelete(row);
     internal void RaisePlayerInsert(Player row) => _tables.LoggedInPlayer.RaiseInsert(row);
     internal void RaisePlayerUpdate(Player oldRow, Player newRow) => _tables.LoggedInPlayer.RaiseUpdate(oldRow, newRow);

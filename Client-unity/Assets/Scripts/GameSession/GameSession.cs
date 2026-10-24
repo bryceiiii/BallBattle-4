@@ -56,6 +56,7 @@ public interface IGameSession : IDisposable
     bool IsReady { get; }
     bool IsLocal { get; }
     int LocalPlayerId { get; }
+    double NowMs { get; }
     Identity LocalIdentity { get; }
     IGameTables Tables { get; }
     IGameActions Actions { get; }
@@ -124,6 +125,7 @@ public sealed class SpacetimeGameSession : IGameSession
     public DbConnection Connection => _connection;
     public bool IsReady => !_disposed && _connection.Db != null;
     public bool IsLocal => false;
+    public double NowMs => DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
     public int LocalPlayerId
     {
         get
@@ -193,6 +195,7 @@ public sealed class SpacetimeGameSession : IGameSession
         _connection.Db.Shield.OnUpdate += OnShieldUpdated;
         _connection.Db.Shield.OnDelete += OnShieldDeleted;
         _connection.Db.SpeedBuff.OnInsert += OnSpeedBuffInserted;
+        _connection.Db.SpeedBuff.OnUpdate += OnSpeedBuffUpdated;
         _connection.Db.SpeedBuff.OnDelete += OnSpeedBuffDeleted;
         _connection.Db.LoggedInPlayer.OnInsert += OnPlayerInserted;
         _connection.Db.LoggedInPlayer.OnUpdate += OnPlayerUpdated;
@@ -215,6 +218,7 @@ public sealed class SpacetimeGameSession : IGameSession
         _connection.Db.Shield.OnUpdate -= OnShieldUpdated;
         _connection.Db.Shield.OnDelete -= OnShieldDeleted;
         _connection.Db.SpeedBuff.OnInsert -= OnSpeedBuffInserted;
+        _connection.Db.SpeedBuff.OnUpdate -= OnSpeedBuffUpdated;
         _connection.Db.SpeedBuff.OnDelete -= OnSpeedBuffDeleted;
         _connection.Db.LoggedInPlayer.OnInsert -= OnPlayerInserted;
         _connection.Db.LoggedInPlayer.OnUpdate -= OnPlayerUpdated;
@@ -239,6 +243,8 @@ public sealed class SpacetimeGameSession : IGameSession
         => _tables.Shield.RaiseUpdate(oldRow, newRow);
     private void OnShieldDeleted(EventContext ctx, Shield row) => _tables.Shield.RaiseDelete(row);
     private void OnSpeedBuffInserted(EventContext ctx, SpeedBuff row) => _tables.SpeedBuff.RaiseInsert(row);
+    private void OnSpeedBuffUpdated(EventContext ctx, SpeedBuff oldRow, SpeedBuff newRow)
+        => _tables.SpeedBuff.RaiseUpdate(oldRow, newRow);
     private void OnSpeedBuffDeleted(EventContext ctx, SpeedBuff row) => _tables.SpeedBuff.RaiseDelete(row);
     private void OnPlayerInserted(EventContext ctx, Player row) => _tables.LoggedInPlayer.RaiseInsert(row);
     private void OnPlayerUpdated(EventContext ctx, Player oldRow, Player newRow)

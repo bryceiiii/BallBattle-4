@@ -155,6 +155,7 @@ public class GameManager : MonoBehaviour
         session.Tables.Shield.OnUpdate += OnShieldUpdated;
         session.Tables.Shield.OnDelete += OnShieldDeleted;
         session.Tables.SpeedBuff.OnInsert += OnSpeedBuffInserted;
+        session.Tables.SpeedBuff.OnUpdate += OnSpeedBuffUpdated;
         session.Tables.SpeedBuff.OnDelete += OnSpeedBuffDeleted;
 
         isSubscribed = true;
@@ -179,6 +180,7 @@ public class GameManager : MonoBehaviour
         _boundSession.Tables.Shield.OnUpdate -= OnShieldUpdated;
         _boundSession.Tables.Shield.OnDelete -= OnShieldDeleted;
         _boundSession.Tables.SpeedBuff.OnInsert -= OnSpeedBuffInserted;
+        _boundSession.Tables.SpeedBuff.OnUpdate -= OnSpeedBuffUpdated;
         _boundSession.Tables.SpeedBuff.OnDelete -= OnSpeedBuffDeleted;
         _boundSession = null;
         isSubscribed = false;
@@ -592,6 +594,11 @@ private void OnSpeedBuffInserted(SpeedBuff sb)
         UpdateHudSpeedBuff(sb);
         if (IsLocalPlayerId(sb.PlayerId))
             GameFeel.Instance?.OnPickup(1);
+    }
+
+    private void OnSpeedBuffUpdated(SpeedBuff oldBuff, SpeedBuff newBuff)
+    {
+        UpdateHudSpeedBuff(newBuff);
     }
 
     private void OnSpeedBuffDeleted(SpeedBuff sb)
