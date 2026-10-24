@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.UI;
 
@@ -25,6 +26,7 @@ public class HudController : MonoBehaviour
     [Header("Buff 图标")]
     public Image[] buffIcons;
     public Text[] buffTimers;
+    public Sprite speedBuffIcon;
 
     // ===== 死亡面板 =====
     [Header("死亡面板（可选拖拽，空则自动生成）")]
@@ -48,6 +50,8 @@ public class HudController : MonoBehaviour
 
     void Start()
     {
+        ResolveBuffSlots();
+
         if (hpFillImage != null)
         {
             hpFillImage.type = Image.Type.Filled;
@@ -83,6 +87,77 @@ public class HudController : MonoBehaviour
         BindDeathPanelButtons();
 
         SelectAmmo(0);
+    }
+
+    private void ResolveBuffSlots()
+    {
+        var buffPanel = transform.Find("BuffPanel");
+        if (buffPanel == null) return;
+
+        var icons = new List<Image>();
+        var timers = new List<Text>();
+        for (int i = 0; i < 3; i++)
+        {
+            var slot = buffPanel.Find($"Buff_{i}");
+            if (slot == null) continue;
+
+            var icon = slot.GetComponent<Image>();
+            if (icon != null) icons.Add(icon);
+
+            var timerTransform = slot.Find("Text (Legacy)");
+            var timer = timerTransform != null ? timerTransform.GetComponent<Text>() : null;
+            if (timer == null)
+            {
+                timer = CreateTimerText(slot);
+            }
+            else
+            {
+                ConfigureTimerText(timer);
+            }
+            timers.Add(timer);
+        }
+
+        if (icons.Count > 0) buffIcons = icons.ToArray();
+        if (timers.Count > 0) buffTimers = timers.ToArray();
+
+        if (speedBuffIcon == null)
+            speedBuffIcon = Resources.Load<Sprite>("UI/SpeedBuff");
+
+        if (buffIcons.Length > 1 && buffIcons[1] != null && speedBuffIcon != null)
+        {
+            buffIcons[1].sprite = speedBuffIcon;
+            buffIcons[1].preserveAspect = true;
+            buffIcons[1].color = Color.white;
+            buffIcons[1].gameObject.SetActive(false);
+        }
+    }
+
+    private static Text CreateTimerText(Transform slot)
+    {
+        var go = new GameObject("Timer", typeof(RectTransform), typeof(Text));
+        go.transform.SetParent(slot, false);
+        var text = go.GetComponent<Text>();
+        text.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
+        text.text = "0.0s";
+        ConfigureTimerText(text);
+        return text;
+    }
+
+    private static void ConfigureTimerText(Text text)
+    {
+        if (text == null) return;
+        text.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
+        text.fontSize = 18;
+        text.fontStyle = FontStyle.Bold;
+        text.alignment = TextAnchor.MiddleLeft;
+        text.color = new Color(0.92f, 0.98f, 1f, 1f);
+        text.raycastTarget = false;
+
+        var rect = text.rectTransform;
+        rect.anchorMin = rect.anchorMax = new Vector2(0f, 0.5f);
+        rect.pivot = new Vector2(0f, 0.5f);
+        rect.anchoredPosition = new Vector2(58f, 0f);
+        rect.sizeDelta = new Vector2(92f, 32f);
     }
 
     /// <summary>在本 HUD 的子节点里查找已存在的死亡面板（场景手动摆的 Prefab 实例）。</summary>
@@ -223,7 +298,15 @@ public class HudController : MonoBehaviour
     {
         _speedExpireMs = expireAtMs;
         if (buffIcons != null && buffIcons.Length > 1 && buffIcons[1] != null)
+        {
+            if (speedBuffIcon == null)
+                speedBuffIcon = Resources.Load<Sprite>("UI/SpeedBuff");
+            if (speedBuffIcon != null)
+                buffIcons[1].sprite = speedBuffIcon;
+            buffIcons[1].preserveAspect = true;
+            buffIcons[1].color = Color.white;
             buffIcons[1].gameObject.SetActive(true);
+        }
     }
 
     /// <summary>清除加速</summary>

@@ -245,6 +245,7 @@ public class GameManager : MonoBehaviour
     {
         if (Circles.Remove(row.EntityId, out var go))
         {
+            shieldEffects.Remove(row.EntityId);
             Debug.Log($"[Circle �����] ���Circle ��ɾ����EntityId: {row.EntityId}");
 
             RemoveFromPlayerBallMap(row.PlayerId, row.EntityId);
@@ -563,14 +564,20 @@ private void OnShieldInserted(Shield shield)
         // �������飺�������岥 Break �������Ի٣�����˲�� Destroy��
         if (shieldEffects.TryGetValue(shield.EntityId, out var fx))
         {
-            fx?.GetComponent<ShieldBuffController>()?.Break();
+            if (fx != null)
+            {
+                var shieldController = fx.GetComponent<ShieldBuffController>();
+                if (shieldController != null)
+                    shieldController.Break();
+            }
             shieldEffects.Remove(shield.EntityId);
         }
 
         // ��黤���Ƿ����ڱ������
         foreach (var kv in Circles)
         {
-            var ctrl = kv.Value?.GetComponent<CircleController>();
+            if (kv.Value == null) continue;
+            var ctrl = kv.Value.GetComponent<CircleController>();
             if (ctrl != null && ctrl.isLocalPlayer && ctrl.entityId == shield.EntityId)
             {
                 HudController.Instance?.ClearShield();
@@ -622,7 +629,8 @@ private void OnSpeedBuffInserted(SpeedBuff sb)
         // �ҵ�����������򣨱���/Զ�˶�Ҫ����Ч��Զ�˻���ԭ����������
         foreach (var kv in Circles)
         {
-            var ctrl = kv.Value?.GetComponent<CircleController>();
+            if (kv.Value == null) continue;
+            var ctrl = kv.Value.GetComponent<CircleController>();
             if (ctrl == null || ctrl.entityId != shield.EntityId) continue;
 
             // ������Ч��������ҵ��򶼴���

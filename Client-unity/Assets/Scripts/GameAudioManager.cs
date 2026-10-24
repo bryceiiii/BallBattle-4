@@ -400,21 +400,12 @@ public class GameAudioManager : MonoBehaviour
             "SettingsButton",
             parent,
             "设置",
-            new Color(0.085f, 0.13f, 0.22f, 0.94f),
-            new Color(0.18f, 0.48f, 0.95f, 0.98f));
+            new Color(0.055f, 0.09f, 0.16f, 0.96f),
+            new Color(0.08f, 0.24f, 0.36f, 1f));
 
-        var rt = button.GetComponent<RectTransform>();
-        rt.anchorMin = new Vector2(0f, 1f);
-        rt.anchorMax = new Vector2(0f, 1f);
-        rt.pivot = new Vector2(0f, 1f);
-        rt.anchoredPosition = new Vector2(24f, -24f);
-        rt.sizeDelta = new Vector2(112f, 46f);
-
-        var glow = button.GetComponent<Image>();
         var shadow = button.gameObject.AddComponent<Shadow>();
         shadow.effectColor = new Color(0f, 0.08f, 0.2f, 0.55f);
         shadow.effectDistance = new Vector2(0f, -3f);
-        glow.color = new Color(0.085f, 0.13f, 0.22f, 0.94f);
 
         ApplySettingsButtonStyle(button);
         return button.gameObject;
@@ -429,19 +420,25 @@ public class GameAudioManager : MonoBehaviour
             image = button.gameObject.AddComponent<Image>();
         image.sprite = _roundedSurfaceSprite;
         image.type = Image.Type.Sliced;
-        image.color = new Color(0.085f, 0.13f, 0.22f, 0.94f);
+        image.color = new Color(0.045f, 0.15f, 0.23f, 0.98f);
 
         button.targetGraphic = image;
         button.transition = Selectable.Transition.ColorTint;
         var colors = button.colors;
-        colors.normalColor = new Color(0.085f, 0.13f, 0.22f, 0.94f);
-        colors.highlightedColor = new Color(0.18f, 0.48f, 0.95f, 0.98f);
-        colors.pressedColor = new Color(0.12f, 0.32f, 0.66f, 1f);
+        colors.normalColor = new Color(0.045f, 0.15f, 0.23f, 0.98f);
+        colors.highlightedColor = new Color(0.07f, 0.30f, 0.40f, 1f);
+        colors.pressedColor = new Color(0.05f, 0.16f, 0.26f, 1f);
         colors.selectedColor = colors.highlightedColor;
         colors.disabledColor = new Color(0.2f, 0.22f, 0.28f, 0.5f);
         colors.colorMultiplier = 1f;
         colors.fadeDuration = 0.08f;
         button.colors = colors;
+
+        var outline = button.GetComponent<Outline>();
+        if (outline == null)
+            outline = button.gameObject.AddComponent<Outline>();
+        outline.effectColor = new Color(0.2f, 0.78f, 0.96f, 0.25f);
+        outline.effectDistance = new Vector2(1f, 1f);
 
         if (button.GetComponent<Shadow>() == null)
         {
@@ -450,14 +447,74 @@ public class GameAudioManager : MonoBehaviour
             shadow.effectDistance = new Vector2(0f, -3f);
         }
 
-        if (button.GetComponentInChildren<Text>(true) == null)
+        var label = button.GetComponentInChildren<Text>(true);
+        if (label == null)
         {
-            var text = CreateText("Label", button.transform, "设置", 22, FontStyle.Bold, TextAnchor.MiddleCenter);
-            SetRect(text.rectTransform, Vector2.zero, Vector2.one, new Vector2(0.5f, 0.5f), Vector2.zero, Vector2.zero);
+            label = CreateText("Label", button.transform, "设置", 20, FontStyle.Bold, TextAnchor.MiddleCenter);
         }
+        label.text = "设置";
+        label.fontSize = 20;
+        label.fontStyle = FontStyle.Bold;
+        label.alignment = TextAnchor.MiddleCenter;
+        label.color = new Color(0.88f, 0.96f, 1f, 1f);
+        SetRect(label.rectTransform, Vector2.zero, Vector2.one, new Vector2(0.5f, 0.5f),
+            new Vector2(15f, 0f), new Vector2(-30f, 0f));
+
+        EnsureSettingsButtonLayout(button);
 
         button.onClick.RemoveListener(OpenSettings);
         button.onClick.AddListener(OpenSettings);
+    }
+
+    private void EnsureSettingsButtonLayout(Button button)
+    {
+        var rect = button.GetComponent<RectTransform>();
+        rect.anchorMin = rect.anchorMax = new Vector2(1f, 1f);
+        rect.pivot = new Vector2(1f, 1f);
+        rect.anchoredPosition = new Vector2(-24f, -390f);
+        rect.sizeDelta = new Vector2(176f, 58f);
+
+        var plateTransform = button.transform.Find("MenuPlate");
+        Image plate;
+        if (plateTransform == null)
+        {
+            var go = new GameObject("MenuPlate", typeof(RectTransform), typeof(Image));
+            go.transform.SetParent(button.transform, false);
+            plate = go.GetComponent<Image>();
+        }
+        else
+        {
+            plate = plateTransform.GetComponent<Image>();
+        }
+
+        plate.sprite = _softCircleSprite;
+        plate.color = new Color(0.20f, 0.78f, 0.96f, 0.18f);
+        plate.raycastTarget = false;
+        SetRect(plate.rectTransform, new Vector2(0f, 0.5f), new Vector2(0f, 0.5f),
+            new Vector2(0f, 0.5f), new Vector2(13f, 0f), new Vector2(36f, 36f));
+
+        for (int i = 0; i < 3; i++)
+        {
+            string partName = $"MenuLine_{i}";
+            var partTransform = plate.transform.Find(partName);
+            Image line;
+            if (partTransform == null)
+            {
+                var go = new GameObject(partName, typeof(RectTransform), typeof(Image));
+                go.transform.SetParent(plate.transform, false);
+                line = go.GetComponent<Image>();
+            }
+            else
+            {
+                line = partTransform.GetComponent<Image>();
+            }
+            line.sprite = _roundedPillSprite;
+            line.type = Image.Type.Sliced;
+            line.color = new Color(0.72f, 0.94f, 1f, 1f);
+            line.raycastTarget = false;
+            SetRect(line.rectTransform, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f),
+                new Vector2(0.5f, 0.5f), new Vector2(0f, 6f - i * 6f), new Vector2(14f, 2f));
+        }
     }
 
     private GameObject CreateSettingsPanel(Transform parent)
