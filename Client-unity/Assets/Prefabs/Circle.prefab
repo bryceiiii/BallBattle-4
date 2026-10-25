@@ -192,12 +192,17 @@ MonoBehaviour:
   debugHp: 0
   debugMaxHp: 0
   debugHpRatio: 0
+  hpFlashDuration: 0.12
+  hpShakeDuration: 0.2
+  hpShakeIntensity: 0.02
   remotePosSmoothTime: 0.15
   localPosSmoothTime: 0.08
   scaleSmoothTime: 0.1
   localPosMaxSpeed: 30
   remotePosMaxSpeed: 35
   recoilRecoverySpeed: 18
+  ballSortingBase: 1
+  ballSortingMax: 60
   entityId: 0
   playerId: 0
 --- !u!58 &3741555820835019906
@@ -428,7 +433,7 @@ Canvas:
   m_AdditionalShaderChannelsFlag: 0
   m_UpdateRectTransformForStandalone: 0
   m_SortingLayerID: 0
-  m_SortingOrder: 2
+  m_SortingOrder: 200
   m_TargetDisplay: 0
 --- !u!114 &3859223299958878379
 MonoBehaviour:
@@ -561,6 +566,10 @@ PrefabInstance:
     - target: {fileID: 7727446828295520611, guid: 885130ca6c8db814a86cabc2c1bd7512, type: 3}
       propertyPath: m_Name
       value: HpCanvas
+      objectReference: {fileID: 0}
+    - target: {fileID: 7766467386674270707, guid: 885130ca6c8db814a86cabc2c1bd7512, type: 3}
+      propertyPath: m_SortingOrder
+      value: 201
       objectReference: {fileID: 0}
     m_RemovedComponents: []
     m_RemovedGameObjects: []

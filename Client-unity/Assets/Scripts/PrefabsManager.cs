@@ -21,6 +21,7 @@ public class PrefabsManager : MonoBehaviour
 
     [Header("特效")]
     public GameObject shieldEffectPrefab;  // 护盾特效预制体
+    public GameObject invincibleFxPrefab;   // 复活无敌特效预制体
 
 
 

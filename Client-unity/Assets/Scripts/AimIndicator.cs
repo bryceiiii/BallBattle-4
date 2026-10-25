@@ -30,6 +30,7 @@ public class AimIndicator : MonoBehaviour
         go.transform.SetParent(transform, false);
         _arrow = go.transform;
         _sr = go.AddComponent<SpriteRenderer>();
+        _sr.sortingOrder = 170; // 盖在球体(1~60)与护盾之上，低于名字/HP 条
 
         if (arrowSprite != null)
             _sr.sprite = arrowSprite;

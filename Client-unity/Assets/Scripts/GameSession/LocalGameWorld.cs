@@ -400,7 +400,7 @@ public sealed class LocalGameWorld
             Name = string.IsNullOrWhiteSpace(name) ? $"Player {playerId}" : name.Trim(),
             Dir = new DbVector2(0, 0),
             RespawnMass = 0,
-            InvincibleUntilMs = _timeMs + 12000d,
+            InvincibleUntilMs = _timeMs + 5000d,
             SkinIndex = Mathf.Max(0, skinIndex)
         };
         _players[playerId] = player;
@@ -422,7 +422,7 @@ public sealed class LocalGameWorld
         UpdatePlayer(playerId, p =>
         {
             p.RespawnMass = 0;
-            p.InvincibleUntilMs = _timeMs + 12000d;
+            p.InvincibleUntilMs = _timeMs + 5000d;
         });
 
         var entity = InsertEntity(new Entity

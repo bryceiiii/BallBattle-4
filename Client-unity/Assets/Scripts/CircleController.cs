@@ -109,6 +109,14 @@ public class CircleController : MonoBehaviour
     [Header("手感（视觉）")]
     [Range(1f, 40f)] public float recoilRecoverySpeed = 18f; // 后座回弹速度（越大回弹越快）
 
+    // ===== 渲染排序（大球覆盖小球） =====
+    [Header("渲染排序")]
+    [Tooltip("球体基础 sortingOrder；直径越大 sortingOrder 越大（越后渲染，覆盖小球）")]
+    public int ballSortingBase = 1;
+    [Tooltip("球体 sortingOrder 上限，需低于名字/HP 条/护盾/特效的层级")]
+    public int ballSortingMax = 60;
+    private int _appliedSortingOrder = int.MinValue;
+
     // ===== 物理组件 =====
     private CircleCollider2D col;
     private Rigidbody2D rb;
@@ -146,6 +154,10 @@ public class CircleController : MonoBehaviour
         // 此时 isLocalPlayer 可能尚未被 GameManager 设置（Instantiate 在赋值前执行 Start）
         // 由 GameManager 在设置 isLocalPlayer 后调用 ApplyLocalPlayerVisual() 补充
         ApplyLocalPlayerVisual();
+
+        // 复活无敌期可视：每颗球（含分裂出的新球）各自持有一个驱动者，无敌到期自动隐藏
+        if (GetComponent<InvincibleVisual>() == null)
+            gameObject.AddComponent<InvincibleVisual>();
     }
 
     /// <summary>
@@ -448,6 +460,9 @@ public class CircleController : MonoBehaviour
             transform.localScale = new Vector3(newS, newS, 1f);
         }
 
+        // 大球覆盖小球：按当前直径刷新 sortingOrder
+        UpdateSortingOrder();
+
         // ===== HP 条位置跟随 —— 本地每帧，远程每 5 帧（P2 优化） =====
         _hpFrameCounter++;
         bool shouldUpdateHp = isLocalPlayer || (_hpFrameCounter % 5 == 0);
@@ -494,6 +509,19 @@ public class CircleController : MonoBehaviour
                 hpFillRect.sizeDelta = new Vector2(fillLocalWidth, 0f);
             }
         }
+    }
+
+    /// <summary>
+    /// 按当前直径设置球体 sortingOrder：直径越大越后渲染，保证大球覆盖小球。
+    /// 只在值变化时写入，避免每帧无谓赋值。
+    /// </summary>
+    private void UpdateSortingOrder()
+    {
+        if (_sr == null) return;
+        int order = Mathf.Clamp(ballSortingBase + Mathf.FloorToInt(transform.localScale.x), ballSortingBase, ballSortingMax);
+        if (order == _appliedSortingOrder) return;
+        _appliedSortingOrder = order;
+        _sr.sortingOrder = order;
     }
 
     /// <summary>
