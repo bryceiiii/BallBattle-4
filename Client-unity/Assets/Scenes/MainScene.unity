@@ -1088,10 +1088,10 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   smoothSpeed: 4
   sizeSmoothSpeed: 2
-  minSize: 5
-  padding: 2
-  diameterMargin: 0.22
-  maxSize: 0
+  minSize: 8
+  padding: 4
+  diameterMargin: 2.5
+  maxSize: 45
 --- !u!114 &183541908 stripped
 MonoBehaviour:
   m_CorrespondingSourceObject: {fileID: 4720037635312339593, guid: ff1202a3dac600a4ab91108e1d3b48d6, type: 3}
@@ -6848,6 +6848,7 @@ MonoBehaviour:
   splitBulletPrefab: {fileID: 8993546225460653294, guid: 05683e810e69a624e917dd3e34973da6, type: 3}
   maxSplitAmmo: 5
   shieldEffectPrefab: {fileID: 831804430098732994, guid: 97b76cc66719f3a488b727453b8ab3ef, type: 3}
+  invincibleFxPrefab: {fileID: 0}
 --- !u!114 &1848629074
 MonoBehaviour:
   m_ObjectHideFlags: 0

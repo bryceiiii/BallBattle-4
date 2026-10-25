@@ -14,14 +14,14 @@ public class CameraContoller : MonoBehaviour
 
     [Header("Zoom")]
     public float sizeSmoothSpeed = 4f; // 缩放平滑（分裂瞬间球数突变时更跟手，时间常数≈0.25s）
-    public float minSize = 3f; // 相机最小的正交视野大小（小球阶段视野更聚焦，出生球看得清）
-    public float padding = 2f; // 屏幕边缘留白的距离
+    public float minSize = 6f; // 相机最小的正交视野大小（小球阶段视野更聚焦，出生球看得清）
+    public float padding = 4f; // 屏幕边缘留白的距离
 
     [Header("Diameter-based view")]
     [Tooltip("基于最大球直径的额外视野比例（0.22 表示在半径基础上再增加 22% 的''呼吸''空间）")]
-    public float diameterMargin = 0.22f; // 大球额外视野比例（0.4→0.22，大球在屏幕里更紧凑）
+    public float diameterMargin = 0.5f; // 大球额外视野比例（0.4→0.22，大球在屏幕里更紧凑）
     [Tooltip("视野上限（防止极端情况下放得过远），<= 0 则不生效")]
-    public float maxSize = 35f; // 视野上限（防止分裂多球时拉得太远）
+    public float maxSize = 45f; // 视野上限（防止分裂多球时拉得太远）
 
     private Camera cam;
 
