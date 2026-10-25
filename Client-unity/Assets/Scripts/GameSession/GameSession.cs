@@ -37,6 +37,7 @@ public interface IGameTables
     IGameTable<Shield> Shield { get; }
     IGameTable<SpeedBuff> SpeedBuff { get; }
     IGameTable<Player> LoggedInPlayer { get; }
+    IGameTable<LaserBeam> LaserBeam { get; }
 }
 
 public interface IGameActions
@@ -86,6 +87,7 @@ public sealed class GameTables : IGameTables
     public GameTable<Shield> Shield { get; } = new();
     public GameTable<SpeedBuff> SpeedBuff { get; } = new();
     public GameTable<Player> LoggedInPlayer { get; } = new();
+    public GameTable<LaserBeam> LaserBeam { get; } = new();
 
     IGameTable<Entity> IGameTables.Entity => Entity;
     IGameTable<Food> IGameTables.Food => Food;
@@ -95,6 +97,7 @@ public sealed class GameTables : IGameTables
     IGameTable<Shield> IGameTables.Shield => Shield;
     IGameTable<SpeedBuff> IGameTables.SpeedBuff => SpeedBuff;
     IGameTable<Player> IGameTables.LoggedInPlayer => LoggedInPlayer;
+    IGameTable<LaserBeam> IGameTables.LaserBeam => LaserBeam;
 
     internal void ClearSubscribers()
     {
@@ -106,6 +109,7 @@ public sealed class GameTables : IGameTables
         Shield.Clear();
         SpeedBuff.Clear();
         LoggedInPlayer.Clear();
+        LaserBeam.Clear();
     }
 }
 
@@ -200,6 +204,7 @@ public sealed class SpacetimeGameSession : IGameSession
         _connection.Db.LoggedInPlayer.OnInsert += OnPlayerInserted;
         _connection.Db.LoggedInPlayer.OnUpdate += OnPlayerUpdated;
         _connection.Db.LoggedInPlayer.OnDelete += OnPlayerDeleted;
+        _connection.Db.LaserBeam.OnInsert += OnLaserBeamInserted;
     }
 
     private void UnhookEvents()
@@ -223,6 +228,7 @@ public sealed class SpacetimeGameSession : IGameSession
         _connection.Db.LoggedInPlayer.OnInsert -= OnPlayerInserted;
         _connection.Db.LoggedInPlayer.OnUpdate -= OnPlayerUpdated;
         _connection.Db.LoggedInPlayer.OnDelete -= OnPlayerDeleted;
+        _connection.Db.LaserBeam.OnInsert -= OnLaserBeamInserted;
     }
 
     private void OnEntityUpdated(EventContext ctx, Entity oldRow, Entity newRow)
@@ -250,6 +256,7 @@ public sealed class SpacetimeGameSession : IGameSession
     private void OnPlayerUpdated(EventContext ctx, Player oldRow, Player newRow)
         => _tables.LoggedInPlayer.RaiseUpdate(oldRow, newRow);
     private void OnPlayerDeleted(EventContext ctx, Player row) => _tables.LoggedInPlayer.RaiseDelete(row);
+    private void OnLaserBeamInserted(EventContext ctx, LaserBeam row) => _tables.LaserBeam.RaiseInsert(row);
 
     private sealed class OnlineActions : IGameActions
     {

@@ -17,14 +17,26 @@ namespace SpacetimeDB.Types
         public int PlayerId;
         [DataMember(Name = "ammo_split")]
         public int AmmoSplit;
+        [DataMember(Name = "ammo_laser")]
+        public int AmmoLaser;
+        [DataMember(Name = "ammo_double")]
+        public int AmmoDouble;
+        [DataMember(Name = "ammo_homing")]
+        public int AmmoHoming;
 
         public PlayerAmmo(
             int PlayerId,
-            int AmmoSplit
+            int AmmoSplit,
+            int AmmoLaser,
+            int AmmoDouble,
+            int AmmoHoming
         )
         {
             this.PlayerId = PlayerId;
             this.AmmoSplit = AmmoSplit;
+            this.AmmoLaser = AmmoLaser;
+            this.AmmoDouble = AmmoDouble;
+            this.AmmoHoming = AmmoHoming;
         }
 
         public PlayerAmmo()

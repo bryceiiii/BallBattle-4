@@ -31,6 +31,7 @@ namespace SpacetimeDB.Types
             AddTable(Circle = new(conn));
             AddTable(Entity = new(conn));
             AddTable(Food = new(conn));
+            AddTable(LaserBeam = new(conn));
             AddTable(LoggedInPlayer = new(conn));
             AddTable(LoggedOutPlayer = new(conn));
             AddTable(PlayerAmmo = new(conn));
@@ -537,6 +538,7 @@ namespace SpacetimeDB.Types
             new QueryBuilder().From.Circle().ToSql(),
             new QueryBuilder().From.Entity().ToSql(),
             new QueryBuilder().From.Food().ToSql(),
+            new QueryBuilder().From.LaserBeam().ToSql(),
             new QueryBuilder().From.LoggedInPlayer().ToSql(),
             new QueryBuilder().From.LoggedOutPlayer().ToSql(),
             new QueryBuilder().From.PlayerAmmo().ToSql(),
@@ -553,6 +555,7 @@ namespace SpacetimeDB.Types
         public global::SpacetimeDB.Table<Circle, CircleCols, CircleIxCols> Circle() => new("circle", new CircleCols("circle"), new CircleIxCols("circle"));
         public global::SpacetimeDB.Table<Entity, EntityCols, EntityIxCols> Entity() => new("entity", new EntityCols("entity"), new EntityIxCols("entity"));
         public global::SpacetimeDB.Table<Food, FoodCols, FoodIxCols> Food() => new("food", new FoodCols("food"), new FoodIxCols("food"));
+        public global::SpacetimeDB.Table<LaserBeam, LaserBeamCols, LaserBeamIxCols> LaserBeam() => new("laser_beam", new LaserBeamCols("laser_beam"), new LaserBeamIxCols("laser_beam"));
         public global::SpacetimeDB.Table<Player, LoggedInPlayerCols, LoggedInPlayerIxCols> LoggedInPlayer() => new("logged_in_player", new LoggedInPlayerCols("logged_in_player"), new LoggedInPlayerIxCols("logged_in_player"));
         public global::SpacetimeDB.Table<Player, LoggedOutPlayerCols, LoggedOutPlayerIxCols> LoggedOutPlayer() => new("logged_out_player", new LoggedOutPlayerCols("logged_out_player"), new LoggedOutPlayerIxCols("logged_out_player"));
         public global::SpacetimeDB.Table<PlayerAmmo, PlayerAmmoCols, PlayerAmmoIxCols> PlayerAmmo() => new("player_ammo", new PlayerAmmoCols("player_ammo"), new PlayerAmmoIxCols("player_ammo"));

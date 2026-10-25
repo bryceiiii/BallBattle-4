@@ -41,11 +41,17 @@ namespace SpacetimeDB.Types
     {
         public global::SpacetimeDB.Col<PlayerAmmo, int> PlayerId { get; }
         public global::SpacetimeDB.Col<PlayerAmmo, int> AmmoSplit { get; }
+        public global::SpacetimeDB.Col<PlayerAmmo, int> AmmoLaser { get; }
+        public global::SpacetimeDB.Col<PlayerAmmo, int> AmmoDouble { get; }
+        public global::SpacetimeDB.Col<PlayerAmmo, int> AmmoHoming { get; }
 
         public PlayerAmmoCols(string tableName)
         {
             PlayerId = new global::SpacetimeDB.Col<PlayerAmmo, int>(tableName, "player_id");
             AmmoSplit = new global::SpacetimeDB.Col<PlayerAmmo, int>(tableName, "ammo_split");
+            AmmoLaser = new global::SpacetimeDB.Col<PlayerAmmo, int>(tableName, "ammo_laser");
+            AmmoDouble = new global::SpacetimeDB.Col<PlayerAmmo, int>(tableName, "ammo_double");
+            AmmoHoming = new global::SpacetimeDB.Col<PlayerAmmo, int>(tableName, "ammo_homing");
         }
     }
 

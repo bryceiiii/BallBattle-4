@@ -63,12 +63,15 @@ public class PlayerInputController : MonoBehaviour
     /// <summary>���ּ� 1-2 �л�����</summary>
     private void HandleAmmoSwitch()
     {
-        for (int i = 1; i <= 2; i++)
+        // 1=普通 2=分裂 4=双发（3 未使用）
+        int[] keys = { 1, 2, 4, 5 };
+        int[] types = { 0, 1, 3, 4 };
+        for (int i = 0; i < keys.Length; i++)
         {
-            if (Input.GetKeyDown(KeyCode.Alpha0 + i))
+            if (Input.GetKeyDown(KeyCode.Alpha0 + keys[i]))
             {
-                SelectedAmmoType = i - 1; // 0=��ͨ, 1=���ѵ�
-                HudController.Instance?.SelectAmmo(i - 1);
+                SelectedAmmoType = types[i];
+                HudController.Instance?.SelectAmmo(types[i]);
             }
         }
     }

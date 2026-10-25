@@ -12,12 +12,23 @@ public class PrefabsManager : MonoBehaviour
     public GameObject splitOrbPrefab;    // 分裂弹食物预制体
     public GameObject shieldOrbPrefab;   // 护盾球预制体
     public GameObject speedOrbPrefab;    // 速度球预制体
+    public GameObject laserOrbPrefab;    // 激光弹食物预制体
+    public GameObject doubleOrbPrefab;   // 双发弹食物预制体
+    public GameObject homingOrbPrefab;   // 跟踪弹食物预制体
 
     [Header("子弹预制体")]
     public GameObject splitBulletPrefab;  // 分裂弹子弹预制体
+    public GameObject doubleBulletPrefab; // 双发弹子弹预制体（可空，空则用普通弹预制体）
+    public GameObject homingBulletPrefab; // 跟踪弹子弹预制体（可空，空则用普通弹预制体）
+    [Header("激光特效（可空，空则由代码兜底）")]
+    public GameObject laserBeamPrefab;      // 激光光柱预制体（可空）
+    public GameObject laserHitSparkPrefab;  // 激光命中光斑预制体（可空）
 
     [Header("弹药上限")]
-    public int maxSplitAmmo = 5;          // 分裂弹最大存储数
+    public int maxSplitAmmo = 8;          // 分裂弹最大存储数（与服务端 MAX_SPLIT_AMMO 一致）
+    public int maxDoubleAmmo = 10;        // 双发弹最大存储数（与服务端 MAX_DOUBLE_AMMO 一致）
+    public int maxHomingAmmo = 8;         // 跟踪弹最大存储数（与服务端 MAX_HOMING_AMMO 一致）
+    public int maxLaserAmmo = 5;          // 激光弹最大存储数（与服务端 MAX_LASER_AMMO 一致）
 
     [Header("特效")]
     public GameObject shieldEffectPrefab;  // 护盾特效预制体
@@ -76,6 +87,35 @@ public class PrefabsManager : MonoBehaviour
         var diameter = MassToDiameter(mass);
         orb.transform.localScale = new Vector3(diameter, diameter, 1f);
         orb.name = "SpeedOrb" + entityId;
+        return orb;
+    }
+    public GameObject SpawnLaserOrb(int entityId, float x, float y, float mass)
+    {
+        var prefab = laserOrbPrefab != null ? laserOrbPrefab : foodPrefab;
+        var orb = Instantiate(prefab, new Vector3(x, y, 0f), Quaternion.identity);
+        var diameter = MassToDiameter(mass);
+        orb.transform.localScale = new Vector3(diameter, diameter, 1f);
+        orb.name = "LaserOrb" + entityId;
+        return orb;
+    }
+
+    public GameObject SpawnDoubleOrb(int entityId, float x, float y, float mass)
+    {
+        var prefab = doubleOrbPrefab != null ? doubleOrbPrefab : foodPrefab;
+        var orb = Instantiate(prefab, new Vector3(x, y, 0f), Quaternion.identity);
+        var diameter = MassToDiameter(mass);
+        orb.transform.localScale = new Vector3(diameter, diameter, 1f);
+        orb.name = "DoubleOrb" + entityId;
+        return orb;
+    }
+
+    public GameObject SpawnHomingOrb(int entityId, float x, float y, float mass)
+    {
+        var prefab = homingOrbPrefab != null ? homingOrbPrefab : foodPrefab;
+        var orb = Instantiate(prefab, new Vector3(x, y, 0f), Quaternion.identity);
+        var diameter = MassToDiameter(mass);
+        orb.transform.localScale = new Vector3(diameter, diameter, 1f);
+        orb.name = "HomingOrb" + entityId;
         return orb;
     }
     public GameObject SpawnCircle(int entityId, float x, float y, float mass,string name)

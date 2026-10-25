@@ -30,16 +30,42 @@ public sealed class LocalGameWorld
     private const float BulletDamage = 8f;
     private const float BulletCooldownSec = 0.25f;
     private const float MinShootMass = 3f;
-    private const float HealthOrbChance = 0.10f;
+    private const float HealthOrbChance = 0.09f;
     private const float HealthOrbHeal = 15f;
-    private const float SplitOrbChance = 0.08f;
-    private const int MaxSplitAmmo = 5;
-    private const float ShieldOrbChance = 0.07f;
+    private const float SplitOrbChance = 0.07f;
+    private const int MaxSplitAmmo = 8;     // 分裂弹上限（按次扣费：一次拾取+2 = 2 次满编齐射）
+    private const float ShieldOrbChance = 0.06f;
     private const float ShieldAbsorb = 20f;
     private const double ShieldDurationMs = 10000d;
-    private const float SpeedOrbChance = 0.07f;
+    private const float SpeedOrbChance = 0.06f;
     private const float SpeedMultiplier = 1.8f;
     private const double SpeedDurationMs = 8000d;
+    // 新弹种：上限 + 拾取概率（特殊食物合计 40%，普通食物 60%）
+    private const int MaxLaserAmmo = 5;     // 激光弹上限（按次扣费）
+    private const int MaxDoubleAmmo = 10;   // 双发弹上限（按次扣费）
+    private const int MaxHomingAmmo = 8;    // 跟踪弹上限（按次扣费）
+    private const float LaserOrbChance = 0.04f;
+    private const float DoubleOrbChance = 0.05f;
+    private const float HomingOrbChance = 0.03f;
+    // 按次扣费配套：一次拾取 = 2 次完整释放（与在线 Lib.cs 数值一致）
+    private const int SplitOrbAmmoGain = 2;
+    private const int LaserOrbAmmoGain = 2;
+    private const int DoubleOrbAmmoGain = 2;
+    private const int HomingOrbAmmoGain = 2;
+    private const int MaxSpecialBallsPerShot = 4;  // 特殊弹单次齐射最多参战球数（按质量取前 4）
+    // 激光（bullet_type=2）：数值与在线 Lib.cs 常量一一对应，不得单独改这里
+    private const float LaserDamage = 22f;
+    private const float LaserRange = 45f;
+    private const int LaserPierceMax = 5;
+    private const float LaserDecay = 0.6f;
+    private const float LaserStep = 0.25f;
+    private const double LaserBeamTtlMs = 300d;
+    // 双发弹：与在线 Lib.cs 常量一致
+    private const float DoubleBulletDamage = 6f;
+    private const float DoubleSpreadDeg = 8f;
+    // 跟踪弹：与在线 Lib.cs 常量一致
+    private const float HomingDamage = 7f;
+    private const float HomingTurnRateDeg = 180f;
 
     private readonly LocalGameSession _session;
     private readonly Dictionary<int, Entity> _entities = new();
@@ -47,6 +73,8 @@ public sealed class LocalGameWorld
     private readonly Dictionary<int, Circle> _circles = new();
     private readonly Dictionary<int, Bullet> _bullets = new();
     private readonly Dictionary<int, PlayerAmmo> _playerAmmo = new();
+    private readonly Dictionary<int, LaserBeam> _laserBeams = new();
+    private int _nextLaserBeamId = 1;
     private readonly Dictionary<int, Shield> _shields = new();
     private readonly Dictionary<int, SpeedBuff> _speedBuffs = new();
     private readonly Dictionary<int, Player> _players = new();
@@ -184,12 +212,22 @@ public sealed class LocalGameWorld
         targetY /= length;
         _shootCooldowns[playerId] = _timeMs;
 
-        int splitAmmoLeft = 0;
-        if (bulletType == 1)
+        // 激光：瞬时射线，不生成子弹实体
+        if (bulletType == 2)
+        {
+            FireLaser(playerId, targetX, targetY);
+            return;
+        }
+
+        // 特殊弹：按次扣费 —— 整次齐射只消耗 1 发；库存为 0 则整次放弃（不部分发射）
+        if (bulletType == 1 || bulletType == 3 || bulletType == 4)
         {
             var ammo = FindPlayerAmmo(playerId);
-            if (ammo == null || ammo.AmmoSplit <= 0) return;
-            splitAmmoLeft = ammo.AmmoSplit;
+            int stock = ammo == null ? 0
+                      : bulletType == 1 ? ammo.AmmoSplit
+                      : bulletType == 3 ? ammo.AmmoDouble
+                      : ammo.AmmoHoming;
+            if (stock <= 0) return;
         }
 
         int bulletCount = 0;
@@ -208,17 +246,36 @@ public sealed class LocalGameWorld
         }
 
         int maxBullets = Mathf.Clamp(ballCount * 3, 5, 24);
-        foreach (var circle in playerCircles)
+
+        // 参战球：特殊弹单次齐射最多 MaxSpecialBallsPerShot 个（按质量降序取前 N）
+        var shooters = new List<Circle>(playerCircles);
+        if (bulletType >= 1 && shooters.Count > MaxSpecialBallsPerShot)
+        {
+            shooters.Sort((a, b) =>
+            {
+                var ea = FindEntity(a.EntityId);
+                var eb = FindEntity(b.EntityId);
+                float ma = ea == null ? 0f : ea.Mass;
+                float mb = eb == null ? 0f : eb.Mass;
+                return mb.CompareTo(ma);
+            });
+            shooters.RemoveRange(MaxSpecialBallsPerShot, shooters.Count - MaxSpecialBallsPerShot);
+        }
+
+        bool volleyFired = false;
+        foreach (var circle in shooters)
         {
             if (circle.IsMerging) continue;
             var entity = FindEntity(circle.EntityId);
             if (entity == null || entity.Mass < MinShootMass) continue;
             if (bulletCount >= maxBullets) break;
-            if (bulletType == 1 && splitAmmoLeft <= 0) break;
 
-            bulletCount++;
-            if (bulletType == 1)
-                splitAmmoLeft--;
+            // 双发弹：一次齐射占 2 个弹位，剩余弹位不足 2 个时只发 1 颗
+            int shotsThisBall = 1;
+            if (bulletType == 3)
+                shotsThisBall = (maxBullets - bulletCount) >= 2 ? 2 : 1;
+            bulletCount += shotsThisBall;
+            volleyFired = true;
 
             UpdateEntity(circle.EntityId, e =>
             {
@@ -226,31 +283,162 @@ public sealed class LocalGameWorld
                 UpdateHpAfterMassChange(e);
             });
 
-            var bulletEntity = InsertEntity(new Entity
+            // 生成子弹（双发弹按 ±8° 扇形展开，其余弹种沿原方向）
+            for (int shot = 0; shot < shotsThisBall; shot++)
             {
-                Mass = 0.3f,
-                Position = new DbVector2(entity.Position.X, entity.Position.Y),
-                Hp = 0,
-                MaxHp = 0
-            });
-            InsertBullet(new Bullet
-            {
-                EntityId = bulletEntity.Id,
-                OwnerPlayerId = playerId,
-                DirX = targetX,
-                DirY = targetY,
-                SpawnedAtMs = _timeMs,
-                BulletType = bulletType
-            });
+                float spreadDeg = shotsThisBall == 1 ? 0f : (shot == 0 ? -DoubleSpreadDeg : DoubleSpreadDeg);
+                float rad = spreadDeg * Mathf.Deg2Rad;
+                float cos = Mathf.Cos(rad);
+                float sin = Mathf.Sin(rad);
+                float dirX = targetX * cos - targetY * sin;
+                float dirY = targetX * sin + targetY * cos;
+
+                var bulletEntity = InsertEntity(new Entity
+                {
+                    Mass = 0.3f,
+                    Position = new DbVector2(entity.Position.X, entity.Position.Y),
+                    Hp = 0,
+                    MaxHp = 0
+                });
+                InsertBullet(new Bullet
+                {
+                    EntityId = bulletEntity.Id,
+                    OwnerPlayerId = playerId,
+                    DirX = dirX,
+                    DirY = dirY,
+                    SpawnedAtMs = _timeMs,
+                    BulletType = bulletType
+                });
+            }
         }
 
-        if (bulletType == 1)
+        // 按次扣费：整次齐射只扣 1 发（一个球都没能发射则不扣）
+        if (volleyFired && (bulletType == 1 || bulletType == 3 || bulletType == 4))
         {
             UpdatePlayerAmmo(playerId, ammo =>
             {
-                ammo.AmmoSplit = splitAmmoLeft;
+                if (bulletType == 1) ammo.AmmoSplit = Mathf.Max(0, ammo.AmmoSplit - 1);
+                else if (bulletType == 3) ammo.AmmoDouble = Mathf.Max(0, ammo.AmmoDouble - 1);
+                else ammo.AmmoHoming = Mathf.Max(0, ammo.AmmoHoming - 1);
                 return ammo;
             }, !_playerAmmo.ContainsKey(playerId));
+        }
+    }
+
+    /// <summary>
+    /// 激光（bullet_type=2）：每颗非合并球发一条瞬时射线，沿归一化方向按 LaserStep 步进采样，
+    /// 命中判定全用平方距离；命中按距离由近到远，伤害 LaserDamage 起按 LaserDecay 递减、最多 LaserPierceMax 个。
+    /// 只插入 laser_beam 表现行（终点=射程末端/地图边界），不生成子弹实体。与在线 FireLaser 行为一致。
+    /// </summary>
+    private void FireLaser(int playerId, float dirX, float dirY)
+    {
+        var ammo = FindPlayerAmmo(playerId);
+        if (ammo == null || ammo.AmmoLaser <= 0) return;
+
+        // 预收集敌方球（位置 + 半径平方）
+        var enemies = new List<(int eid, float x, float y, float r2)>();
+        foreach (var other in SnapshotCircles())
+        {
+            if (other.IsMerging || other.PlayerId == playerId) continue;
+            var otherEnt = FindEntity(other.EntityId);
+            if (otherEnt == null) continue;
+            float radius = MassToDiameter(otherEnt.Mass) * 0.5f;
+            enemies.Add((other.EntityId, otherEnt.Position.X, otherEnt.Position.Y, radius * radius));
+        }
+
+        var deadEntities = new HashSet<int>();
+
+        // 参战球：按质量降序取前 MaxSpecialBallsPerShot 个
+        var laserShooters = new List<Circle>(GetPlayerCircles(playerId));
+        if (laserShooters.Count > MaxSpecialBallsPerShot)
+        {
+            laserShooters.Sort((a, b) =>
+            {
+                var ea = FindEntity(a.EntityId);
+                var eb = FindEntity(b.EntityId);
+                float ma = ea == null ? 0f : ea.Mass;
+                float mb = eb == null ? 0f : eb.Mass;
+                return mb.CompareTo(ma);
+            });
+            laserShooters.RemoveRange(MaxSpecialBallsPerShot, laserShooters.Count - MaxSpecialBallsPerShot);
+        }
+
+        bool laserFired = false;
+        foreach (var circle in laserShooters)
+        {
+            if (circle.IsMerging) continue;
+
+            var ent = FindEntity(circle.EntityId);
+            if (ent == null || ent.Mass < MinShootMass) continue;
+            laserFired = true;
+
+            float startX = ent.Position.X;
+            float startY = ent.Position.Y;
+            float endX = startX;
+            float endY = startY;
+            var hitIds = new List<int>();
+            int steps = (int)(LaserRange / LaserStep);
+
+            for (int i = 1; i <= steps; i++)
+            {
+                float t = i * LaserStep;
+                float px = startX + dirX * t;
+                float py = startY + dirY * t;
+
+                // 地图边界即停（终点保留最后一个有效采样点）
+                if (px < 0f || px > WorldSize || py < 0f || py > WorldSize) break;
+
+                endX = px;
+                endY = py;
+
+                foreach (var en in enemies)
+                {
+                    if (hitIds.Contains(en.eid)) continue;
+                    float dx = px - en.x;
+                    float dy = py - en.y;
+                    if (dx * dx + dy * dy <= en.r2)
+                    {
+                        hitIds.Add(en.eid);
+                        if (hitIds.Count >= LaserPierceMax) break;
+                    }
+                }
+                if (hitIds.Count >= LaserPierceMax) break;
+            }
+
+            // 伤害由近到远递减结算（复用 ApplyDamage：无敌/护盾/死亡掉落语义与子弹一致）
+            float dmg = LaserDamage;
+            foreach (int hitId in hitIds)
+            {
+                ApplyDamage(hitId, dmg, deadEntities);
+                dmg *= LaserDecay;
+            }
+
+            // 扣质量（与普通弹一致）
+            UpdateEntity(circle.EntityId, e =>
+            {
+                e.Mass = Mathf.Max(0.1f, e.Mass - BulletMassCost);
+                UpdateHpAfterMassChange(e);
+            });
+
+            InsertLaserBeam(new LaserBeam
+            {
+                OwnerPlayerId = playerId,
+                StartX = startX,
+                StartY = startY,
+                EndX = endX,
+                EndY = endY,
+                SpawnedAtMs = _timeMs
+            });
+        }
+
+        // 按次扣费：整次齐射只消耗 1 发
+        if (laserFired)
+        {
+            UpdatePlayerAmmo(playerId, a =>
+            {
+                a.AmmoLaser = Mathf.Max(0, a.AmmoLaser - 1);
+                return a;
+            });
         }
     }
 
@@ -356,6 +544,7 @@ public sealed class LocalGameWorld
         MovePlayers();
         ResolveEating();
         TickBullets();
+        ExpireLaserBeams();
         ExpireBuffs();
 
         if (_timeMs >= _nextMergeAtMs)
@@ -380,6 +569,7 @@ public sealed class LocalGameWorld
         _foods.Clear();
         _circles.Clear();
         _bullets.Clear();
+        _laserBeams.Clear();
         _playerAmmo.Clear();
         _shields.Clear();
         _speedBuffs.Clear();
@@ -591,6 +781,9 @@ public sealed class LocalGameWorld
         var massGains = new Dictionary<int, float>();
         var healGains = new Dictionary<int, float>();
         var splitAmmoGains = new Dictionary<int, int>();
+        var laserAmmoGains = new Dictionary<int, int>();
+        var doubleAmmoGains = new Dictionary<int, int>();
+        var homingAmmoGains = new Dictionary<int, int>();
         var shieldGains = new Dictionary<int, float>();
         var speedBuffGains = new HashSet<int>();
         var entitiesToDelete = new HashSet<int>();
@@ -634,7 +827,7 @@ public sealed class LocalGameWorld
                     else if (isFood && food.FoodType == 2)
                     {
                         splitAmmoGains.TryGetValue(playerId, out int ammo);
-                        splitAmmoGains[playerId] = ammo + 1;
+                        splitAmmoGains[playerId] = ammo + SplitOrbAmmoGain;
                     }
                     else if (isFood && food.FoodType == 3)
                     {
@@ -647,6 +840,21 @@ public sealed class LocalGameWorld
                     else if (isFood && food.FoodType == 4)
                     {
                         speedBuffGains.Add(playerId);
+                    }
+                    else if (isFood && food.FoodType == 5)
+                    {
+                        laserAmmoGains.TryGetValue(playerId, out int laserAmmo);
+                        laserAmmoGains[playerId] = laserAmmo + LaserOrbAmmoGain;
+                    }
+                    else if (isFood && food.FoodType == 6)
+                    {
+                        doubleAmmoGains.TryGetValue(playerId, out int doubleAmmo);
+                        doubleAmmoGains[playerId] = doubleAmmo + DoubleOrbAmmoGain;
+                    }
+                    else if (isFood && food.FoodType == 7)
+                    {
+                        homingAmmoGains.TryGetValue(playerId, out int homingAmmo);
+                        homingAmmoGains[playerId] = homingAmmo + HomingOrbAmmoGain;
                     }
                 }
             }
@@ -670,6 +878,15 @@ public sealed class LocalGameWorld
 
         foreach (var entry in splitAmmoGains)
             AddSplitAmmo(entry.Key, entry.Value);
+
+        foreach (var entry in laserAmmoGains)
+            AddAmmo(entry.Key, 1, entry.Value);
+
+        foreach (var entry in doubleAmmoGains)
+            AddAmmo(entry.Key, 2, entry.Value);
+
+        foreach (var entry in homingAmmoGains)
+            AddAmmo(entry.Key, 3, entry.Value);
 
         foreach (var entry in shieldGains)
             ApplyShield(entry.Key, entry.Value);
@@ -701,12 +918,60 @@ public sealed class LocalGameWorld
                 continue;
             }
 
+            // 本 tick 实际方向（跟踪弹会改写）
+            float dirX = bullet.DirX, dirY = bullet.DirY;
+
+            // 跟踪弹：每 tick 朝最近敌方球限角速度转向（≤HomingTurnRateDeg 度/秒），不瞬转
+            if (bullet.BulletType == 4)
+            {
+                float bestSqr = float.MaxValue;
+                float wantX = 0f, wantY = 0f;
+                bool found = false;
+                foreach (var other in SnapshotCircles())
+                {
+                    if (other.IsMerging || other.PlayerId == bullet.OwnerPlayerId) continue;
+                    var otherEnt = FindEntity(other.EntityId);
+                    if (otherEnt == null) continue;
+                    float ddx = otherEnt.Position.X - bulletEntity.Position.X;
+                    float ddy = otherEnt.Position.Y - bulletEntity.Position.Y;
+                    float sq = ddx * ddx + ddy * ddy;
+                    if (sq >= bestSqr) continue;
+                    bestSqr = sq;
+                    wantX = ddx;
+                    wantY = ddy;
+                    found = true;
+                }
+
+                if (found)
+                {
+                    float wLen = Mathf.Sqrt(wantX * wantX + wantY * wantY);
+                    if (wLen > 0.0001f)
+                    {
+                        wantX /= wLen;
+                        wantY /= wLen;
+                        float curAngle = Mathf.Atan2(dirY, dirX);
+                        float wantAngle = Mathf.Atan2(wantY, wantX);
+                        float delta = Mathf.DeltaAngle(curAngle * Mathf.Rad2Deg, wantAngle * Mathf.Rad2Deg) * Mathf.Deg2Rad;
+                        float maxTurn = HomingTurnRateDeg * Mathf.Deg2Rad * ServerDelta;
+                        delta = Mathf.Clamp(delta, -maxTurn, maxTurn);
+                        float newAngle = curAngle + delta;
+                        dirX = Mathf.Cos(newAngle);
+                        dirY = Mathf.Sin(newAngle);
+                        UpdateBullet(bullet.EntityId, b =>
+                        {
+                            b.DirX = dirX;
+                            b.DirY = dirY;
+                        });
+                    }
+                }
+            }
+
             float originalX = bulletEntity.Position.X;
             float originalY = bulletEntity.Position.Y;
             UpdateEntity(bullet.EntityId, entity =>
             {
-                entity.Position.X += bullet.DirX * ServerDelta * BulletSpeed;
-                entity.Position.Y += bullet.DirY * ServerDelta * BulletSpeed;
+                entity.Position.X += dirX * ServerDelta * BulletSpeed;
+                entity.Position.Y += dirY * ServerDelta * BulletSpeed;
                 ClampEntity(entity);
             });
             bulletEntity = FindEntity(bullet.EntityId);
@@ -733,7 +998,10 @@ public sealed class LocalGameWorld
                     else
                     {
                         bulletHits.TryGetValue(circle.EntityId, out float damage);
-                        bulletHits[circle.EntityId] = damage + BulletDamage;
+                        float dmg = bullet.BulletType == 3 ? DoubleBulletDamage
+                                  : bullet.BulletType == 4 ? HomingDamage
+                                  : BulletDamage;
+                        bulletHits[circle.EntityId] = damage + dmg;
                     }
                     break;
                 }
@@ -1038,6 +1306,21 @@ public sealed class LocalGameWorld
             foodType = 4;
             mass = 2f;
         }
+        else if (roll < HealthOrbChance + SplitOrbChance + ShieldOrbChance + SpeedOrbChance + LaserOrbChance)
+        {
+            foodType = 5;
+            mass = 2f;
+        }
+        else if (roll < HealthOrbChance + SplitOrbChance + ShieldOrbChance + SpeedOrbChance + LaserOrbChance + DoubleOrbChance)
+        {
+            foodType = 6;
+            mass = 2f;
+        }
+        else if (roll < HealthOrbChance + SplitOrbChance + ShieldOrbChance + SpeedOrbChance + LaserOrbChance + DoubleOrbChance + HomingOrbChance)
+        {
+            foodType = 7;
+            mass = 2f;
+        }
         else
         {
             foodType = 0;
@@ -1205,21 +1488,39 @@ public sealed class LocalGameWorld
         }
     }
 
-    private void AddSplitAmmo(int playerId, int amount)
+    private void AddSplitAmmo(int playerId, int amount) => AddAmmo(playerId, 0, amount);
+
+    /// <summary>按类型增加弹药：kind 0=分裂 1=激光 2=双发 3=跟踪，各自上限独立。</summary>
+    private void AddAmmo(int playerId, int kind, int amount)
     {
+        int cap = kind == 0 ? MaxSplitAmmo
+                : kind == 1 ? MaxLaserAmmo
+                : kind == 2 ? MaxDoubleAmmo
+                : MaxHomingAmmo;
+
         var existing = FindPlayerAmmo(playerId);
         if (existing == null)
         {
-            InsertPlayerAmmo(new PlayerAmmo
+            var fresh = new PlayerAmmo { PlayerId = playerId };
+            switch (kind)
             {
-                PlayerId = playerId,
-                AmmoSplit = Mathf.Min(amount, MaxSplitAmmo)
-            });
+                case 0: fresh.AmmoSplit = Mathf.Min(amount, cap); break;
+                case 1: fresh.AmmoLaser = Mathf.Min(amount, cap); break;
+                case 2: fresh.AmmoDouble = Mathf.Min(amount, cap); break;
+                default: fresh.AmmoHoming = Mathf.Min(amount, cap); break;
+            }
+            InsertPlayerAmmo(fresh);
             return;
         }
         UpdatePlayerAmmo(playerId, ammo =>
         {
-            ammo.AmmoSplit = Mathf.Min(ammo.AmmoSplit + amount, MaxSplitAmmo);
+            switch (kind)
+            {
+                case 0: ammo.AmmoSplit = Mathf.Min(ammo.AmmoSplit + amount, cap); break;
+                case 1: ammo.AmmoLaser = Mathf.Min(ammo.AmmoLaser + amount, cap); break;
+                case 2: ammo.AmmoDouble = Mathf.Min(ammo.AmmoDouble + amount, cap); break;
+                default: ammo.AmmoHoming = Mathf.Min(ammo.AmmoHoming + amount, cap); break;
+            }
             return ammo;
         });
     }
@@ -1364,6 +1665,48 @@ public sealed class LocalGameWorld
     {
         _bullets[bullet.EntityId] = bullet;
         _session.RaiseBulletInsert(CloneBullet(bullet));
+    }
+
+    private void UpdateBullet(int entityId, Action<Bullet> mutate)
+    {
+        if (!_bullets.TryGetValue(entityId, out var current)) return;
+        var oldRow = CloneBullet(current);
+        var newRow = CloneBullet(current);
+        mutate(newRow);
+        _bullets[entityId] = newRow;
+        _session.RaiseBulletUpdate(oldRow, CloneBullet(newRow));
+    }
+
+    // ===== 激光表现行（laser_beam） =====
+    private List<LaserBeam> SnapshotLaserBeams() => new List<LaserBeam>(_laserBeams.Values);
+
+    private LaserBeam InsertLaserBeam(LaserBeam beam)
+    {
+        beam.Id = _nextLaserBeamId++;
+        _laserBeams[beam.Id] = beam;
+        _session.RaiseLaserBeamInsert(CloneLaserBeam(beam));
+        return beam;
+    }
+
+    private void DeleteLaserBeam(int beamId)
+    {
+        if (!_laserBeams.TryGetValue(beamId, out var row)) return;
+        _laserBeams.Remove(beamId);
+        _session.RaiseLaserBeamDelete(CloneLaserBeam(row));
+    }
+
+    /// <summary>清理超过 LaserBeamTtlMs 的光柱表现行（与在线 MoveAllPlayer 的 300ms 清理一致）。</summary>
+    private void ExpireLaserBeams()
+    {
+        if (_laserBeams.Count == 0) return;
+        var expired = new List<int>();
+        foreach (var kv in _laserBeams)
+        {
+            if (_timeMs - kv.Value.SpawnedAtMs >= LaserBeamTtlMs)
+                expired.Add(kv.Key);
+        }
+        foreach (int beamId in expired)
+            DeleteLaserBeam(beamId);
     }
 
     private void DeleteBullet(int entityId)
@@ -1531,10 +1874,24 @@ public sealed class LocalGameWorld
         BulletType = row.BulletType
     };
 
+    private static LaserBeam CloneLaserBeam(LaserBeam row) => row == null ? null : new LaserBeam
+    {
+        Id = row.Id,
+        OwnerPlayerId = row.OwnerPlayerId,
+        StartX = row.StartX,
+        StartY = row.StartY,
+        EndX = row.EndX,
+        EndY = row.EndY,
+        SpawnedAtMs = row.SpawnedAtMs
+    };
+
     private static PlayerAmmo ClonePlayerAmmo(PlayerAmmo row) => row == null ? null : new PlayerAmmo
     {
         PlayerId = row.PlayerId,
-        AmmoSplit = row.AmmoSplit
+        AmmoSplit = row.AmmoSplit,
+        AmmoLaser = row.AmmoLaser,
+        AmmoDouble = row.AmmoDouble,
+        AmmoHoming = row.AmmoHoming
     };
 
     private static Shield CloneShield(Shield row) => row == null ? null : new Shield

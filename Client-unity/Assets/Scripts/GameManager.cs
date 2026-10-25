@@ -157,6 +157,7 @@ public class GameManager : MonoBehaviour
         session.Tables.SpeedBuff.OnInsert += OnSpeedBuffInserted;
         session.Tables.SpeedBuff.OnUpdate += OnSpeedBuffUpdated;
         session.Tables.SpeedBuff.OnDelete += OnSpeedBuffDeleted;
+        session.Tables.LaserBeam.OnInsert += OnLaserBeamInserted;
 
         isSubscribed = true;
         _mainThreadSubscribed = true;
@@ -182,6 +183,7 @@ public class GameManager : MonoBehaviour
         _boundSession.Tables.SpeedBuff.OnInsert -= OnSpeedBuffInserted;
         _boundSession.Tables.SpeedBuff.OnUpdate -= OnSpeedBuffUpdated;
         _boundSession.Tables.SpeedBuff.OnDelete -= OnSpeedBuffDeleted;
+        _boundSession.Tables.LaserBeam.OnInsert -= OnLaserBeamInserted;
         _boundSession = null;
         isSubscribed = false;
         _mainThreadSubscribed = false;
@@ -443,6 +445,12 @@ public class GameManager : MonoBehaviour
             foodGo = PrefabsManager.Instance.SpawnShieldOrb(newFood.EntityId, entity.Position.X, entity.Position.Y, entity.Mass);
         else if (newFood.FoodType == 4)
             foodGo = PrefabsManager.Instance.SpawnSpeedOrb(newFood.EntityId, entity.Position.X, entity.Position.Y, entity.Mass);
+        else if (newFood.FoodType == 5)
+            foodGo = PrefabsManager.Instance.SpawnLaserOrb(newFood.EntityId, entity.Position.X, entity.Position.Y, entity.Mass);
+        else if (newFood.FoodType == 6)
+            foodGo = PrefabsManager.Instance.SpawnDoubleOrb(newFood.EntityId, entity.Position.X, entity.Position.Y, entity.Mass);
+        else if (newFood.FoodType == 7)
+            foodGo = PrefabsManager.Instance.SpawnHomingOrb(newFood.EntityId, entity.Position.X, entity.Position.Y, entity.Mass);
         else
             foodGo = PrefabsManager.Instance.SpawnFood(newFood.EntityId, entity.Position.X, entity.Position.Y, entity.Mass);
 
@@ -458,8 +466,14 @@ public class GameManager : MonoBehaviour
         // ���ӵ�����ѡԤ���壺���ѵ���ר��Ԥ���壬��ͨ����Ĭ��Ԥ����
         GameObject bulletGo;
         bool isSplit = newBullet.BulletType == 1;
+        bool isDouble = newBullet.BulletType == 3;
+        bool isHoming = newBullet.BulletType == 4;
         GameObject chosenPrefab = null;
-        if (isSplit && PrefabsManager.Instance != null && PrefabsManager.Instance.splitBulletPrefab != null)
+        if (isDouble && PrefabsManager.Instance != null && PrefabsManager.Instance.doubleBulletPrefab != null)
+            chosenPrefab = PrefabsManager.Instance.doubleBulletPrefab;
+        else if (isHoming && PrefabsManager.Instance != null && PrefabsManager.Instance.homingBulletPrefab != null)
+            chosenPrefab = PrefabsManager.Instance.homingBulletPrefab;
+        else if (isSplit && PrefabsManager.Instance != null && PrefabsManager.Instance.splitBulletPrefab != null)
             chosenPrefab = PrefabsManager.Instance.splitBulletPrefab;
         else if (bulletPrefab != null)
             chosenPrefab = bulletPrefab;
@@ -517,6 +531,55 @@ public class GameManager : MonoBehaviour
         if (Bullets.Remove(deletedBullet.EntityId, out var go))
         {
             Destroy(go);
+        }
+    }
+
+    // ===== 激光贯穿光柱 =====
+    private void OnLaserBeamInserted(LaserBeam beam)
+    {
+        Vector3 start = new Vector3(beam.StartX, beam.StartY, 0f);
+        Vector3 end = new Vector3(beam.EndX, beam.EndY, 0f);
+
+        // 世界空间独立物体（不挂在球/子弹节点下）
+        LaserBeamFX.Spawn(start, end);
+
+        Vector2 delta = end - start;
+        if (delta.sqrMagnitude < 0.0001f) return;
+        float length = delta.magnitude;
+        Vector2 dir = delta / length;
+
+        var sparkPrefab = PrefabsManager.Instance != null ? PrefabsManager.Instance.laserHitSparkPrefab : null;
+
+        // 光柱贯穿了哪些球：客户端本地做线段-圆判定（服务端不额外下发命中列表）
+        foreach (var kv in Circles)
+        {
+            var go = kv.Value;
+            if (go == null) continue;
+            var ctrl = go.GetComponent<CircleController>();
+            if (ctrl == null || ctrl.playerId == beam.OwnerPlayerId) continue;
+
+            Vector2 center = go.transform.position;
+            float radius = go.transform.localScale.x * 0.5f;
+
+            float along = Vector2.Dot(center - (Vector2)start, dir);
+            if (along < -radius || along > length + radius) continue;
+
+            Vector2 proj = (Vector2)start + dir * Mathf.Clamp(along, 0f, length);
+            float perpSqr = (center - proj).sqrMagnitude;
+            if (perpSqr > radius * radius) continue;
+
+            // 命中点：沿射线回退到球面入射点
+            float back = Mathf.Sqrt(Mathf.Max(0f, radius * radius - perpSqr));
+            Vector3 hitPos = new Vector3(proj.x - dir.x * back, proj.y - dir.y * back, 0f);
+
+            if (sparkPrefab != null)
+            {
+                var spark = Instantiate(sparkPrefab, hitPos, Quaternion.identity);
+                Destroy(spark, 0.15f);
+            }
+
+            // 每颗被贯穿的球只触发一次
+            GameFeel.Instance?.OnHit(hitPos, ctrl, dir);
         }
     }
 
@@ -686,6 +749,16 @@ private void OnSpeedBuffInserted(SpeedBuff sb)
             {
                 int max = PrefabsManager.Instance != null ? PrefabsManager.Instance.maxSplitAmmo : 5;
                 HudController.Instance?.SetAmmoCountMax(1, ammo.AmmoSplit, max);
+
+                // 激光弹药（与服务端 MAX_LASER_AMMO = 5 一致）
+                int laserMax = PrefabsManager.Instance != null ? PrefabsManager.Instance.maxLaserAmmo : 5;
+                HudController.Instance?.SetAmmoCountMax(2, ammo.AmmoLaser, laserMax);
+
+                int dblMax = PrefabsManager.Instance != null ? PrefabsManager.Instance.maxDoubleAmmo : 6;
+                HudController.Instance?.SetAmmoCountMax(3, ammo.AmmoDouble, dblMax);
+
+                int homingMax = PrefabsManager.Instance != null ? PrefabsManager.Instance.maxHomingAmmo : 4;
+                HudController.Instance?.SetAmmoCountMax(4, ammo.AmmoHoming, homingMax);
             }
         }
     }

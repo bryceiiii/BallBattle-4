@@ -45,17 +45,43 @@ public static partial class Module
     private static float MIN_SHOOT_MASS = 3.0f;       // 最小射击质量
 
     // 特殊食物常量
-    private static float HEALTH_ORB_CHANCE = 0.10f;   // 回血球生成概率（10%）
+    private static float HEALTH_ORB_CHANCE = 0.09f;   // 回血球生成概率（9%）
     private static float HEALTH_ORB_HEAL = 15f;        // 回血量
-    private static float SPLIT_ORB_CHANCE = 0.08f;     // 分裂弹生成概率（8%）
-    private static int MAX_SPLIT_AMMO = 5;             // 分裂弹最大存储数
-    private static float SHIELD_ORB_CHANCE = 0.07f;     // 护盾球生成概率（7%）
+    private static float SPLIT_ORB_CHANCE = 0.07f;     // 分裂弹生成概率（7%）
+    private static int MAX_SPLIT_AMMO = 8;             // 分裂弹最大存储数（按次扣费：一次拾取+2 = 2 次满编齐射）
+    private static float SHIELD_ORB_CHANCE = 0.06f;     // 护盾球生成概率（6%）
     private static float SHIELD_ABSORB = 20f;           // 护盾吸收量
     private static double SHIELD_DURATION_MS = 10000d;  // 护盾持续 10 秒
-    private static float SPEED_ORB_CHANCE = 0.07f;      // 速度球生成概率（7%）
+    private static float SPEED_ORB_CHANCE = 0.06f;      // 速度球生成概率（6%）
     private static float SPEED_MULTIPLIER = 1.8f;       // 速度倍率
     private static double SPEED_DURATION_MS = 8000d;    // 加速持续 8 秒
-    // food_type: 0=普通, 1=回血, 2=分裂弹, 3=护盾球, 4=速度球
+    // 新弹种：上限 + 拾取概率（特殊食物合计 40%，普通食物 60%）
+    private static int MAX_LASER_AMMO = 5;              // 激光弹最大存储数（按次扣费，5 发可连续释放 5 次）
+    private static int MAX_DOUBLE_AMMO = 10;            // 双发弹最大存储数（按次扣费，一次拾取+2）
+    private static int MAX_HOMING_AMMO = 8;             // 跟踪弹最大存储数（按次扣费，一次拾取+2）
+    private static float LASER_ORB_CHANCE = 0.04f;      // 激光弹生成概率（4%）
+    private static float DOUBLE_ORB_CHANCE = 0.05f;     // 双发弹生成概率（5%）
+    private static float HOMING_ORB_CHANCE = 0.03f;     // 跟踪弹生成概率（3%）
+    // 按次扣费配套：一次拾取 = 2 次完整释放
+    private static int SPLIT_ORB_AMMO_GAIN = 2;        // 分裂弹单次拾取增量
+    private static int LASER_ORB_AMMO_GAIN = 2;        // 激光弹单次拾取增量
+    private static int DOUBLE_ORB_AMMO_GAIN = 2;       // 双发弹单次拾取增量
+    private static int HOMING_ORB_AMMO_GAIN = 2;       // 跟踪弹单次拾取增量
+    private static int MAX_SPECIAL_BALLS_PER_SHOT = 4; // 特殊弹单次齐射最多参战球数（按质量取前 4）
+    // 激光弹（bullet_type=2，瞬时射线）
+    private static float LASER_DAMAGE = 22f;            // 首个目标伤害
+    private static float LASER_RANGE = 45f;             // 射程上限
+    private static int LASER_PIERCE_MAX = 5;            // 最多穿透命中数
+    private static float LASER_DECAY = 0.6f;            // 每多命中一个的伤害衰减
+    private static float LASER_STEP = 0.25f;            // 步进采样间距
+    private static double LASER_BEAM_TTL_MS = 300d;     // laser_beam 记录存活时长（表现用）
+    // 双发弹（bullet_type=3）
+    private static float DOUBLE_BULLET_DAMAGE = 6f;     // 单颗伤害
+    private static float DOUBLE_SPREAD_DEG = 8f;        // 两颗之间的半角（±8°）
+    // 跟踪弹（bullet_type=4）
+    private static float HOMING_DAMAGE = 7f;            // 单发伤害
+    private static float HOMING_TURN_RATE = 180f;       // 最大转向角速度（度/秒）
+    // food_type: 0=普通, 1=回血, 2=分裂弹, 3=护盾球, 4=速度球, 5=激光弹, 6=双发弹, 7=跟踪弹
 
     [Table(Name = "entity", Public = true)]
     public partial struct Entity
@@ -94,7 +120,19 @@ public static partial class Module
         public float dir_x;            // 飞行方向（已归一化）
         public float dir_y;
         public double spawned_at_ms;   // 生成时间戳（毫秒）
-        public int bullet_type;        // 0=普通, 1=分裂弹
+        public int bullet_type;        // 0=普通, 1=分裂弹, 2=激光(瞬时射线,无 Bullet 行), 3=双发, 4=跟踪
+    }
+    [Table(Name = "laser_beam", Public = true)]
+    public partial struct LaserBeam
+    {
+        [PrimaryKey, AutoInc]
+        public int id;
+        public int owner_player_id;    // 发射者
+        public float start_x;          // 射线起点（发射球位置）
+        public float start_y;
+        public float end_x;            // 射线终点（射程末端/地图边界，不是命中球）
+        public float end_y;
+        public double spawned_at_ms;   // 生成时间戳（毫秒），用于 300ms 后清理
     }
     [Table(Name = "player_ammo", Public = true)]
     public partial struct PlayerAmmo
@@ -102,6 +140,9 @@ public static partial class Module
         [PrimaryKey]
         public int player_id;
         public int ammo_split;         // 分裂弹数量
+        public int ammo_laser;         // 激光弹数量（上限 MAX_LASER_AMMO）
+        public int ammo_double;        // 双发弹数量（上限 MAX_DOUBLE_AMMO）
+        public int ammo_homing;        // 跟踪弹数量（上限 MAX_HOMING_AMMO）
     }
     [Table(Name = "shield", Public = true)]
     public partial struct Shield
@@ -216,13 +257,23 @@ public static partial class Module
         targetX /= dirLen;
         targetY /= dirLen;
 
-        // 特殊子弹：读取弹药库存（分裂弹按球数消耗）
-        int splitAmmoLeft = 0;
-        if (bulletType == 1)
+        // 激光：瞬时射线，独立分支，不生成 Bullet 行
+        if (bulletType == 2)
+        {
+            FireLaser(context, player, targetX, targetY, now);
+            return;
+        }
+
+        // 特殊子弹：按次扣费 —— 整次齐射只消耗 1 发。
+        // 先判定库存，为 0 则整次放弃（绝不部分发射）。
+        if (bulletType == 1 || bulletType == 3 || bulletType == 4)
         {
             var ammo = context.Db.player_ammo.player_id.Find(player.player_id);
-            if (ammo == null || ammo.Value.ammo_split <= 0) return;
-            splitAmmoLeft = ammo.Value.ammo_split;
+            int stock = ammo == null ? 0
+                      : bulletType == 1 ? ammo.Value.ammo_split
+                      : bulletType == 3 ? ammo.Value.ammo_double
+                      : ammo.Value.ammo_homing;
+            if (stock <= 0) return;
         }
 
         // 统计当前场上子弹数
@@ -236,13 +287,26 @@ public static partial class Module
             if (!c.isMerging) ballCount++;
         int dynamicMaxBullets = Math.Max(5, Math.Min(ballCount * 3, 24));
 
-        // 遍历玩家所有非合并中的球，每球发射一发
-        // 所有球使用同一归一化方向（客户端基于主球+瞄准点计算，平行弹道）
+        // 参战球列表：特殊弹单次齐射最多 MAX_SPECIAL_BALLS_PER_SHOT 个（按质量降序取前 N）
+        var shooters = new System.Collections.Generic.List<(int eid, float mass)>();
         foreach (var c in context.Db.circle.player_id.Filter(player.player_id))
         {
             if (c.isMerging) continue;
+            var ce = context.Db.entity.id.Find(c.entity_id);
+            if (ce == null) continue;
+            shooters.Add((c.entity_id, ce.Value.mass));
+        }
+        if (bulletType >= 1 && shooters.Count > MAX_SPECIAL_BALLS_PER_SHOT)
+        {
+            shooters.Sort((x, y) => y.mass.CompareTo(x.mass));
+            shooters.RemoveRange(MAX_SPECIAL_BALLS_PER_SHOT, shooters.Count - MAX_SPECIAL_BALLS_PER_SHOT);
+        }
 
-            var entNullable = context.Db.entity.id.Find(c.entity_id);
+        // 遍历参战球，每球发射；所有球共用同一归一化方向（平行弹道）
+        bool volleyFired = false;
+        foreach (var shooter in shooters)
+        {
+            var entNullable = context.Db.entity.id.Find(shooter.eid);
             if (entNullable == null) continue;
             var ent = entNullable.Value;
 
@@ -251,14 +315,13 @@ public static partial class Module
 
             // 子弹上限检查（动态：球数×3，下限5上限24）
             if (bulletCount >= dynamicMaxBullets) break;
-            bulletCount++;
 
-            // 特殊子弹：每个发射的球消耗 1 弹药
-            if (bulletType == 1)
-            {
-                if (splitAmmoLeft <= 0) break;
-                splitAmmoLeft--;
-            }
+            // 双发弹：一次齐射占 2 个弹位，剩余弹位不足 2 个时只发 1 颗
+            int shotsThisBall = 1;
+            if (bulletType == 3)
+                shotsThisBall = (dynamicMaxBullets - bulletCount) >= 2 ? 2 : 1;
+            bulletCount += shotsThisBall;
+            volleyFired = true;
 
             // 扣质量（每个球独立消耗）
             ent.mass -= BULLET_MASS_COST;
@@ -266,34 +329,46 @@ public static partial class Module
             UpdateHpAfterMassChange(ref ent);
             context.Db.entity.id.Update(ent);
 
-            // 生成子弹（使用统一归一化方向）
-            var bulletEntity = context.Db.entity.Insert(new Entity
+            // 生成子弹（双发弹按 ±8° 扇形展开，其余弹种沿原方向）
+            for (int shot = 0; shot < shotsThisBall; shot++)
             {
-                mass = 0.3f,
-                position = new DbVector2(ent.position.x, ent.position.y),
-                hp = 0,
-                max_hp = 0
-            });
-            context.Db.bullet.Insert(new Bullet
-            {
-                entity_id = bulletEntity.id,
-                owner_player_id = player.player_id,
-                dir_x = targetX,
-                dir_y = targetY,
-                spawned_at_ms = now,
-                bullet_type = bulletType
-            });
-            Log.Info($"[射击] 玩家 {player.player_id} 实体 {c.entity_id} 发射子弹 {bulletEntity.id} 类型 {bulletType}");
+                float spreadDeg = shotsThisBall == 1 ? 0f : (shot == 0 ? -DOUBLE_SPREAD_DEG : DOUBLE_SPREAD_DEG);
+                float rad = spreadDeg * MathF.PI / 180f;
+                float cos = MathF.Cos(rad);
+                float sin = MathF.Sin(rad);
+                float dirX = targetX * cos - targetY * sin;
+                float dirY = targetX * sin + targetY * cos;
+
+                var bulletEntity = context.Db.entity.Insert(new Entity
+                {
+                    mass = 0.3f,
+                    position = new DbVector2(ent.position.x, ent.position.y),
+                    hp = 0,
+                    max_hp = 0
+                });
+                context.Db.bullet.Insert(new Bullet
+                {
+                    entity_id = bulletEntity.id,
+                    owner_player_id = player.player_id,
+                    dir_x = dirX,
+                    dir_y = dirY,
+                    spawned_at_ms = now,
+                    bullet_type = bulletType
+                });
+                Log.Info($"[射击] 玩家 {player.player_id} 实体 {shooter.eid} 发射子弹 {bulletEntity.id} 类型 {bulletType}");
+            }
         }
 
-        // 更新弹药（在循环后写入，确保原子性）
-        if (bulletType == 1)
+        // 按次扣费：整次齐射只扣 1 发（一个球都没能发射则不扣）
+        if (volleyFired && (bulletType == 1 || bulletType == 3 || bulletType == 4))
         {
             var ammo = context.Db.player_ammo.player_id.Find(player.player_id);
             if (ammo != null)
             {
                 var a = ammo.Value;
-                a.ammo_split = splitAmmoLeft;
+                if (bulletType == 1) a.ammo_split = Math.Max(0, a.ammo_split - 1);
+                else if (bulletType == 3) a.ammo_double = Math.Max(0, a.ammo_double - 1);
+                else a.ammo_homing = Math.Max(0, a.ammo_homing - 1);
                 context.Db.player_ammo.player_id.Update(a);
             }
         }
@@ -468,6 +543,18 @@ public static partial class Module
             {
                 foodType = 4; foodCurrentMass = 2f; // 速度球
             }
+            else if (roll < HEALTH_ORB_CHANCE + SPLIT_ORB_CHANCE + SHIELD_ORB_CHANCE + SPEED_ORB_CHANCE + LASER_ORB_CHANCE)
+            {
+                foodType = 5; foodCurrentMass = 2f; // 激光弹
+            }
+            else if (roll < HEALTH_ORB_CHANCE + SPLIT_ORB_CHANCE + SHIELD_ORB_CHANCE + SPEED_ORB_CHANCE + LASER_ORB_CHANCE + DOUBLE_ORB_CHANCE)
+            {
+                foodType = 6; foodCurrentMass = 2f; // 双发弹
+            }
+            else if (roll < HEALTH_ORB_CHANCE + SPLIT_ORB_CHANCE + SHIELD_ORB_CHANCE + SPEED_ORB_CHANCE + LASER_ORB_CHANCE + DOUBLE_ORB_CHANCE + HOMING_ORB_CHANCE)
+            {
+                foodType = 7; foodCurrentMass = 2f; // 跟踪弹
+            }
             else
             {
                 foodType = 0;
@@ -486,6 +573,232 @@ public static partial class Module
             foodCount++;
         }
     }
+    /// <summary>
+    /// 对单个球体结算伤害：无敌保护 → 护盾吸收 → 扣血 → 死亡掉落。
+    /// 子弹命中循环与激光射线共用，保证两条路径的护盾/死亡语义完全一致。
+    /// </summary>
+    private static void ApplyDamageToEntity(ReducerContext context, double now, int entityId, float damage)
+    {
+        var targetNullable = context.Db.entity.id.Find(entityId);
+        if (targetNullable == null) return;
+        var target = targetNullable.Value;
+
+        // 无敌保护：无敌玩家不受伤害
+        var hitCircleNullable = context.Db.circle.entity_id.Find(entityId);
+        if (hitCircleNullable != null)
+        {
+            var hitPlayer = context.Db.logged_in_player.player_id.Find(hitCircleNullable.Value.player_id);
+            if (hitPlayer != null && hitPlayer.Value.invincible_until_ms > now)
+                return;
+        }
+
+        // 护盾吸收伤害
+        var shieldNullable = context.Db.shield.entity_id.Find(entityId);
+        if (shieldNullable != null)
+        {
+            var s = shieldNullable.Value;
+            float absorbed = s.shield_hp >= damage ? damage : s.shield_hp;
+            s.shield_hp -= absorbed;
+            damage -= absorbed;
+            if (s.shield_hp <= 0)
+                context.Db.shield.entity_id.Delete(entityId);
+            else
+                context.Db.shield.entity_id.Update(s);
+        }
+
+        target.hp -= damage;
+        if (target.hp < 0) target.hp = 0;
+        if (target.hp > target.max_hp) target.hp = target.max_hp;
+        context.Db.entity.id.Update(target);
+
+        if (target.hp > 0) return;
+
+        // HP=0 则死亡：记录继承质量、散落食物、删除实体
+        Log.Info($"[击杀] 实体 {entityId} 被子弹打死！");
+
+        var deadCircle = context.Db.circle.entity_id.Find(entityId);
+        int deadPlayerId = deadCircle?.player_id ?? 0;
+        if (deadPlayerId > 0)
+        {
+            float totalMass = 0f;
+            foreach (var c in context.Db.circle.player_id.Filter(deadPlayerId))
+            {
+                var e = context.Db.entity.id.Find(c.entity_id);
+                if (e != null) totalMass += e.Value.mass;
+            }
+            var deadPlayer = context.Db.logged_in_player.player_id.Find(deadPlayerId);
+            if (deadPlayer != null)
+            {
+                var dp = deadPlayer.Value;
+                dp.respawn_mass = (double)(totalMass * 0.1f);
+                if (dp.respawn_mass < PRIMARY_PLAYER_MASS)
+                    dp.respawn_mass = PRIMARY_PLAYER_MASS; // 保底不低于初始质量
+                context.Db.logged_in_player.player_id.Update(dp);
+            }
+        }
+
+        // 散落食物
+        int dropCount = 3 + (int)(target.mass * 0.05f);
+        if (dropCount > 8) dropCount = 8;
+        for (int i = 0; i < dropCount; i++)
+        {
+            float rx = (float)(context.Rng.NextDouble() - 0.5) * 3f;
+            float ry = (float)(context.Rng.NextDouble() - 0.5) * 3f;
+            var foodEnt = context.Db.entity.Insert(new Entity
+            {
+                mass = target.mass * 0.2f / dropCount,
+                position = new DbVector2(target.position.x + rx, target.position.y + ry),
+                hp = 0,
+                max_hp = 0
+            });
+            context.Db.food.Insert(new Food { entity_id = foodEnt.id });
+        }
+        // 删除死亡玩家的 circle 和 entity
+        if (context.Db.circle.entity_id.Find(entityId) != null)
+            context.Db.circle.entity_id.Delete(entityId);
+        context.Db.entity.id.Delete(entityId);
+    }
+
+    /// <summary>
+    /// 激光弹（bullet_type=2）：玩家每颗非合并球发一条瞬时射线，
+    /// 沿归一化方向以 LASER_STEP 步进采样，命中判定全用平方距离（不开方）。
+    /// 命中按距离由近到远，伤害 LASER_DAMAGE 起按 LASER_DECAY 递减，最多 LASER_PIERCE_MAX 个；
+    /// 只插入 laser_beam 表现记录（终点=射程末端/地图边界），不生成 Bullet 行。
+    /// </summary>
+    private static void FireLaser(ReducerContext context, Player player, float dirX, float dirY, double now)
+    {
+        var ammoNullable = context.Db.player_ammo.player_id.Find(player.player_id);
+        if (ammoNullable == null || ammoNullable.Value.ammo_laser <= 0) return;
+
+        // 预收集敌方球（位置 + 半径平方），避免每个采样点重复查表
+        var enemies = new System.Collections.Generic.List<(int eid, float x, float y, float r2)>();
+        foreach (var other in context.Db.circle.Iter())
+        {
+            if (other.isMerging) continue;
+            if (other.player_id == player.player_id) continue;
+            var otherEntNull = context.Db.entity.id.Find(other.entity_id);
+            if (otherEntNull == null) continue;
+            var otherEnt = otherEntNull.Value;
+            float radius = MassToDiameter(otherEnt.mass) / 2f;
+            enemies.Add((other.entity_id, otherEnt.position.x, otherEnt.position.y, radius * radius));
+        }
+
+        // 参战球：按质量降序取前 MAX_SPECIAL_BALLS_PER_SHOT 个
+        var laserShooters = new System.Collections.Generic.List<(int eid, float mass)>();
+        foreach (var lc in context.Db.circle.player_id.Filter(player.player_id))
+        {
+            if (lc.isMerging) continue;
+            var le = context.Db.entity.id.Find(lc.entity_id);
+            if (le == null) continue;
+            laserShooters.Add((lc.entity_id, le.Value.mass));
+        }
+        if (laserShooters.Count > MAX_SPECIAL_BALLS_PER_SHOT)
+        {
+            laserShooters.Sort((x, y) => y.mass.CompareTo(x.mass));
+            laserShooters.RemoveRange(MAX_SPECIAL_BALLS_PER_SHOT, laserShooters.Count - MAX_SPECIAL_BALLS_PER_SHOT);
+        }
+
+        bool laserFired = false;
+        foreach (var shooter in laserShooters)
+        {
+            var entNullable = context.Db.entity.id.Find(shooter.eid);
+            if (entNullable == null) continue;
+            var ent = entNullable.Value;
+            if (ent.mass < MIN_SHOOT_MASS) continue;
+            laserFired = true;
+
+            float startX = ent.position.x;
+            float startY = ent.position.y;
+            float endX = startX;
+            float endY = startY;
+
+            var hitIds = new System.Collections.Generic.List<int>();
+            int steps = (int)(LASER_RANGE / LASER_STEP);
+
+            for (int i = 1; i <= steps; i++)
+            {
+                float t = i * LASER_STEP;
+                float px = startX + dirX * t;
+                float py = startY + dirY * t;
+
+                // 地图边界即停（终点保留上一有效采样点）
+                if (px < 0f || px > WORLD_SIZE || py < 0f || py > WORLD_SIZE) break;
+
+                endX = px;
+                endY = py;
+
+                foreach (var en in enemies)
+                {
+                    if (hitIds.Contains(en.eid)) continue;
+                    float dx = px - en.x;
+                    float dy = py - en.y;
+                    if (dx * dx + dy * dy <= en.r2)
+                    {
+                        hitIds.Add(en.eid);
+                        if (hitIds.Count >= LASER_PIERCE_MAX) break;
+                    }
+                }
+                if (hitIds.Count >= LASER_PIERCE_MAX) break;
+            }
+
+            // 伤害：由近到远递减结算
+            float dmg = LASER_DAMAGE;
+            foreach (int hitId in hitIds)
+            {
+                ApplyDamageToEntity(context, now, hitId, dmg);
+                dmg *= LASER_DECAY;
+            }
+
+            // 扣质量（与普通弹一致）
+            ent.mass -= BULLET_MASS_COST;
+            if (ent.mass < 0.1f) ent.mass = 0.1f;
+            UpdateHpAfterMassChange(ref ent);
+            context.Db.entity.id.Update(ent);
+
+            // 表现记录：终点是射线末端，不是命中的球
+            context.Db.laser_beam.Insert(new LaserBeam
+            {
+                owner_player_id = player.player_id,
+                start_x = startX,
+                start_y = startY,
+                end_x = endX,
+                end_y = endY,
+                spawned_at_ms = now
+            });
+        }
+
+        // 按次扣费：整次齐射只消耗 1 发
+        if (laserFired)
+        {
+            var a = ammoNullable.Value;
+            a.ammo_laser = Math.Max(0, a.ammo_laser - 1);
+            context.Db.player_ammo.player_id.Update(a);
+        }
+    }
+
+    /// <summary>按类型增加玩家弹药：kind 0=分裂 1=激光 2=双发 3=跟踪，各自上限独立。</summary>
+    private static void GainAmmo(ReducerContext context, int playerId, int kind, int amount)
+    {
+        var ammoNull = context.Db.player_ammo.player_id.Find(playerId);
+        if (ammoNull == null)
+        {
+            var fresh = new PlayerAmmo { player_id = playerId };
+            if (kind == 0) fresh.ammo_split = Math.Min(amount, MAX_SPLIT_AMMO);
+            else if (kind == 1) fresh.ammo_laser = Math.Min(amount, MAX_LASER_AMMO);
+            else if (kind == 2) fresh.ammo_double = Math.Min(amount, MAX_DOUBLE_AMMO);
+            else fresh.ammo_homing = Math.Min(amount, MAX_HOMING_AMMO);
+            context.Db.player_ammo.Insert(fresh);
+            return;
+        }
+
+        var a = ammoNull.Value;
+        if (kind == 0) a.ammo_split = Math.Min(a.ammo_split + amount, MAX_SPLIT_AMMO);
+        else if (kind == 1) a.ammo_laser = Math.Min(a.ammo_laser + amount, MAX_LASER_AMMO);
+        else if (kind == 2) a.ammo_double = Math.Min(a.ammo_double + amount, MAX_DOUBLE_AMMO);
+        else a.ammo_homing = Math.Min(a.ammo_homing + amount, MAX_HOMING_AMMO);
+        context.Db.player_ammo.player_id.Update(a);
+    }
+
     [Reducer]
     public static void MoveAllPlayer(ReducerContext context, MoveAllPlayerTimer timer)
     {
@@ -526,6 +839,9 @@ public static partial class Module
         var massGains = new System.Collections.Generic.Dictionary<int, float>();
         var healGains = new System.Collections.Generic.Dictionary<int, float>(); // 回血
         var splitAmmoGains = new System.Collections.Generic.Dictionary<int, int>(); // 玩家 → 分裂弹数量
+        var laserAmmoGains = new System.Collections.Generic.Dictionary<int, int>(); // 玩家 → 激光弹数量
+        var doubleAmmoGains = new System.Collections.Generic.Dictionary<int, int>(); // 玩家 → 双发弹数量
+        var homingAmmoGains = new System.Collections.Generic.Dictionary<int, int>(); // 玩家 → 跟踪弹数量
         var shieldGains = new System.Collections.Generic.Dictionary<int, float>();  // entity_id → 护盾值
         var speedBuffGains = new System.Collections.Generic.Dictionary<int, bool>(); // player_id → 速度buff
         var entitiesToDelete = new System.Collections.Generic.HashSet<int>();
@@ -670,7 +986,7 @@ public static partial class Module
                             {
                                 if (!splitAmmoGains.ContainsKey(playerId))
                                     splitAmmoGains[playerId] = 0;
-                                splitAmmoGains[playerId] += 1;
+                                splitAmmoGains[playerId] += SPLIT_ORB_AMMO_GAIN;
                             }
                             // 护盾球：给该玩家全体球增加护盾（不是只给拾取的那颗球）
                             if (isFood && snapB.foodType == 3)
@@ -686,6 +1002,24 @@ public static partial class Module
                             if (isFood && snapB.foodType == 4)
                             {
                                 speedBuffGains[playerId] = true;
+                            }
+                            // 激光弹：给玩家增加激光弹药
+                            if (isFood && snapB.foodType == 5)
+                            {
+                                laserAmmoGains.TryGetValue(playerId, out int laserAmmo);
+                                laserAmmoGains[playerId] = laserAmmo + LASER_ORB_AMMO_GAIN;
+                            }
+                            // 双发弹：给玩家增加双发弹药
+                            if (isFood && snapB.foodType == 6)
+                            {
+                                doubleAmmoGains.TryGetValue(playerId, out int doubleAmmo);
+                                doubleAmmoGains[playerId] = doubleAmmo + DOUBLE_ORB_AMMO_GAIN;
+                            }
+                            // 跟踪弹：给玩家增加跟踪弹药
+                            if (isFood && snapB.foodType == 7)
+                            {
+                                homingAmmoGains.TryGetValue(playerId, out int homingAmmo);
+                                homingAmmoGains[playerId] = homingAmmo + HOMING_ORB_AMMO_GAIN;
                             }
                         }
                     }
@@ -788,21 +1122,11 @@ public static partial class Module
                 context.Db.entity.id.Update(entityToHeal);
             }
         }
-        // 分裂弹拾取：增加玩家的分裂弹药（上限 MAX_SPLIT_AMMO）
-        foreach(var kvp in splitAmmoGains)
-        {
-            var ammo = context.Db.player_ammo.player_id.Find(kvp.Key);
-            if (ammo == null)
-            {
-                context.Db.player_ammo.Insert(new PlayerAmmo { player_id = kvp.Key, ammo_split = 1 });
-            }
-            else
-            {
-                var a = ammo.Value;
-                a.ammo_split = Math.Min(a.ammo_split + kvp.Value, MAX_SPLIT_AMMO);
-                context.Db.player_ammo.player_id.Update(a);
-            }
-        }
+        // 弹药拾取：分裂 / 激光 / 双发 / 跟踪（各自独立上限）
+        foreach(var kvp in splitAmmoGains) GainAmmo(context, kvp.Key, 0, kvp.Value);
+        foreach(var kvp in laserAmmoGains) GainAmmo(context, kvp.Key, 1, kvp.Value);
+        foreach(var kvp in doubleAmmoGains) GainAmmo(context, kvp.Key, 2, kvp.Value);
+        foreach(var kvp in homingAmmoGains) GainAmmo(context, kvp.Key, 3, kvp.Value);
         // 护盾球：给球体增加护盾
         nowMs = context.Timestamp.ToTimeSpanSinceUnixEpoch().TotalMilliseconds;
         foreach(var kvp in shieldGains)
@@ -866,6 +1190,13 @@ public static partial class Module
         var bulletHits = new System.Collections.Generic.Dictionary<int, float>(); // entity_id → damage
         var splitHits = new System.Collections.Generic.HashSet<int>();           // 被分裂弹命中的 circle entity_id
 
+        // 激光表现记录清理（300ms）
+        foreach (var beam in context.Db.laser_beam.Iter())
+        {
+            if (now - beam.spawned_at_ms >= LASER_BEAM_TTL_MS)
+                context.Db.laser_beam.id.Delete(beam.id);
+        }
+
         // 护盾过期检测
         foreach (var shield in context.Db.shield.Iter())
         {
@@ -900,11 +1231,65 @@ public static partial class Module
                 continue;
             }
 
+            // 本 tick 实际使用的方向（跟踪弹会改写）
+            float dirX = bullet.dir_x, dirY = bullet.dir_y;
+
+            // 跟踪弹：每 tick 朝最近敌方球限角速度转向（≤HOMING_TURN_RATE 度/秒），不瞬转
+            if (bullet.bullet_type == 4)
+            {
+                float bestSqr = float.MaxValue;
+                float desiredX = 0f, desiredY = 0f;
+                bool found = false;
+
+                foreach (var tgtCircle in context.Db.circle.Iter())
+                {
+                    if (tgtCircle.isMerging) continue;
+                    if (tgtCircle.player_id == bullet.owner_player_id) continue;
+                    var tgtEntNull = context.Db.entity.id.Find(tgtCircle.entity_id);
+                    if (tgtEntNull == null) continue;
+                    var tgtEnt = tgtEntNull.Value;
+                    float ddx = tgtEnt.position.x - bulletEnt.position.x;
+                    float ddy = tgtEnt.position.y - bulletEnt.position.y;
+                    float sq = ddx * ddx + ddy * ddy;
+                    if (sq >= bestSqr) continue;
+                    bestSqr = sq;
+                    desiredX = ddx;
+                    desiredY = ddy;
+                    found = true;
+                }
+
+                if (found)
+                {
+                    float dLen = MathF.Sqrt(desiredX * desiredX + desiredY * desiredY);
+                    if (dLen > 0.0001f)
+                    {
+                        desiredX /= dLen;
+                        desiredY /= dLen;
+                        float curAngle = MathF.Atan2(bullet.dir_y, bullet.dir_x);
+                        float wantAngle = MathF.Atan2(desiredY, desiredX);
+                        float delta = wantAngle - curAngle;
+                        while (delta > MathF.PI) delta -= MathF.PI * 2f;
+                        while (delta < -MathF.PI) delta += MathF.PI * 2f;
+                        float maxTurn = HOMING_TURN_RATE * (MathF.PI / 180f) * SERVER_DELTA;
+                        if (delta > maxTurn) delta = maxTurn;
+                        if (delta < -maxTurn) delta = -maxTurn;
+                        float newAngle = curAngle + delta;
+                        dirX = MathF.Cos(newAngle);
+                        dirY = MathF.Sin(newAngle);
+
+                        var steered = bullet;
+                        steered.dir_x = dirX;
+                        steered.dir_y = dirY;
+                        context.Db.bullet.entity_id.Update(steered);
+                    }
+                }
+            }
+
             // 移动子弹
             float moveStep = SERVER_DELTA * BULLET_SPEED; // 与主循环步长一致
             float origX = bulletEnt.position.x, origY = bulletEnt.position.y;
-            bulletEnt.position.x += bullet.dir_x * moveStep;
-            bulletEnt.position.y += bullet.dir_y * moveStep;
+            bulletEnt.position.x += dirX * moveStep;
+            bulletEnt.position.y += dirY * moveStep;
             ClampEntityToBounds(ref bulletEnt);
             context.Db.entity.id.Update(bulletEnt);
 
@@ -939,6 +1324,18 @@ public static partial class Module
                     {
                         splitHits.Add(circle.entity_id);
                     }
+                    else if (bullet.bullet_type == 3) // 双发弹 → 单颗 6
+                    {
+                        if (!bulletHits.ContainsKey(circle.entity_id))
+                            bulletHits[circle.entity_id] = 0;
+                        bulletHits[circle.entity_id] += DOUBLE_BULLET_DAMAGE;
+                    }
+                    else if (bullet.bullet_type == 4) // 跟踪弹 → 7
+                    {
+                        if (!bulletHits.ContainsKey(circle.entity_id))
+                            bulletHits[circle.entity_id] = 0;
+                        bulletHits[circle.entity_id] += HOMING_DAMAGE;
+                    }
                     else // 普通子弹 → 伤害
                     {
                         if (!bulletHits.ContainsKey(circle.entity_id))
@@ -950,97 +1347,9 @@ public static partial class Module
             }
         }
 
-        // 统一应用伤害
+        // 统一应用伤害（子弹与激光共用同一结算路径）
         foreach (var kv in bulletHits)
-        {
-            var targetNullable = context.Db.entity.id.Find(kv.Key);
-            if (targetNullable == null) continue;
-            var target = targetNullable.Value;
-
-            float damage = kv.Value;
-
-            // 无敌保护：无敌玩家不受伤害
-            {
-                var hitCircle = context.Db.circle.entity_id.Find(kv.Key);
-                if (hitCircle != null)
-                {
-                    var hitPlayer = context.Db.logged_in_player.player_id.Find(hitCircle.Value.player_id);
-                    if (hitPlayer != null && hitPlayer.Value.invincible_until_ms > now)
-                        continue; // 无敌，跳过伤害
-                }
-            }
-
-            // 护盾吸收伤害
-            var shieldNullable = context.Db.shield.entity_id.Find(kv.Key);
-            if (shieldNullable != null)
-            {
-                var s = shieldNullable.Value;
-                float absorbed = s.shield_hp >= damage ? damage : s.shield_hp;
-                s.shield_hp -= absorbed;
-                damage -= absorbed;
-                if (s.shield_hp <= 0)
-                    context.Db.shield.entity_id.Delete(kv.Key);
-                else
-                    context.Db.shield.entity_id.Update(s);
-            }
-
-            target.hp -= damage;
-            if (target.hp < 0) target.hp = 0;
-            if (target.hp > target.max_hp) target.hp = target.max_hp;
-            context.Db.entity.id.Update(target);
-
-            // HP=0 则死亡：记录继承质量、散落食物、删除实体
-            if (target.hp <= 0)
-            {
-                Log.Info($"[击杀] 实体 {target.id} 被子弹打死！");
-
-                // 查找死亡球所属玩家
-                var deadCircle = context.Db.circle.entity_id.Find(target.id);
-                int deadPlayerId = deadCircle?.player_id ?? 0;
-
-                if (deadPlayerId > 0)
-                {
-                    // 计算该玩家当前所有球的总质量
-                    float totalMass = 0f;
-                    foreach (var c in context.Db.circle.player_id.Filter(deadPlayerId))
-                    {
-                        var e = context.Db.entity.id.Find(c.entity_id);
-                        if (e != null) totalMass += e.Value.mass;
-                    }
-                    // 存储 10% 给下次重生
-                    var deadPlayer = context.Db.logged_in_player.player_id.Find(deadPlayerId);
-                    if (deadPlayer != null)
-                    {
-                        var dp = deadPlayer.Value;
-                        dp.respawn_mass = (double)(totalMass * 0.1f);
-                        if (dp.respawn_mass < PRIMARY_PLAYER_MASS)
-                            dp.respawn_mass = PRIMARY_PLAYER_MASS; // 保底不低于初始质量
-                        context.Db.logged_in_player.player_id.Update(dp);
-                    }
-                }
-
-                // 散落食物
-                int dropCount = 3 + (int)(target.mass * 0.05f);
-                if (dropCount > 8) dropCount = 8;
-                for (int i = 0; i < dropCount; i++)
-                {
-                    float rx = (float)(context.Rng.NextDouble() - 0.5) * 3f;
-                    float ry = (float)(context.Rng.NextDouble() - 0.5) * 3f;
-                    var foodEnt = context.Db.entity.Insert(new Entity
-                    {
-                        mass = target.mass * 0.2f / dropCount,
-                        position = new DbVector2(target.position.x + rx, target.position.y + ry),
-                        hp = 0,
-                        max_hp = 0
-                    });
-                    context.Db.food.Insert(new Food { entity_id = foodEnt.id });
-                }
-                // 删除死亡玩家的 circle 和 entity
-                if (context.Db.circle.entity_id.Find(target.id) != null)
-                    context.Db.circle.entity_id.Delete(target.id);
-                context.Db.entity.id.Delete(target.id);
-            }
-        }
+            ApplyDamageToEntity(context, now, kv.Key, kv.Value);
 
         // 分裂弹效果：对命中的球强制分裂（受上限约束）
         foreach (var targetEid in splitHits)

@@ -79,6 +79,14 @@ HP系统、子弹射击、特殊食物球(5种)、弹药栏、排行榜、重生
   不再运行时生成元素。改大小：直接改 `Leaderboard` 的 RectTransform 宽度 / `RowTemplate` 的 LayoutElement 行高。
 - 通用约定：新增 UI 优先在场景/Prefab 里搭，脚本只用 SerializeField 引用 + 写数据，避免代码 clamp 尺寸。
 - `execute_code` 是 CodeDom(C#6) 且按方法体注入，不能写 `using`；复杂编辑器操作走临时 `[MenuItem]` 脚本。
+- **UGUI Text 隐形坑**：控件高度 < 字体 preferredHeight 且 `verticalOverflow=Truncate` 时，整行字符全部被裁掉（`cachedTextGenerator.characterCount=0`），节点看着正常但一个字都不渲染。调字号/改矩形后务必验证 characterCount；角标类小字直接设 `Overflow`。
+- 弹药栏 `HudCanvas/AmmoPanel`：槽尺寸由 `LayoutElement` 驱动（改 sizeDelta 无效）；数量文本是 `Slot_x_Bg/Count`，索引 0=普通(∞)/1=分裂/2=激光/3=双发/4=跟踪。
+
+## 打包（Android）
+- 打包链路：`Builds/BallBattle.apk`，IL2CPP + arm64，含 Burst AOT（`lib_burst_generated.so`）。
+- 报 `Burst internal compiler error: System.UnauthorizedAccessException`（栈到 `Path.InternalGetTempFileName` / `AotNativeLinkAndroid.Link`）时，先看
+  `Library/Bee/artifacts/Android/AsyncPluginsFromLinker` 是否为**空目录**（正常应有 `arm64-v8a/lib_burst_generated.so`）→ **删 `Library/Bee` 强制重建**即可恢复；同时确认没有两份构建/两个 Unity 实例在跑同一工程。
+- 该报错与磁盘空间、目录 ACL 无关（实测排除）；`UnityEngine.Debug.Log` 里的中文异常消息常被双重编码成乱码，认栈不要认文案。
 
 ## 用户偏好
 - 使用中文交流

@@ -81,6 +81,7 @@ public sealed class LocalGameSession : IGameSession
     internal void RaiseCircleUpdate(Circle oldRow, Circle newRow) => _tables.Circle.RaiseUpdate(oldRow, newRow);
     internal void RaiseCircleDelete(Circle row) => _tables.Circle.RaiseDelete(row);
     internal void RaiseBulletInsert(Bullet row) => _tables.Bullet.RaiseInsert(row);
+    internal void RaiseBulletUpdate(Bullet oldRow, Bullet newRow) => _tables.Bullet.RaiseUpdate(oldRow, newRow);
     internal void RaiseBulletDelete(Bullet row) => _tables.Bullet.RaiseDelete(row);
     internal void RaisePlayerAmmoInsert(PlayerAmmo row) => _tables.PlayerAmmo.RaiseInsert(row);
     internal void RaisePlayerAmmoUpdate(PlayerAmmo oldRow, PlayerAmmo newRow)
@@ -94,6 +95,8 @@ public sealed class LocalGameSession : IGameSession
     internal void RaiseSpeedBuffDelete(SpeedBuff row) => _tables.SpeedBuff.RaiseDelete(row);
     internal void RaisePlayerInsert(Player row) => _tables.LoggedInPlayer.RaiseInsert(row);
     internal void RaisePlayerUpdate(Player oldRow, Player newRow) => _tables.LoggedInPlayer.RaiseUpdate(oldRow, newRow);
+    internal void RaiseLaserBeamInsert(LaserBeam row) => _tables.LaserBeam.RaiseInsert(row);
+    internal void RaiseLaserBeamDelete(LaserBeam row) => _tables.LaserBeam.RaiseDelete(row);
 
     private sealed class LocalActions : IGameActions
     {
